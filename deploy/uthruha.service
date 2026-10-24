@@ -1,0 +1,27 @@
+﻿[Unit]
+Description=Uthruha Next.js (port 3300, hanya localhost)
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=uthruha
+Group=uthruha
+WorkingDirectory=/opt/uthruha
+EnvironmentFile=/opt/uthruha/.env.local
+Environment="NODE_ENV=production"
+Environment="PORT=3300"
+# Hanya localhost. Cloudflare Tunnel yang menghubungkan ke internet.
+Environment="HOSTNAME=127.0.0.1"
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/uthruha/.next
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

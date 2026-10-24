@@ -1,0 +1,9 @@
+export { Hero } from "./hero";
+export { Masalah } from "./masalah";
+export { CaraKerja } from "./cara-kerja";
+export { Fitur } from "./fitur";
+export { StrukturSection } from "./struktur";
+export { FrasaPreview } from "./frasa-preview";
+export { JurnalPreview } from "./jurnal-preview";
+export { Integritas } from "./integritas";
+export { CtaBand } from "./cta-band";

@@ -1,0 +1,30 @@
+{
+  "name": "uthruha",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3300",
+    "build": "next build",
+    "start": "next start -p 3300",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx scripts/smoke.ts",
+    "check:ui": "node scripts/ui-check.mjs",
+    "smoke:qa": "tsx scripts/qa-naskah.ts"
+  },
+  "dependencies": {
+    "next": "15.5.28",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "autoprefixer": "10.4.20",
+    "postcss": "8.4.49",
+    "tailwindcss": "3.4.17",
+    "tsx": "^4.23.15",
+    "typescript": "5.7.2"
+  }
+}

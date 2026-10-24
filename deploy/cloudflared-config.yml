@@ -1,0 +1,36 @@
+﻿# Cloudflare Tunnel - pengganti ngrok untuk server yang harus SELALU hidup.
+#
+# Keunggulan dibanding ngrok free:
+#   - Tidak ada batas sesi 2 jam
+#   - Hostname TETAP (milik domain Anda sendiri)
+#   - Tidak ada halaman peringatan peramban
+#   - Bisa dipasangi Cloudflare Access (wajib login) + rate limiting di edge
+#   - Origin TIDAK membuka port apa pun ke internet (koneksi keluar)
+#
+# Pasang:
+#   cloudflared tunnel login
+#   cloudflared tunnel create uthruha
+#   cloudflared tunnel route dns uthruha uthruha.domainanda.com
+#   sudo cp config.yml /etc/cloudflared/config.yml
+#   sudo cloudflared service install
+#
+# File kredensial: /etc/cloudflared/<TUNNEL-UUID>.json
+
+tunnel: <TUNNEL-UUID>
+credentials-file: /etc/cloudflared/<TUNNEL-UUID>.json
+
+ingress:
+  # Aplikasi Uthruha
+  - hostname: uthruha.domainanda.com
+    service: http://127.0.0.1:3300
+    originRequest:
+      connectTimeout: 30s
+      noTLSVerify: false
+
+  # Ollama - JANGAN diekspos ke publik. Kalau perlu diakses aplikasi lain,
+  # pakai jalur terpisah yang dilindungi Cloudflare Access + service token.
+  # - hostname: llm.domainanda.com
+  #   service: http://127.0.0.1:11434
+
+  # Wajib ada di akhir: tolak sisanya.
+  - service: http_status:404

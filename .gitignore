@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# produksi
+build/
+dist/
+
+# typescript
+*.tsbuildinfo
+
+# uji lokal
+.smoke.docx
+screenshots/
+
+# sistem operasi
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+
+# environment
+.env
+.env.local
+.env*.local
+
+# debug/test scripts sementara
+scripts/debug-*.ts
+scripts/uji-*.ts
+
+# logs
+*.log
+npm-debug.log*
