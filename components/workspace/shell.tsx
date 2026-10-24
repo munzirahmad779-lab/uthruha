@@ -23,6 +23,7 @@ import { IstilahTab } from "@/components/workspace/istilah-tab";
 import { RefTab } from "@/components/workspace/refs-tab";
 import { AuditTab } from "@/components/workspace/audit-tab";
 import { ExportTab } from "@/components/workspace/export-tab";
+import { GDriveLogin } from "@/components/workspace/gdrive-login";
 
 const TAB = [
   { id: "ringkas", label: "Ringkasan", ar: "نظرة" },
@@ -182,6 +183,11 @@ export function Workspace({ id }: { id: string }) {
               Ubah konteks proyek <IconArrowRight className="h-3 w-3" />
             </Link>
           </div>
+        </div>
+
+        {/* Google Drive Sync */}
+        <div className="mt-4 pt-4 border-t border-ink-900/10">
+          <GDriveLogin />
         </div>
       </header>
 
