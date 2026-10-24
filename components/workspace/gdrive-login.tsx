@@ -16,6 +16,18 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
   const [proyekList, setProyekList] = useState<Array<{ id: string; name: string; modified: string }>>([]);
   const [showProyek, setShowProyek] = useState(false);
 
+  // Muat Google Identity Services script saat komponen mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ((window as any).google) return; // Sudah dimuat
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.id = "google-identity-services";
+    document.head.appendChild(script);
+  }, []);
+
   // Cek apakah sudah ada token di sessionStorage
   useEffect(() => {
     const saved = sessionStorage.getItem("uthruha_gdrive_token");
@@ -30,6 +42,20 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
     setError(null);
 
     try {
+      // Tunggu Google Identity Services siap
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).google) { resolve(); return; }
+        const script = document.getElementById("google-identity-services") as HTMLScriptElement | null;
+        if (script) {
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Gagal memuat Google Identity Services."));
+          // Timeout 10 detik
+          setTimeout(() => reject(new Error("Timeout memuat Google Identity Services.")), 10000);
+        } else {
+          reject(new Error("Google Identity Services script tidak ditemukan."));
+        }
+      });
+
       const accessToken = await requestDriveAccess();
       if (!accessToken) {
         setError("Login dibatalkan atau gagal. Coba lagi.");

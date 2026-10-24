@@ -98,10 +98,21 @@ export function requestDriveAccess(): Promise<string | null> {
     if (typeof window === "undefined") { resolve(null); return; }
 
     const google = (window as any).google;
-    if (!google) { resolve(null); return; }
+    if (!google || !google.accounts || !google.accounts.oauth2) {
+      console.error("Google Identity Services belum siap.");
+      resolve(null);
+      return;
+    }
+
+    const clientId = getClientId();
+    if (!clientId || clientId.includes("PASTE_")) {
+      console.error("NEXT_PUBLIC_GOOGLE_CLIENT_ID belum dikonfigurasi.");
+      resolve(null);
+      return;
+    }
 
     const client = google.accounts.oauth2.initTokenClient({
-      client_id: getClientId(),
+      client_id: clientId,
       scope: SCOPES,
       callback: (response: any) => {
         resolve(response.access_token ?? null);
