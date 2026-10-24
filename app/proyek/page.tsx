@@ -16,6 +16,7 @@ import {
 } from "@/lib/engine/project";
 import { IconArrowRight, IconBook, IconCopy, IconPlus, IconTrash } from "@/components/icons";
 import { Progress } from "@/components/ui";
+import { GDriveLogin } from "@/components/workspace/gdrive-login";
 
 export default function DaftarProyekPage() {
   const [proyek, setProyek] = useState<Project[] | null>(null);
@@ -45,14 +46,18 @@ export default function DaftarProyekPage() {
             Proyek Anda
           </h1>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-600">
-            Semua proyek tersimpan di peramban ini. Tidak ada akun, tidak ada sinkronisasi —
-            ekspor .docx secara berkala sebagai cadangan.
+            Semua proyek tersimpan di peramban ini. Sinkronkan ke Google Drive agar aman.
           </p>
         </div>
         <Link href="/mulai" className="btn-primary">
           <IconPlus className="h-4 w-4" />
           Proyek baru
         </Link>
+      </div>
+
+      {/* Google Drive Sync */}
+      <div className="mt-6">
+        <GDriveLogin />
       </div>
 
       {proyek === null && (
