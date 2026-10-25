@@ -17,7 +17,7 @@ export interface KataKunci {
   sumber: string;
 }
 
-/** Minta kata kunci ke route server (Groq → Cloudflare → tanpa-AI). */
+/** Minta kalimat kunci (frasa kunci, BUKAN kata lepas) ke route server (Groq → Cloudflare → tanpa-AI). */
 export async function ekstrakKataKunci(teks: string): Promise<KataKunci> {
   const res = await fetch("/api/kata-kunci", {
     method: "POST",
@@ -128,6 +128,54 @@ export async function cariJurnalTopik(kk: KataKunci, perSumber = 8): Promise<Has
     return true;
   });
   return { entri, status };
+}
+
+export interface HitKitabMentah {
+  id: string;
+  source: string;
+  kitab: string;
+  penulis?: string;
+  jilid?: number;
+  halaman_cetak?: number;
+  teks_kutipan: string;
+  url_sumber: string;
+  perluVerifikasi: boolean;
+}
+
+/**
+ * Pencarian kitab per KALIMAT KUNCI (rancangan awal Uthruha: yang dicari adalah
+ * kalimat/frasa kunci, bukan kata lepas — kata lepas terlalu umum).
+ * Tiap kalimat kunci Arab dikirim sebagai satu kalimat ke route refs
+ * (pencocokan frasa di Turath/Shamela), hasil digabung & didedup per halaman.
+ */
+export async function cariKitabKalimat(
+  kalimatKunciArab: string[],
+  cadangan: string,
+): Promise<{ hits: HitKitabMentah[]; frasaDipakai: string[] }> {
+  const frasa = (kalimatKunciArab.length > 0 ? kalimatKunciArab : [cadangan]).slice(0, 3);
+  const semua: HitKitabMentah[] = [];
+  for (const f of frasa) {
+    try {
+      const res = await fetch("/api/refs/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sentences: [f], mode: "kata" }),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      semua.push(...((data.hasil ?? []) as HitKitabMentah[]));
+    } catch {
+      /* satu frasa gagal tidak mematikan frasa lain */
+    }
+  }
+  const terlihat = new Set<string>();
+  const hits = semua.filter((h) => {
+    const kunci = `${h.url_sumber}|${h.kitab}|${h.halaman_cetak ?? ""}`;
+    if (terlihat.has(kunci)) return false;
+    terlihat.add(kunci);
+    return true;
+  });
+  return { hits, frasaDipakai: frasa };
 }
 
 /* ---------------- BM25 lokal (pencarian kata kunci, offline) ---------------- */

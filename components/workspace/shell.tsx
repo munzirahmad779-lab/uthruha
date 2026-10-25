@@ -25,6 +25,8 @@ import { AuditTab } from "@/components/workspace/audit-tab";
 import { ExportTab } from "@/components/workspace/export-tab";
 import { GDriveLogin } from "@/components/workspace/gdrive-login";
 import { PenyimpananStrip } from "@/components/workspace/penyimpanan-strip";
+import { migrasiProyek } from "@/lib/engine/project";
+import { projectKeTersimpan, simpanProyekKeDrive, type ProyekTersimpan } from "@/lib/engine/gdrive-storage";
 
 const TAB = [
   { id: "ringkas", label: "Ringkasan", ar: "نظرة" },
@@ -40,6 +42,8 @@ export function Workspace({ id }: { id: string }) {
   const [proyek, setProyek] = useState<Project | null>(null);
   const [hilang, setHilang] = useState(false);
   const [galatSimpan, setGalatSimpan] = useState("");
+  const [driveToken, setDriveToken] = useState<string | null>(null);
+  const [pesanDrive, setPesanDrive] = useState("");
   const [tab, setTab] = useState("ringkas");
   const [bagian, setBagian] = useState<string>("khalfiya");
   const [tersimpan, setTersimpan] = useState(true);
@@ -98,6 +102,32 @@ export function Workspace({ id }: { id: string }) {
     },
     [],
   );
+
+  /** Muat proyek dari Drive: bentuk Drive lama → gerbang migrasi → simpan lokal → tampilkan. */
+  function muatDariDrive(pt: ProyekTersimpan) {
+    try {
+      const p = migrasiProyek(pt);
+      simpanProyek(p);
+      setProyek(p);
+      const pertama = getStruktur(p.jenis).chapters[0]?.sections[0]?.id;
+      if (pertama) setBagian(pertama);
+      setPesanDrive(`Proyek dari Drive dimuat: ${p.judulAr || p.topikAr || p.id}`);
+    } catch (e) {
+      setPesanDrive(e instanceof Error ? e.message : "Gagal memuat proyek dari Drive.");
+    }
+  }
+
+  /** Sinkronkan proyek aktif ke Drive (folder /Utruha, file {id}.json). */
+  async function sinkronKeDrive() {
+    if (!driveToken || !proyek) return;
+    setPesanDrive("Menyinkronkan ke Google Drive…");
+    try {
+      await simpanProyekKeDrive(driveToken, projectKeTersimpan(proyek));
+      setPesanDrive("Tersinkron ke Google Drive (folder Utruha).");
+    } catch (e) {
+      setPesanDrive(e instanceof Error ? `Gagal sinkron: ${e.message}` : "Gagal sinkron ke Drive.");
+    }
+  }
 
   const stat = useMemo(() => {
     if (!proyek) return null;
@@ -207,7 +237,15 @@ export function Workspace({ id }: { id: string }) {
 
         {/* Google Drive Sync */}
         <div className="mt-4 pt-4 border-t border-ink-900/10">
-          <GDriveLogin />
+          <GDriveLogin onLogin={setDriveToken} onProyekDimuat={muatDariDrive} />
+          {driveToken && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={sinkronKeDrive} className="btn-quiet !py-1.5">
+                Sinkronkan proyek ini ke Drive
+              </button>
+              {pesanDrive && <span className="text-[11px] text-ink-600">{pesanDrive}</span>}
+            </div>
+          )}
         </div>
       </header>
 

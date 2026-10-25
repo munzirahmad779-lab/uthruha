@@ -6,27 +6,19 @@ import { sumberBaru, type Sumber } from "@/lib/engine/cite";
 import { cariDuplikat } from "@/lib/engine/referensi";
 import {
   cariJurnalTopik,
+  cariKitabKalimat,
   cariLokalBM25,
   ekstrakKataKunci,
   parseTempelanSitasi,
   type HasilLokal,
+  type HitKitabMentah,
   type KataKunci,
 } from "@/lib/engine/pencarian-topik";
 import { Field, Note } from "@/components/ui";
 
 type Mode = "jurnal" | "kitab" | "lokal";
 
-interface HitKitab {
-  id: string;
-  source: string;
-  kitab: string;
-  penulis?: string;
-  jilid?: number;
-  halaman_cetak?: number;
-  teks_kutipan: string;
-  url_sumber: string;
-  perluVerifikasi: boolean;
-}
+type HitKitab = HitKitabMentah;
 
 export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>) => void }) {
   const [mode, setMode] = useState<Mode>("jurnal");
@@ -82,16 +74,23 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
     setSibuk("kitab");
     setPesan("");
     try {
-      const res = await fetch("/api/refs/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sentences: [teks], mode: "kata" }),
-      });
-      if (!res.ok) throw new Error("gagal");
-      const data = await res.json();
-      setHasilKitab((data.hasil ?? []) as HitKitab[]);
-      if ((data.hasil ?? []).length === 0) {
-        setPesan("Tidak ada kecocokan frasa di kitab. Pencarian kitab mencocokkan frasa persis — coba potongan kalimat dari kitab, atau buka pencarian mendalam di Turath.io.");
+      // Rancangan awal: yang dicari adalah KALIMAT KUNCI (frasa utuh), bukan
+      // kata lepas. Susun kalimat kunci Arab dari topik lewat AI helper;
+      // bila AI tidak tersedia, teks user dipakai apa adanya sebagai kalimat.
+      let frasaArab: string[] = [];
+      try {
+        const kunci = await ekstrakKataKunci(teks);
+        setKk(kunci);
+        frasaArab = kunci.arab;
+      } catch {
+        /* jatuh ke teks apa adanya */
+      }
+      const { hits, frasaDipakai } = await cariKitabKalimat(frasaArab, teks);
+      setHasilKitab(hits);
+      if (hits.length === 0) {
+        setPesan(
+          `Tidak ada kecocokan frasa di kitab untuk kalimat kunci: ${frasaDipakai.join(" · ")}. Coba kalimat kunci lain, atau buka pencarian mendalam di Turath.io.`,
+        );
       }
     } catch {
       setPesan("Pencarian kitab gagal — server tidak menjawab. Coba lagi sebentar.");
@@ -152,7 +151,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         />
         {mode === "jurnal" && (
           <button type="button" className="btn-primary !py-2.5" disabled={!online || sibuk !== "" || teks.trim().length < 10} onClick={jalankanJurnal}>
-            {sibuk === "jurnal" ? "Mencari…" : "Ekstrak kata kunci & cari"}
+            {sibuk === "jurnal" ? "Mencari…" : "Susun kalimat kunci & cari"}
           </button>
         )}
         {mode === "kitab" && (
@@ -178,9 +177,9 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         </Note>
       )}
 
-      {kk && mode === "jurnal" && (
+      {kk && mode !== "lokal" && (
         <div className="rounded-xl bg-parchment-100/70 px-3 py-2 text-[11.5px] text-ink-700">
-          <span className="font-semibold">Kata kunci</span> (sumber: {kk.sumber}) — Arab:{" "}
+          <span className="font-semibold">Kalimat kunci</span> (frasa pencarian, sumber: {kk.sumber}) — Arab:{" "}
           <span dir="rtl" className="font-naskh">{kk.arab.join(" · ")}</span> · Indonesia:{" "}
           {kk.indonesia.join(" · ")} · Inggris: {kk.inggris.join(" · ")}
           {statusJurnal.length > 0 && (

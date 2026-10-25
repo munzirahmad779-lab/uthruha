@@ -137,6 +137,38 @@ async function driveAPI(path: string, token: string, options: RequestInit = {}):
   return res.json();
 }
 
+// ─── Konversi Project workspace ↔ ProyekTersimpan ────────────────────────────
+import type { Project } from "@/lib/engine/project";
+
+/**
+ * Project (bentuk workspace/localStorage) → ProyekTersimpan (bentuk Drive).
+ * Arah sebaliknya TIDAK di sini: muat dari Drive wajib lewat gerbang
+ * migrasiProyek() di lib/engine/project.ts agar bentuk lama tetap terbaca.
+ */
+export function projectKeTersimpan(p: Project): ProyekTersimpan {
+  const sekarang = new Date().toISOString();
+  return {
+    project_id: p.id,
+    title: p.judulAr || p.topikAr || "",
+    created_at: p.dibuat,
+    updated_at: p.diperbarui || sekarang,
+    sections: Object.fromEntries(
+      Object.entries(p.draf).map(([id, markdown]) => [
+        id,
+        { markdown, key_sentences: [], last_edited: sekarang },
+      ]),
+    ),
+    references: p.sumber.map((s) => ({
+      id: s.id,
+      source: { ...s } as unknown as Record<string, unknown>,
+      verification: s.perluVerifikasi ? "perlu-verifikasi" : "terverifikasi",
+      edited_manually: (s.sumberImpor ?? "manual") === "manual",
+    })),
+    ai_sessions: [],
+    edit_history: [],
+  };
+}
+
 /** Cari atau buat folder /Utruha di root Drive. */
 export async function pastikanFolderApp(token: string): Promise<string> {
   // Cari folder Utruha

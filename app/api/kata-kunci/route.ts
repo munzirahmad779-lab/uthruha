@@ -20,16 +20,16 @@ export const runtime = "nodejs";
 
 type KataKunci = { arab: string[]; indonesia: string[]; inggris: string[] };
 
-const SYSTEM_PROMPT = `Anda adalah pengekstrak kata kunci untuk pencarian literatur akademik.
-Tugas Anda HANYA mengekstrak frasa kunci dari topik/rumusan masalah pengguna.
+const SYSTEM_PROMPT = `Anda adalah pengekstrak KALIMAT KUNCI (frasa kunci pencarian) untuk literatur akademik.
+Tugas Anda HANYA menyusun kalimat kunci dari topik/rumusan masalah pengguna.
 Aturan:
 - Keluarkan HANYA JSON valid, tanpa penjelasan, tanpa markdown:
   {"arab":["..."],"indonesia":["..."],"inggris":["..."]}
-- Masing-masing 3-5 frasa, tiap frasa 2-5 kata.
-- "arab": frasa dalam HURUF ARAB (bukan transliterasi Latin), istilah akademik Arab untuk konsep yang sama.
-- "indonesia": frasa dalam Bahasa Indonesia.
-- "inggris": terjemahan akademik frasa tersebut ke Bahasa Inggris (untuk CrossRef).
-- Jangan mengarang nama penulis, judul, tahun, atau DOI. Hanya kata kunci dari teks pengguna.`;
+- Masing-masing 3-5 KALIMAT KUNCI. Kalimat kunci adalah frasa utuh 3-7 kata yang cukup khas untuk dicari persis — BUKAN kata tunggal dan BUKAN daftar kata kunci lepas. Kata kunci lepas menghasilkan pencarian yang terlalu umum.
+- "arab": kalimat kunci dalam HURUF ARAB (bukan transliterasi Latin), istilah/ungkapan akademik Arab untuk konsep yang sama — cukup panjang untuk menjadi frasa pencarian di kitab/jurnal Arab.
+- "indonesia": kalimat kunci dalam Bahasa Indonesia.
+- "inggris": padanan akademik frasa tersebut dalam Bahasa Inggris (untuk CrossRef).
+- Jangan mengarang nama penulis, judul, tahun, atau DOI. Hanya kalimat kunci dari teks pengguna.`;
 
 function parseKataKunci(raw: string): KataKunci | null {
   try {

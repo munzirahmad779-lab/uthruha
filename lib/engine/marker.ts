@@ -6,7 +6,7 @@
  * pernah ditulis tangan user, jadi tidak ada nomor yang basi saat naskah
  * disusun ulang. Draf lama tanpa marker tidak berubah sama sekali.
  */
-import { footnoteGaya, gayaSah } from "@/lib/engine/citation";
+import { footnoteGaya, footnotePedoman, gayaSah } from "@/lib/engine/citation";
 import type { Project } from "@/lib/engine/project";
 
 export interface MarkerSitasi {
@@ -73,7 +73,13 @@ export function kompilasiMarker(markdown: string, p: Project): HasilKompilasi {
     if (nomor === undefined) {
       nomor = definisi.length + 1;
       nomorUntuk.set(kunci, nomor);
-      definisi.push(`[^${nomor}]: ${footnoteGaya(sumber, gaya, { halaman: hlm?.trim() || undefined, jilid: jil?.trim() || undefined })}`);
+      const opsi = { halaman: hlm?.trim() || undefined, jilid: jil?.trim() || undefined };
+      // Pedoman kampus adalah lapisan teratas: bila proyek punya pedoman,
+      // template footnote pedoman yang dipakai, bukan gaya proyek.
+      const teksFootnote = p.pedoman?.formatFootnote
+        ? footnotePedoman(sumber, p.pedoman, opsi)
+        : footnoteGaya(sumber, gaya, opsi);
+      definisi.push(`[^${nomor}]: ${teksFootnote}`);
       jumlah++;
     }
     return `[^${nomor}]`;

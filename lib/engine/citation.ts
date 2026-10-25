@@ -9,6 +9,7 @@
  * jatuh ke pola umum, bukan ditebak detailnya.
  */
 import { catatanKaki, entriDaftarPustaka, type Sumber } from "@/lib/engine/cite";
+import type { PedomanRules } from "@/lib/refs/pedoman";
 
 export type GayaSitasi = "turabian9" | "chicago17" | "apa7" | "arab-klasik";
 
@@ -132,4 +133,49 @@ export function susunDaftarPustakaGaya(items: Sumber[], gaya: GayaSitasi): strin
   return [...items]
     .sort((a, b) => collator.compare(namaPenulis(a), namaPenulis(b)) || (a.tahun || "").localeCompare(b.tahun || ""))
     .map((s) => daftarPustakaGaya(s, gaya));
+}
+
+/* ------- Pedoman kampus: lapisan TERATAS (mengalahkan gaya proyek) ------- */
+
+/** Isi slot template pedoman {penulis} {judul} {kota} … dari satu Sumber. */
+function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}): string {
+  const nilai: Record<string, string> = {
+    penulis: s.penulis,
+    judul: s.judul,
+    kota: s.kota ?? "",
+    penerbit: s.penerbit ?? "",
+    tahun: s.tahun,
+    tahunHijriah: s.tahunHijriah ?? "",
+    jilid: opsi.jilid ?? s.jilid ?? "",
+    halaman: opsi.halaman ?? s.halaman ?? "",
+    muhaqqiq: s.muhaqqiq ?? s.tahqiq ?? "",
+    tahqiq: s.tahqiq ?? s.muhaqqiq ?? "",
+    penerjemah: s.penerjemah ?? "",
+    jurnal: s.jurnal ?? "",
+    volume: s.volume ?? "",
+    nomor: s.nomor ?? "",
+    doi: s.doi ?? "",
+    edisi: s.edisi ?? "",
+  };
+  return template
+    .replace(/\{(\w+)\}/g, (_, k: string) => nilai[k] ?? "")
+    .replace(/\(\s*[:،,]?\s*\)/g, "")
+    .replace(/،\s*،/g, "،")
+    .replace(/:\s*،/g, "،")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([،.])/g, "$1")
+    .trim();
+}
+
+/** Footnote menurut template pedoman kampus user (bila proyek punya pedoman). */
+export function footnotePedoman(s: Sumber, pedoman: PedomanRules, opsi: OpsiFootnote = {}): string {
+  return isiTemplate(pedoman.formatFootnote, s, opsi);
+}
+
+/** Daftar pustaka menurut template pedoman kampus user, urut alfabet Arab. */
+export function daftarPustakaPedoman(items: Sumber[], pedoman: PedomanRules): string[] {
+  const collator = new Intl.Collator("ar");
+  return [...items]
+    .sort((a, b) => collator.compare(a.penulis, b.penulis) || (a.tahun || "").localeCompare(b.tahun || ""))
+    .map((s) => isiTemplate(pedoman.formatPustaka, s));
 }
