@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { getStruktur } from "@/lib/content/struktur";
+import { strukturProyek } from "@/lib/content/struktur";
 import { perbaikiOtomatis, periksaOrtografi } from "@/lib/engine/orthografi";
 import type { Project } from "@/lib/engine/project";
 import { IconCheck, IconSparkle } from "@/components/icons";
@@ -26,7 +26,7 @@ export function AuditTab({
   const [lingkup, setLingkup] = useState<"bagian" | "semua">("bagian");
   const [filter, setFilter] = useState<"semua" | "kritis" | "saran" | "info">("semua");
 
-  const st = getStruktur(p.jenis);
+  const st = strukturProyek(p);
   const semuaBagian = st.chapters.flatMap((c) => c.sections);
   const judulBagian =
     semuaBagian.find((s) => s.id === bagian)?.labelId ?? bagian;

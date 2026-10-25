@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { getBidang } from "@/lib/content/bidang";
-import { getStruktur } from "@/lib/content/struktur";
+import { strukturProyek } from "@/lib/content/struktur";
 import type { Istilah, Project } from "@/lib/engine/project";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { Field, Note } from "@/components/ui";
@@ -54,7 +54,7 @@ export function IstilahTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Proj
     (t) => !p.istilah.some((i) => normal(i.ar) === normal(t.ar)),
   );
 
-  const st = getStruktur(p.jenis);
+  const st = strukturProyek(p);
   const totalBagian = st.chapters.reduce((a, c) => a + c.sections.length, 0);
 
   return (

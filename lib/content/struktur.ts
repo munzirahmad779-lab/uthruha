@@ -555,3 +555,137 @@ export function findSection(karya: KaryaType, sectionId: string) {
   }
   return null;
 }
+
+/* ==========================================================================
+   Daftar isi dari isykaliyyat (pola Ma'had Aly DDI Mangkoso)
+   Setiap bab isi mewakili SATU rumusan masalah/isykal:
+   isykal 1 → bab II, isykal 2 → bab III, isykal 3 → bab IV (analisis akhir
+   yang merinci jawaban/judul dari analisis bab-bab sebelumnya).
+   Bab I (pendahuluan) dan bab penutup mengikuti kerangka bawaan pedoman.
+   Hasil susunan menjadi daftar isi MILIK proyek dan bebas diedit mahasiswa.
+   ========================================================================== */
+
+import type { BabKustom, Project } from "@/lib/engine/project";
+
+const ORDINAL_AR = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر"];
+const ROMAWI = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+
+/** Sub-bab bab pengurai isykal (semua bab isykal kecuali yang terakhir). */
+const SEKSI_EKSPLORASI: Array<{ akhiran: string; labelId: string; labelAr: string }> = [
+  { akhiran: "taswir", labelId: "Gambaran Masalah", labelAr: "تصوير المسألة" },
+  { akhiran: "aqwal", labelId: "Pendapat Ulama", labelAr: "أقوال العلماء في المسألة" },
+  { akhiran: "adilla", labelId: "Dalil-dalil Pendapat", labelAr: "أدلة الأقوال" },
+  { akhiran: "munaqasha", labelId: "Pembahasan Dalil", labelAr: "مناقشة الأدلة" },
+];
+
+/** Sub-bab bab analisis akhir (bab isykal terakhir): merinci jawaban akhir. */
+const SEKSI_ANALISIS: Array<{ akhiran: string; labelId: string; labelAr: string }> = [
+  { akhiran: "talkhis", labelId: "Ringkasan Bab Sebelumnya", labelAr: "تلخيص ما تقدم" },
+  { akhiran: "muwazana", labelId: "Analisis & Penimbangan", labelAr: "التحليل والموازنة بين الأدلة" },
+  { akhiran: "tarjih", labelId: "Penetapan Jawaban Akhir", labelAr: "الترجيح والجواب النهائي" },
+  { akhiran: "atsar", labelId: "Penerapan & Dampaknya", labelAr: "تطبيق الجواب وآثاره" },
+];
+
+function potongTeks(s: string, maks: number): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > maks ? `${t.slice(0, maks - 1)}…` : t;
+}
+
+/**
+ * Susun daftar isi dari rumusan masalah proyek (pola Ma'had).
+ * Mengembalikan null bila jenis karya bukan akademik 5-bab atau rumusan kosong.
+ */
+export function susunDaftarIsiIsykal(p: Project): BabKustom[] | null {
+  if (p.jenis === "jurnal") return null;
+  const rumusan = (p.rumusan ?? []).map((r) => r.trim()).filter(Boolean);
+  if (rumusan.length === 0) return null;
+  const tpl = getStruktur(p.jenis);
+  const keKustom = (c: ChapterDef): BabKustom => ({
+    id: c.id,
+    labelId: c.labelId,
+    labelAr: c.labelAr,
+    babAr: c.babAr,
+    sections: c.sections.map((s) => ({ id: s.id, labelId: s.labelId, labelAr: s.labelAr })),
+  });
+
+  const hasil: BabKustom[] = [];
+  const babAwal = tpl.chapters[0];
+  if (babAwal) hasil.push(keKustom(babAwal));
+
+  rumusan.forEach((r, i) => {
+    const n = i + 1;
+    const nomorBab = i + 2; // bab II, III, IV, …
+    const terakhir = i === rumusan.length - 1;
+    const pola = terakhir && rumusan.length > 1 ? SEKSI_ANALISIS : SEKSI_EKSPLORASI;
+    const babAr = `الباب ${ORDINAL_AR[nomorBab - 1] ?? nomorBab}`;
+    hasil.push({
+      id: `bab-isykal-${n}`,
+      labelId: `BAB ${ROMAWI[nomorBab - 1] ?? nomorBab} — Isykal ${n}${terakhir && rumusan.length > 1 ? " (Analisis Akhir)" : ""}`,
+      labelAr: `${babAr}: ${potongTeks(r, 90)}`,
+      babAr,
+      isykalKe: n,
+      sections: pola.map((s) => ({
+        id: `isykal${n}-${s.akhiran}`,
+        labelId: s.labelId,
+        labelAr: s.labelAr,
+      })),
+    });
+  });
+
+  const babAkhir = tpl.chapters[tpl.chapters.length - 1];
+  if (babAkhir && tpl.chapters.length > 1) {
+    const penutup = keKustom(babAkhir);
+    // Nomor ulang bab penutup mengikuti jumlah bab isi yang baru.
+    const nomorBab = rumusan.length + 2;
+    penutup.babAr = `الباب ${ORDINAL_AR[nomorBab - 1] ?? nomorBab}`;
+    penutup.labelId = `BAB ${ROMAWI[nomorBab - 1] ?? nomorBab} — Penutup`;
+    penutup.labelAr = `${penutup.babAr}: الخاتمة`;
+    hasil.push(penutup);
+  }
+  return hasil;
+}
+
+/**
+ * Struktur efektif proyek: daftar isi kustom bila ada, bawaan jenis karya bila tidak.
+ * Sub-bab yang id-nya dikenal dari templat mewarisi panduan/pemicu/target templat;
+ * sub-bab baru mendapat panduan umum bab isykal.
+ */
+export function strukturProyek(p: Project): StrukturDef {
+  const tpl = getStruktur(p.jenis);
+  if (!p.daftarIsi || p.daftarIsi.length === 0) return tpl;
+  const dikenal = new Map<string, SectionDef>();
+  for (const c of tpl.chapters) for (const s of c.sections) dikenal.set(s.id, s);
+
+  const chapters: ChapterDef[] = p.daftarIsi.map((b) => ({
+    id: b.id,
+    labelId: b.labelId,
+    labelAr: b.labelAr,
+    babAr: b.babAr,
+    sections: b.sections.map((s): SectionDef => {
+      const dasar = dikenal.get(s.id);
+      if (dasar) return { ...dasar, labelId: s.labelId, labelAr: s.labelAr, headingAr: s.labelAr || dasar.headingAr };
+      const analisis = /-(talkhis|muwazana|tarjih|atsar)$/.test(s.id);
+      return {
+        id: s.id,
+        labelId: s.labelId,
+        labelAr: s.labelAr,
+        headingAr: s.labelAr,
+        panduan: analisis
+          ? "Bab analisis akhir: kumpulkan hasil bab-bab sebelumnya, timbang dalil dan pendapatnya, lalu tetapkan jawaban/judul akhir secara terperinci beserta penerapannya."
+          : "Uraikan bagian isykal ini dari kitab dan sumber primer: gambarkan masalahnya, tampilkan pendapat ulama beserta dalilnya, lalu bahas dengan kalimat kunci yang bisa diverifikasi.",
+        pemicu: [],
+        targetKata: analisis ? 650 : 500,
+      };
+    }),
+  }));
+  return { ...tpl, chapters };
+}
+
+/** Cari section dalam struktur EFEKTIF proyek (termasuk daftar isi kustom). */
+export function findSectionProyek(p: Project, sectionId: string) {
+  for (const chapter of strukturProyek(p).chapters) {
+    const found = chapter.sections.find((sec) => sec.id === sectionId);
+    if (found) return { chapter, section: found };
+  }
+  return null;
+}

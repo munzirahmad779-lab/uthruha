@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getStruktur } from "@/lib/content/struktur";
+import { strukturProyek } from "@/lib/content/struktur";
 import { composeSection } from "@/lib/engine/compose";
 import type { Project } from "@/lib/engine/project";
 import { IconArrowRight, IconCheck, IconDownload, IconPen, IconSearch, IconSparkle } from "@/components/icons";
@@ -24,7 +24,7 @@ export function TulisTab({
   setBagian: (id: string) => void;
   onSusun: (id: string) => void;
 }) {
-  const st = getStruktur(p.jenis);
+  const st = strukturProyek(p);
   const semua = st.chapters.flatMap((c) => c.sections.map((s) => ({ ...s, bab: c.labelAr })));
   const aktif = semua.find((s) => s.id === bagian) ?? semua[0];
   const [teks, setTeks] = useState(p.draf[bagian] ?? "");

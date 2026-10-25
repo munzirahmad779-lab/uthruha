@@ -44,6 +44,64 @@ export interface Project {
   abaikanSitasi?: string[];
   /** Aturan pedoman kampus yang diunggah pengguna (null = belum ada). */
   pedoman?: PedomanRules | null;
+  /**
+   * Daftar isi milik proyek (pola Ma'had: bab mewakili isykaliyyat).
+   * Bila terisi, daftar inilah struktur naskahnya — menggantikan struktur
+   * bawaan jenis karya. Disusun dari rumusan masalah, lalu bebas diedit
+   * mahasiswa (tambah/kurang/pindah sub-bab) di tab Struktur.
+   */
+  daftarIsi?: BabKustom[] | null;
+}
+
+/** Satu sub-bab dalam daftar isi kustom proyek. */
+export interface SubBabKustom {
+  id: string;
+  labelId: string;
+  labelAr: string;
+}
+
+/** Satu bab dalam daftar isi kustom proyek. */
+export interface BabKustom {
+  id: string;
+  labelId: string;
+  labelAr: string;
+  babAr: string;
+  /** Nomor isykal (1-based) yang diwakili bab ini, bila ada. */
+  isykalKe?: number;
+  sections: SubBabKustom[];
+}
+
+/** Saring daftar isi dari data mentah: hanya bentuk yang sah yang lolos. */
+export function sanitasiDaftarIsi(mentah: unknown): BabKustom[] | undefined {
+  if (!Array.isArray(mentah)) return undefined;
+  const bab: BabKustom[] = [];
+  mentah.forEach((b, i) => {
+    if (typeof b !== "object" || b === null) return;
+    const rec = b as Record<string, unknown>;
+    const sections: SubBabKustom[] = [];
+    if (Array.isArray(rec.sections)) {
+      rec.sections.forEach((s, j) => {
+        if (typeof s !== "object" || s === null) return;
+        const sr = s as Record<string, unknown>;
+        if (typeof sr.id !== "string" || !sr.id) return;
+        sections.push({
+          id: sr.id,
+          labelId: typeof sr.labelId === "string" ? sr.labelId : `Sub-bab ${j + 1}`,
+          labelAr: typeof sr.labelAr === "string" ? sr.labelAr : "",
+        });
+      });
+    }
+    if (sections.length === 0) return;
+    bab.push({
+      id: typeof rec.id === "string" && rec.id ? rec.id : `bab-kustom-${i + 1}`,
+      labelId: typeof rec.labelId === "string" ? rec.labelId : `BAB ${i + 1}`,
+      labelAr: typeof rec.labelAr === "string" ? rec.labelAr : "",
+      babAr: typeof rec.babAr === "string" ? rec.babAr : "",
+      ...(typeof rec.isykalKe === "number" ? { isykalKe: rec.isykalKe } : {}),
+      sections,
+    });
+  });
+  return bab.length > 0 ? bab : undefined;
 }
 
 const KEY = "uthruha:projects:v1";
@@ -196,6 +254,7 @@ export function migrasiProyek(mentah: unknown): Project {
     tujuan: Array.isArray(p.tujuan) ? p.tujuan : [],
     jawaban: p.jawaban ?? {},
     draf: p.draf ?? {},
+    daftarIsi: sanitasiDaftarIsi(p.daftarIsi),
   };
 }
 

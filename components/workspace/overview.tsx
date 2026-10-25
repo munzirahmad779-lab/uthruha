@@ -2,7 +2,7 @@
 
 import { getBidang } from "@/lib/content/bidang";
 import { getMetode } from "@/lib/content/metode";
-import { getStruktur } from "@/lib/content/struktur";
+import { strukturProyek } from "@/lib/content/struktur";
 import { rumusanDefault, tujuanDefault } from "@/lib/engine/compose";
 import type { Project } from "@/lib/engine/project";
 import { IconArrowRight, IconCheck } from "@/components/icons";
@@ -19,7 +19,7 @@ export function OverviewTab({
   onBuka: (sectionId: string) => void;
   onSusun: (sectionId: string) => void;
 }) {
-  const st = getStruktur(p.jenis);
+  const st = strukturProyek(p);
   const bidang = getBidang(p.bidangId);
   const metode = getMetode(p.metode);
   const rumusan = rumusanDefault(p);

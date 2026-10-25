@@ -1,22 +1,26 @@
 "use client";
 
-import { getStruktur } from "@/lib/content/struktur";
+import { strukturProyek } from "@/lib/content/struktur";
 import type { Project } from "@/lib/engine/project";
 import { IconArrowRight, IconDoc, IconPen } from "@/components/icons";
+import { DaftarIsiEditor } from "@/components/workspace/daftar-isi-editor";
 
 export function StrukturTab({
   p,
+  ubah,
   onBuka,
   onSusun,
 }: {
   p: Project;
+  ubah: (patch: Partial<Project>) => void;
   onBuka: (sectionId: string) => void;
   onSusun: (sectionId: string) => void;
 }) {
-  const st = getStruktur(p.jenis);
+  const st = strukturProyek(p);
 
   return (
     <div className="space-y-6">
+      <DaftarIsiEditor p={p} ubah={ubah} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[15px] font-bold text-ink-900">

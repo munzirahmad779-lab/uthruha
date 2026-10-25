@@ -1,7 +1,7 @@
 import { FRASA } from "@/lib/content/frasa";
 import { getBidang } from "@/lib/content/bidang";
 import { getMetode } from "@/lib/content/metode";
-import { getStruktur, findSection } from "@/lib/content/struktur";
+import { strukturProyek, findSectionProyek } from "@/lib/content/struktur";
 import type { FrasaEntry } from "@/lib/content/types";
 import type { Project } from "@/lib/engine/project";
 import { keAngkaArab } from "@/lib/engine/cite";
@@ -144,7 +144,7 @@ const BAB: Record<string, BagianFn> = {
     const f1 = pilih("khalfiya", 3, seed).map((f) => isi(f.ar, v));
     const gap = pilih("dirasat", 2, seed + 3).map((f) => isi(f.ar, v));
     return par(
-      `## ${findSection(p.jenis, "khalfiya")?.section.headingAr ?? "خلفية البحث"}`,
+      `## ${findSectionProyek(p, "khalfiya")?.section.headingAr ?? "خلفية البحث"}`,
       ...f1,
       v.fenomena ? isi("ويظهر ما سبق جليًّا في {{fenomena}}.", v) : "ويظهر ما سبق جليًّا في الظاهرة التي يلاحظها الباحث في الميدان.",
       ...gap,
@@ -494,7 +494,7 @@ export interface HasilKomposisi {
 }
 
 export function composeSection(p: Project, sectionId: string, seed = 0): HasilKomposisi {
-  const found = findSection(p.jenis, sectionId);
+  const found = findSectionProyek(p, sectionId);
   const v = variabelProyek(p);
   const fn = BAB[sectionId];
   // Benih HARUS stabil terhadap isi proyek, bukan terhadap identitasnya.
@@ -535,7 +535,7 @@ export function composeSection(p: Project, sectionId: string, seed = 0): HasilKo
 }
 
 export function composeNaskah(p: Project): string {
-  const st = getStruktur(p.jenis);
+  const st = strukturProyek(p);
   const bagian: string[] = [];
   bagian.push(`# ${p.judulAr || p.topikAr || "عنوان البحث"}`);
   bagian.push(

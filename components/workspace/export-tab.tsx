@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { getStruktur } from "@/lib/content/struktur";
+import { strukturProyek } from "@/lib/content/struktur";
 import { composeNaskah } from "@/lib/engine/compose";
 import { buatDocx, unduh } from "@/lib/engine/export";
 import { susunDaftarPustaka } from "@/lib/engine/cite";
@@ -88,7 +88,7 @@ export function ExportTab({ p }: { p: Project }) {
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Kata" nilai={kata.toLocaleString("id-ID")} />
-        <Stat label="Bagian" nilai={getStruktur(p.jenis).chapters.reduce((a, c) => a + c.sections.length, 0)} />
+        <Stat label="Bagian" nilai={strukturProyek(p).chapters.reduce((a, c) => a + c.sections.length, 0)} />
         <Stat label="Rujukan" nilai={p.sumber.length} />
         <Stat label="Halaman ±" nilai={Math.max(1, Math.round(kata / 250))} />
       </div>

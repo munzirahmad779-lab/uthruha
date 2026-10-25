@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BIDANG } from "@/lib/content/bidang";
 import { METODE } from "@/lib/content/metode";
 import { KARYA_LABEL } from "@/lib/content/types";
-import { getStruktur } from "@/lib/content/struktur";
+import { strukturProyek } from "@/lib/content/struktur";
 import {
   ambilProyek,
   progresProyek,
@@ -61,7 +61,7 @@ export function Workspace({ id }: { id: string }) {
       return;
     }
     setProyek(p);
-    const pertama = getStruktur(p.jenis).chapters[0]?.sections[0]?.id;
+    const pertama = strukturProyek(p).chapters[0]?.sections[0]?.id;
     if (pertama) setBagian(pertama);
   }, [id]);
 
@@ -109,7 +109,7 @@ export function Workspace({ id }: { id: string }) {
       const p = migrasiProyek(pt);
       simpanProyek(p);
       setProyek(p);
-      const pertama = getStruktur(p.jenis).chapters[0]?.sections[0]?.id;
+      const pertama = strukturProyek(p).chapters[0]?.sections[0]?.id;
       if (pertama) setBagian(pertama);
       setPesanDrive(`Proyek dari Drive dimuat: ${p.judulAr || p.topikAr || p.id}`);
     } catch (e) {
@@ -131,7 +131,7 @@ export function Workspace({ id }: { id: string }) {
 
   const stat = useMemo(() => {
     if (!proyek) return null;
-    const st = getStruktur(proyek.jenis);
+    const st = strukturProyek(proyek);
     const total = st.chapters.reduce((a, c) => a + c.sections.length, 0);
     return {
       total,
@@ -268,7 +268,7 @@ export function Workspace({ id }: { id: string }) {
             <OverviewTab p={proyek} ubah={ubah} onBuka={bukaBagian} onSusun={susun} />
           )}
           {tab === "struktur" && (
-            <StrukturTab p={proyek} onBuka={bukaBagian} onSusun={susun} />
+            <StrukturTab p={proyek} ubah={ubah} onBuka={bukaBagian} onSusun={susun} />
           )}
           {tab === "tulis" && (
             <TulisTab
