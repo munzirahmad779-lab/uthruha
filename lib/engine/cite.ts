@@ -5,7 +5,11 @@ export interface Sumber {
   jenis: JenisSumber;
   /** Nama penulis dalam huruf Arab, format «اللقب، الاسم». */
   penulis: string;
+  /** Schema v2: penulis sebagai daftar (untuk gaya sitasi Latin & impor). penulis string tetap sumber tampil Arab. */
+  penulisDaftar?: string[];
   tahun: string;
+  /** Tahun Hijriah bila diketahui (schema v2). */
+  tahunHijriah?: string;
   judul: string;
   penerbit?: string;
   kota?: string;
@@ -19,6 +23,20 @@ export interface Sumber {
   url?: string;
   penerjemah?: string;
   tahqiq?: string;
+  /** Schema v2: nama muhaqqiq (kanonis); tahqiq lama dipetakan ke sini saat migrasi. */
+  muhaqqiq?: string;
+  isbn?: string;
+  issn?: string;
+  /** Schema v2: asal entri — "manual" | "bibtex" | "ris" | "crossref" | "doaj" | "turath" | "shamela" | "archive" | nama sumber lain. */
+  sumberImpor?: string;
+  /** Schema v2: true bila metadata belum diperiksa user (hasil pencarian mentah). */
+  perluVerifikasi?: boolean;
+  /** Ringkasan lit-review (§6 pengganti matriks): temuan utama sumber ini. */
+  temuan?: string;
+  /** Ringkasan lit-review: metode yang dipakai sumber ini. */
+  metodeSumber?: string;
+  /** Ringkasan lit-review: relevansi sumber ini dengan penelitian user. */
+  relevansi?: string;
   catatan?: string;
 }
 

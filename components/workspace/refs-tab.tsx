@@ -13,6 +13,7 @@ import {
   type Sumber,
 } from "@/lib/engine/cite";
 import type { Project } from "@/lib/engine/project";
+import { cariDuplikat, parseImpor } from "@/lib/engine/referensi";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { CopyButton, Field, Note } from "@/components/ui";
 import { PedomanPanel } from "@/components/workspace/pedoman-panel";
@@ -23,6 +24,9 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
   const [baru, setBaru] = useState<Sumber>(KOSONG);
   const [buka, setBuka] = useState<string | null>(null);
   const [sub, setSub] = useState<"sumber" | "pedoman">("sumber");
+  const [imporTeks, setImporTeks] = useState("");
+  const [pesanImpor, setPesanImpor] = useState("");
+  const [peringatanDuplikat, setPeringatanDuplikat] = useState("");
 
   const daftar = useMemo(() => susunDaftarPustaka(p.sumber), [p.sumber]);
   const teksDaftar = useMemo(
@@ -33,10 +37,43 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     [daftar],
   );
 
-  function simpan() {
+  function simpan(paksa = false) {
     if (!baru.penulis.trim() || !baru.judul.trim()) return;
+    if (!paksa) {
+      const dup = cariDuplikat(baru, p.sumber);
+      if (dup) {
+        setPeringatanDuplikat(
+          `Kemungkinan duplikat dari "${dup.duplikat.judul}" — ${dup.alasan}. Periksa dulu, atau tetap simpan bila memang edisi berbeda.`,
+        );
+        return;
+      }
+    }
+    setPeringatanDuplikat("");
     ubah({ sumber: [...p.sumber, { ...baru, id: baru.id || `src-${Date.now().toString(36)}` }] });
     setBaru({ ...KOSONG, id: "" });
+  }
+
+  function impor() {
+    const hasil = parseImpor(imporTeks);
+    if (!hasil || hasil.entri.length === 0) {
+      setPesanImpor("Tidak ada entri yang terbaca. Pastikan teksnya BibTeX (diawali @article/@book) atau RIS (diawali TY - ).");
+      return;
+    }
+    const diterima: Sumber[] = [];
+    let ditolak = 0;
+    for (const e of hasil.entri) {
+      if (cariDuplikat(e, [...p.sumber, ...diterima])) ditolak++;
+      else diterima.push(e);
+    }
+    if (diterima.length > 0) ubah({ sumber: [...p.sumber, ...diterima] });
+    setPesanImpor(
+      `Impor ${hasil.format.toUpperCase()}: ${diterima.length} entri ditambahkan${ditolak ? `, ${ditolak} dilewati karena terdeteksi duplikat` : ""}. Periksa kembali tiap entri — data impor tidak diverifikasi aplikasi.`,
+    );
+    setImporTeks("");
+  }
+
+  function ubahSumber(id: string, patch: Partial<Sumber>) {
+    ubah({ sumber: p.sumber.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   }
 
   function hapus(id: string) {
@@ -217,8 +254,37 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
           <p className="text-[11px] text-ink-500">
             Wajib: penulis dan judul. Selebihnya mengikuti gaya sitasi yang Anda pakai.
           </p>
-          <button type="button" onClick={simpan} className="btn-primary !py-2.5">
+          <button type="button" onClick={() => simpan()} className="btn-primary !py-2.5">
             <IconPlus className="h-4 w-4" /> Simpan rujukan
+          </button>
+        </div>
+        {peringatanDuplikat && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+            <span>{peringatanDuplikat}</span>
+            <button type="button" onClick={() => simpan(true)} className="btn-quiet shrink-0">
+              Tetap simpan
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
+        <h3 className="text-[13px] font-bold text-ink-900">Impor dari BibTeX / RIS</h3>
+        <p className="mt-1 text-[11.5px] leading-relaxed text-ink-600">
+          Tempel ekspor dari Zotero, Mendeley, atau Google Scholar. Entri yang terdeteksi
+          duplikat (DOI sama atau judul hampir sama) dilewati otomatis.
+        </p>
+        <textarea
+          className="input mt-2 min-h-24 w-full font-mono text-[11px]"
+          value={imporTeks}
+          onChange={(e) => setImporTeks(e.target.value)}
+          placeholder={"@article{...}\natau\nTY  - JOUR"}
+          dir="ltr"
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-ink-500">{pesanImpor}</p>
+          <button type="button" onClick={impor} disabled={!imporTeks.trim()} className="btn-quiet shrink-0">
+            Impor entri
           </button>
         </div>
       </div>
@@ -244,6 +310,16 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
                       <span className="rounded bg-ink-900/5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-600">
                         {JENIS_LABEL[s.jenis].ar}
                       </span>
+                      {s.sumberImpor && s.sumberImpor !== "manual" && (
+                        <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-sky-700">
+                          dari {s.sumberImpor}
+                        </span>
+                      )}
+                      {s.perluVerifikasi && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700">
+                          perlu verifikasi
+                        </span>
+                      )}
                       <span className="truncate text-[12.5px] font-semibold text-ink-900">
                         {s.judul || "(tanpa judul)"}
                       </span>
@@ -284,6 +360,28 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
                         <CopyButton teks={f.nilai} label="" className="btn-quiet shrink-0 !px-1.5" />
                       </div>
                     ))}
+                    <div className="grid gap-2 pt-1 sm:grid-cols-3">
+                      {(
+                        [
+                          { kunci: "temuan", label: "Temuan utama" },
+                          { kunci: "metodeSumber", label: "Metode sumber" },
+                          { kunci: "relevansi", label: "Relevansi bagi penelitian saya" },
+                        ] as const
+                      ).map((f) => (
+                        <Field key={f.kunci} label={f.label}>
+                          <textarea
+                            className="input min-h-16 w-full text-[12px]"
+                            value={s[f.kunci] ?? ""}
+                            onChange={(e) => ubahSumber(s.id, { [f.kunci]: e.target.value })}
+                            placeholder="Tulis ringkas…"
+                          />
+                        </Field>
+                      ))}
+                    </div>
+                    <p className="text-[10.5px] text-ink-500">
+                      Tiga kolom ini adalah pengganti matriks tinjauan pustaka — isi seperlunya,
+                      tampilkan sebagai tabel dari daftar rujukan Anda.
+                    </p>
                   </div>
                 )}
               </div>
