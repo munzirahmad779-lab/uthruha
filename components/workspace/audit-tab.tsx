@@ -6,6 +6,7 @@ import { perbaikiOtomatis, periksaOrtografi } from "@/lib/engine/orthografi";
 import type { Project } from "@/lib/engine/project";
 import { IconCheck, IconSparkle } from "@/components/icons";
 import { Note, Stat } from "@/components/ui";
+import { CrosscheckPanel } from "@/components/workspace/crosscheck-panel";
 
 const LEVEL: Record<string, string> = {
   kritis: "bg-red-50 text-red-700 border-red-200",
@@ -182,6 +183,8 @@ export function AuditTab({
           </ul>
         </div>
       </div>
+
+      <CrosscheckPanel p={p} ubah={ubah} />
     </div>
   );
 }
