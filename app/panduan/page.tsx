@@ -4,7 +4,7 @@ import { BIDANG } from "@/lib/content/bidang";
 import { METODE } from "@/lib/content/metode";
 import { STRUKTUR } from "@/lib/content/struktur";
 import { KARYA_LABEL, type KaryaType } from "@/lib/content/types";
-import { SPRINT } from "@/lib/content/panduan";
+import { REFERENSI_PANDUAN, SPRINT } from "@/lib/content/panduan";
 import { IconArrowRight, IconCheck, IconQuote, IconScale, IconSearch } from "@/components/icons";
 import { Note } from "@/components/ui";
 
@@ -372,6 +372,27 @@ export default function PanduanPage() {
             Baca aturan itu lebih dulu, dan bila diminta, laporkan penggunaan alat bantu dalam
             bagian ucapan terima kasih atau lampiran metodologi.
           </Note>
+        </div>
+      </section>
+
+      {/* Referensi & sitasi */}
+      <section id="referensi" className="mt-14 scroll-mt-24">
+        <h2 className="text-2xl font-extrabold tracking-tight text-ink-900">
+          Rujukan, sitasi, dan pencarian sumber
+        </h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {REFERENSI_PANDUAN.map((r) => (
+            <div key={r.judul} className="rounded-xl border border-ink-900/10 bg-white/70 p-4">
+              <p className="text-[12px] font-bold text-ink-900">{r.judul}</p>
+              <ul className="mt-1.5 space-y-1">
+                {r.isi.map((t) => (
+                  <li key={t} className="text-[11.5px] leading-relaxed text-ink-700">
+                    • {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       </section>
 

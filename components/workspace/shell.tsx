@@ -24,6 +24,7 @@ import { RefTab } from "@/components/workspace/refs-tab";
 import { AuditTab } from "@/components/workspace/audit-tab";
 import { ExportTab } from "@/components/workspace/export-tab";
 import { GDriveLogin } from "@/components/workspace/gdrive-login";
+import { PenyimpananStrip } from "@/components/workspace/penyimpanan-strip";
 
 const TAB = [
   { id: "ringkas", label: "Ringkasan", ar: "نظرة" },
@@ -38,12 +39,19 @@ const TAB = [
 export function Workspace({ id }: { id: string }) {
   const [proyek, setProyek] = useState<Project | null>(null);
   const [hilang, setHilang] = useState(false);
+  const [galatSimpan, setGalatSimpan] = useState("");
   const [tab, setTab] = useState("ringkas");
   const [bagian, setBagian] = useState<string>("khalfiya");
   const [tersimpan, setTersimpan] = useState(true);
 
   useEffect(() => {
-    const p = ambilProyek(id);
+    let p: Project | null = null;
+    try {
+      p = ambilProyek(id);
+    } catch {
+      // VersiLebihBaruError dsb: perlakukan sebagai tidak bisa dibuka di sini.
+      p = null;
+    }
     if (!p) {
       setHilang(true);
       return;
@@ -57,8 +65,20 @@ export function Workspace({ id }: { id: string }) {
     setProyek((lama) => {
       if (!lama) return lama;
       const baru = { ...lama, ...patch };
-      const disimpan = simpanProyek(baru);
-      return disimpan;
+      try {
+        const disimpan = simpanProyek(baru);
+        queueMicrotask(() => setGalatSimpan(""));
+        return disimpan;
+      } catch (e) {
+        // Simpan gagal (mis. localStorage penuh): JANGAN senyap. Tampilkan
+        // alasannya; perubahan tetap hidup di memori sesi ini.
+        queueMicrotask(() =>
+          setGalatSimpan(
+            e instanceof Error ? e.message : "Penyimpanan gagal. Ekspor proyek Anda sebagai cadangan.",
+          ),
+        );
+        return baru;
+      }
     });
     setTersimpan(false);
     window.setTimeout(() => setTersimpan(true), 900);
@@ -190,6 +210,15 @@ export function Workspace({ id }: { id: string }) {
           <GDriveLogin />
         </div>
       </header>
+
+      <PenyimpananStrip />
+
+      {galatSimpan && (
+        <div role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800">
+          <b>Gagal menyimpan:</b> {galatSimpan} Perubahan terakhir Anda masih tampil di layar
+          tetapi belum tersimpan permanen — jangan tutup halaman ini sebelum mengekspor cadangan.
+        </div>
+      )}
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-ink-900/10 bg-parchment-100/40">
         <div className="border-b border-ink-900/10 bg-white/60 px-3 py-2.5">

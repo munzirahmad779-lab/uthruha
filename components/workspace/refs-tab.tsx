@@ -29,6 +29,18 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
   const [imporTeks, setImporTeks] = useState("");
   const [pesanImpor, setPesanImpor] = useState("");
   const [peringatanDuplikat, setPeringatanDuplikat] = useState("");
+  const [tampilPetunjuk, setTampilPetunjuk] = useState(
+    () => typeof window !== "undefined" && !window.localStorage.getItem("uthruha:petunjuk:referensi"),
+  );
+
+  function tutupPetunjuk() {
+    setTampilPetunjuk(false);
+    try {
+      window.localStorage.setItem("uthruha:petunjuk:referensi", "1");
+    } catch {
+      /* abaikan */
+    }
+  }
 
   const daftar = useMemo(() => susunDaftarPustaka(p.sumber), [p.sumber]);
   const teksDaftar = useMemo(
@@ -102,6 +114,20 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
           bawah dihitung dari data Anda — aplikasi tidak menambahkan sumber yang tidak ada.
         </p>
       </div>
+
+      {tampilPetunjuk && (
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-gold-600/30 bg-gold-100/40 px-3 py-2.5">
+          <p className="text-[12px] leading-relaxed text-ink-700">
+            <b>Mulai dari sini:</b> tambahkan rujukan manual, tempel DOI/BibTeX lewat panel
+            impor, atau buka sub-tab <b>Cari online &amp; lokal</b>. Di tab Tulis, tombol
+            Sisip sitasi menanam penanda [[ref:…]] yang menjadi footnote otomatis saat ekspor.
+            Penjelasan lengkap ada di <a className="underline" href="/panduan#referensi">Panduan — Rujukan &amp; sitasi</a>.
+          </p>
+          <button type="button" onClick={tutupPetunjuk} className="btn-quiet shrink-0 !py-0.5">
+            Mengerti
+          </button>
+        </div>
+      )}
 
       <div role="tablist" aria-label="Bagian rujukan" className="flex gap-1 border-b border-ink-900/10 pb-2">
         {([

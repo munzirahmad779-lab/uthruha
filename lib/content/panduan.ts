@@ -37,3 +37,39 @@ export const PERIKSA: { label: string; ar: string }[] = [
   { label: "Naskah sudah dibaca ulang untuk nahwu dan sharaf", ar: "المراجعة النحوية" },
   { label: "Tidak ada kalimat hasil salin-tempel tanpa sitasi", ar: "السلامة من الانتحال" },
 ];
+
+/** Panduan fitur referensi (Fase 2, C.10) — dirender di /panduan#referensi. */
+export const REFERENSI_PANDUAN: { judul: string; isi: string[] }[] = [
+  {
+    judul: "Menambah rujukan: manual, impor, atau cari online",
+    isi: [
+      "Manual: isi formulir di tab Rujukan — wajib hanya penulis dan judul.",
+      "Impor: tempel BibTeX/RIS dari Zotero, Mendeley, atau Google Scholar; entri duplikat (DOI sama / judul hampir sama) dilewati otomatis.",
+      "Cari online: semua hasil pencarian masuk sebagai draf berlabel sumber. Tidak ada yang ditambahkan tanpa Anda menekan Tambah.",
+    ],
+  },
+  {
+    judul: "Kenapa ada penanda [[ref:…]] di naskah Anda",
+    isi: [
+      "Penanda itu jangkar sitasi: ia terikat ke satu entri rujukan, bukan ke nomor footnote.",
+      "Nomor footnote boleh berubah saat naskah disusun ulang; jangkar tidak — jadi tidak ada sitasi yang diam-diam menunjuk sumber yang salah.",
+      "Saat ekspor, penanda berubah menjadi footnote bernomor dengan gaya proyek Anda (bawaan: Turabian 9). Jangan menghapus penanda manual; gunakan tombol Sisip sitasi di tab Tulis.",
+    ],
+  },
+  {
+    judul: "Cari Jurnal tidak sama dengan Cari Kitab",
+    isi: [
+      "Jurnal dicari lewat metadata resmi (CrossRef & DOAJ): ada DOI, nama jurnal, volume — hasilnya siap dipakai setelah Anda periksa sekilas.",
+      "Kitab klasik tidak punya metadata se-standar itu. Pencarian kitab mencocokkan frasa di dalam isi kitab (Turath/Shamela), dan scan di Archive.org metadata-nya tidak terkurasi.",
+      "Karena itu hasil kitab bertanda perlu verifikasi: periksa edisi dan halaman cetaknya sebelum mengutip. Anggap hasil kitab sebagai petunjuk lokasi, bukan sitasi final.",
+    ],
+  },
+  {
+    judul: "Uthruha tidak mengarang sumber",
+    isi: [
+      "AI di Uthruha hanya membantu menyusun kata kunci pencarian dari topik Anda — ia tidak pernah menulis judul, penulis, atau DOI.",
+      "Setiap referensi di daftar Anda berasal dari data yang Anda isi, impor, atau pilih sendiri dari hasil pencarian.",
+      "Gunakan Cross-check sitasi di tab Periksa untuk memastikan setiap penanda menunjuk rujukan yang masih ada.",
+    ],
+  },
+];
