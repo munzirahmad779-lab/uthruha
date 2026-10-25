@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Struktur dari Isykaliyyat (26 Okt 2026)
+- **Daftar isi milik proyek (pola Ma'had Aly DDI Mangkoso)**: setiap bab isi mewakili satu isykal — isykal 1 → BAB II, isykal 2 → BAB III, isykal 3 → BAB IV (analisis akhir: تلخيص ما تقدم، التحليل والموازنة، الترجيح والجواب النهائي، تطبيق الجواب وآثاره). Generator `susunDaftarIsiIsykal()` menyusun dari rumusan masalah; bab pengurai memakai sub-bab تصوير المسألة، أقوال العلماء، أدلة الأقوال، مناقشة الأدلة.
+- **Editor daftar isi** di tab Struktur: susun dari isykaliyyat, ganti judul bab/sub-bab (Indonesia/Arab), tambah/kurang/pindah sub-bab, hapus bab, susun ulang, atau kembali ke bawaan. Daftar efektif dipakai shell, tab Tulis/Periksa/Istilah, compose, dan ekspor lewat `strukturProyek()`.
+- `Project.daftarIsi` + `sanitasiDaftarIsi()` di gerbang migrasi; proyek tanpa daftar isi tidak berubah sama sekali.
+
 ## Pematangan pasca-kajian (26 Okt 2026)
 - **GDrive disambungkan ke workspace**: konverter `projectKeTersimpan()` + tombol "Sinkronkan proyek ini ke Drive" dan muat proyek Drive lewat gerbang `migrasiProyek()`. (Sebelumnya komponen login Drive tidak terhubung ke aliran Project sama sekali.)
 - **Pedoman kampus = lapisan teratas sitasi**: bila proyek punya pedoman, template `formatFootnote`/`formatPustaka` pedoman yang dipakai — mengalahkan gaya proyek; gaya hanya berlaku tanpa pedoman.
