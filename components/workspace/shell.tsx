@@ -125,7 +125,12 @@ export function Workspace({ id }: { id: string }) {
       await simpanProyekKeDrive(driveToken, projectKeTersimpan(proyek));
       setPesanDrive("Tersinkron ke Google Drive (folder Utruha).");
     } catch (e) {
-      setPesanDrive(e instanceof Error ? `Gagal sinkron: ${e.message}` : "Gagal sinkron ke Drive.");
+      const pesan = e instanceof Error ? e.message : "";
+      setPesanDrive(
+        /\b401\b/.test(pesan)
+          ? "Sesi Google sudah berakhir (token berlaku ±1 jam). Masuk lagi lewat panel Google Drive di atas, lalu sinkronkan ulang."
+          : `Gagal sinkron: ${pesan || "kesalahan tidak dikenal"}`,
+      );
     }
   }
 

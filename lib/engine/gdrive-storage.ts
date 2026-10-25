@@ -62,64 +62,161 @@ function getClientId(): string {
 // ─── OAuth Flow (Frontend) ────────────────────────────────────────────────────
 
 /**
- * Inisialisasi Google Identity Services.
- * Dipanggil sekali saat app mount.
+ * Pemuatan Google Identity Services (GIS) yang dibagi bersama.
+ *
+ * Perbaikan dari pola lama: dulu setiap pemanggil memasang <script> sendiri
+ * dan `requestDriveAccess()` TIDAK memasang `error_callback`. Akibatnya bila
+ * popup Google gagal — ditutup pengguna, diblokir browser, origin belum
+ * diizinkan, atau akses ditolak — tidak ada callback yang terpanggil sama
+ * sekali dan UI menggantung selamanya di "Menghubungkan...". Kini semua
+ * jalur kegagalan berakhir sebagai Error berpesan jelas + batas waktu.
  */
-export function initGoogleAuth(onToken: (token: string) => void): void {
-  if (typeof window === "undefined") return;
+let janjiGIS: Promise<void> | null = null;
 
-  const script = document.createElement("script");
-  script.src = "https://accounts.google.com/gsi/client";
-  script.async = true;
-  script.onload = () => {
-    const google = (window as any).google;
-    if (!google) return;
+export function muatGIS(): Promise<void> {
+  if (typeof window === "undefined") return Promise.reject(new Error("GIS hanya tersedia di browser."));
+  if ((window as any).google?.accounts?.oauth2) return Promise.resolve();
+  if (janjiGIS) return janjiGIS;
+  janjiGIS = new Promise<void>((resolve, reject) => {
+    const selesai = window.setInterval(() => {
+      if ((window as any).google?.accounts?.oauth2) {
+        window.clearInterval(selesai);
+        window.clearTimeout(batas);
+        resolve();
+      }
+    }, 100);
+    const batas = window.setTimeout(() => {
+      window.clearInterval(selesai);
+      janjiGIS = null;
+      reject(new Error("Google Identity Services tidak termuat dalam 15 detik. Periksa koneksi internet lalu muat ulang halaman."));
+    }, 15000);
+    if (!document.getElementById("google-identity-services")) {
+      const script = document.createElement("script");
+      script.id = "google-identity-services";
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.onerror = () => {
+        window.clearInterval(selesai);
+        window.clearTimeout(batas);
+        janjiGIS = null;
+        reject(new Error("Gagal memuat skrip Google Identity Services dari accounts.google.com."));
+      };
+      document.head.appendChild(script);
+    }
+  });
+  return janjiGIS;
+}
 
-    google.accounts.oauth2
-      .initTokenClient({
-        client_id: getClientId(),
-        scope: SCOPES,
-        callback: (response: any) => {
-          if (response.access_token) {
-            onToken(response.access_token);
-          }
-        },
-      })
-      .requestAccessToken();
-  };
-  document.head.appendChild(script);
+/** Terjemahkan kode error GIS menjadi pesan yang bisa ditindaklanjuti. */
+function pesanErrorGIS(type: string | undefined): string {
+  switch (type) {
+    case "popup_closed":
+    case "popup_closed_by_user":
+      return "Popup Google ditutup sebelum login selesai. Klik tombol masuk lagi dan selesaikan pilihan akun di popup.";
+    case "popup_failed_to_open":
+      return "Popup Google gagal dibuka — browser memblokirnya. Izinkan popup untuk situs ini lalu coba lagi.";
+    case "access_denied":
+      return "Izin akses Google Drive ditolak. Login memerlukan izin drive.file agar proyek bisa disimpan di Drive Anda sendiri.";
+    case "invalid_request":
+    case "idpiframe_initialization_failed":
+      return "Google menolak permintaan login dari alamat situs ini. Alamat situs (origin) kemungkinan belum didaftarkan di Google Cloud Console → Credentials → Authorized JavaScript origins.";
+    default:
+      return `Login Google gagal (${type ?? "kesalahan tidak dikenal"}). Coba lagi; bila berulang, periksa Console Google Cloud (origin & status aplikasi OAuth).`;
+  }
 }
 
 /**
- * Request access token via popup.
+ * Minta access token Drive lewat popup GIS.
+ * Melempar Error berpesan jelas pada SEMUA kegagalan (tidak pernah menggantung).
  */
-export function requestDriveAccess(): Promise<string | null> {
-  return new Promise((resolve) => {
-    if (typeof window === "undefined") { resolve(null); return; }
-
-    const google = (window as any).google;
-    if (!google || !google.accounts || !google.accounts.oauth2) {
-      console.error("Google Identity Services belum siap.");
-      resolve(null);
-      return;
-    }
-
-    const clientId = getClientId();
-    if (!clientId || clientId.includes("PASTE_")) {
-      console.error("NEXT_PUBLIC_GOOGLE_CLIENT_ID belum dikonfigurasi.");
-      resolve(null);
-      return;
-    }
-
+export async function mintaTokenDrive(): Promise<string> {
+  await muatGIS();
+  const clientId = getClientId();
+  if (!clientId || clientId.includes("PASTE_")) {
+    throw new Error("NEXT_PUBLIC_GOOGLE_CLIENT_ID belum diatur di server, jadi login Drive belum bisa dipakai. Hubungi pengelola web.");
+  }
+  const google = (window as any).google;
+  return new Promise<string>((resolve, reject) => {
+    let selesai = false;
+    const batas = window.setTimeout(() => {
+      if (selesai) return;
+      selesai = true;
+      reject(new Error("Login Google tidak selesai dalam 90 detik (popup mungkin tertutup atau terblokir). Coba lagi dan selesaikan pilihan akun di popup."));
+    }, 90000);
+    const akhiri = (fn: () => void) => {
+      if (selesai) return;
+      selesai = true;
+      window.clearTimeout(batas);
+      fn();
+    };
     const client = google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: SCOPES,
       callback: (response: any) => {
-        resolve(response.access_token ?? null);
+        akhiri(() => {
+          if (response?.access_token) resolve(response.access_token);
+          else reject(new Error(pesanErrorGIS(response?.error)));
+        });
+      },
+      error_callback: (err: any) => {
+        akhiri(() => reject(new Error(pesanErrorGIS(err?.type))));
       },
     });
     client.requestAccessToken();
   });
+}
+
+/** Kompat lama: token atau null (kesalahan dicatat ke konsol). */
+export async function requestDriveAccess(): Promise<string | null> {
+  try {
+    return await mintaTokenDrive();
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/** Inisialisasi lama — dipertahankan agar pemanggil lawas tidak rusak. */
+export function initGoogleAuth(onToken: (token: string) => void): void {
+  void mintaTokenDrive().then(onToken).catch(() => undefined);
+}
+
+// ─── Simpanan token (sessionStorage, sadar kedaluwarsa ±1 jam) ────────────────
+
+const KEY_TOKEN = "uthruha_gdrive_token";
+const KEY_TOKEN_EXP = "uthruha_gdrive_token_exp";
+
+/** Simpan token + perkiraan kedaluwarsanya (token GIS berlaku ±3600 detik). */
+export function simpanTokenDrive(token: string): void {
+  try {
+    sessionStorage.setItem(KEY_TOKEN, token);
+    sessionStorage.setItem(KEY_TOKEN_EXP, String(Date.now() + 55 * 60 * 1000));
+  } catch { /* abaikan */ }
+}
+
+/** Ambil token tersimpan; null bila tidak ada atau sudah kedaluwarsa. */
+export function ambilTokenDrive(): string | null {
+  try {
+    const token = sessionStorage.getItem(KEY_TOKEN);
+    const exp = Number(sessionStorage.getItem(KEY_TOKEN_EXP) ?? 0);
+    if (!token || !exp || Date.now() > exp) return null;
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+/** Buang token tersimpan (logout / token ditolak server). */
+export function hapusTokenDrive(): void {
+  try {
+    sessionStorage.removeItem(KEY_TOKEN);
+    sessionStorage.removeItem(KEY_TOKEN_EXP);
+  } catch { /* abaikan */ }
+}
+
+/** Benar bila pesan error berasal dari token yang ditolak (HTTP 401). */
+export function galatToken(pesan: string): boolean {
+  return /\b401\b/.test(pesan);
 }
 
 // ─── Drive CRUD ───────────────────────────────────────────────────────────────

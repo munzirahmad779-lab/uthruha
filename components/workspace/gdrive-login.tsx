@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { requestDriveAccess, listProyekDiDrive, simpanProyekKeDrive, muatProyekDariDrive } from "@/lib/engine/gdrive-storage";
+import {
+  mintaTokenDrive,
+  muatGIS,
+  simpanTokenDrive,
+  ambilTokenDrive,
+  hapusTokenDrive,
+  galatToken,
+  listProyekDiDrive,
+  simpanProyekKeDrive,
+  muatProyekDariDrive,
+} from "@/lib/engine/gdrive-storage";
 import type { ProyekTersimpan } from "@/lib/engine/gdrive-storage";
 
 interface GDriveLoginProps {
@@ -16,54 +26,25 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
   const [proyekList, setProyekList] = useState<Array<{ id: string; name: string; modified: string }>>([]);
   const [showProyek, setShowProyek] = useState(false);
 
-  // Muat Google Identity Services script saat komponen mount
+  // Pra-muat Google Identity Services + pulihkan token sesi yang belum kedaluwarsa
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if ((window as any).google) return; // Sudah dimuat
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.id = "google-identity-services";
-    document.head.appendChild(script);
-  }, []);
-
-  // Cek apakah sudah ada token di sessionStorage
-  useEffect(() => {
-    const saved = sessionStorage.getItem("uthruha_gdrive_token");
+    void muatGIS().catch(() => undefined);
+    const saved = ambilTokenDrive();
     if (saved) {
       setToken(saved);
       onLogin?.(saved);
     }
-  }, [onLogin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogin = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Tunggu Google Identity Services siap
-      await new Promise<void>((resolve, reject) => {
-        if ((window as any).google) { resolve(); return; }
-        const script = document.getElementById("google-identity-services") as HTMLScriptElement | null;
-        if (script) {
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error("Gagal memuat Google Identity Services."));
-          // Timeout 10 detik
-          setTimeout(() => reject(new Error("Timeout memuat Google Identity Services.")), 10000);
-        } else {
-          reject(new Error("Google Identity Services script tidak ditemukan."));
-        }
-      });
-
-      const accessToken = await requestDriveAccess();
-      if (!accessToken) {
-        setError("Login dibatalkan atau gagal. Coba lagi.");
-        return;
-      }
-
+      const accessToken = await mintaTokenDrive();
       setToken(accessToken);
-      sessionStorage.setItem("uthruha_gdrive_token", accessToken);
+      simpanTokenDrive(accessToken);
       onLogin?.(accessToken);
 
       // Load daftar proyek
@@ -78,7 +59,7 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
 
   const handleLogout = () => {
     setToken(null);
-    sessionStorage.removeItem("uthruha_gdrive_token");
+    hapusTokenDrive();
     setProyekList([]);
     setShowProyek(false);
   };
@@ -94,7 +75,14 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
         setError("Proyek tidak ditemukan di Drive.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memuat proyek.");
+      const pesan = err instanceof Error ? err.message : "Gagal memuat proyek.";
+      if (galatToken(pesan)) {
+        hapusTokenDrive();
+        setToken(null);
+        setError("Sesi Google sudah berakhir (token berlaku ±1 jam). Silakan masuk lagi.");
+      } else {
+        setError(pesan);
+      }
     } finally {
       setLoading(false);
     }
