@@ -8,7 +8,7 @@
  * jurnal, bab, dan skripsi/tesis. Kasus eksotik (surat kabar, arsip, wawancara)
  * jatuh ke pola umum, bukan ditebak detailnya.
  */
-import { catatanKaki, entriDaftarPustaka, type Sumber } from "@/lib/engine/cite";
+import { catatanKaki, entriDaftarPustaka, keAngkaArab, type Sumber } from "@/lib/engine/cite";
 import type { PedomanRules } from "@/lib/refs/pedoman";
 
 export type GayaSitasi = "turabian9" | "chicago17" | "apa7" | "arab-klasik";
@@ -138,7 +138,7 @@ export function susunDaftarPustakaGaya(items: Sumber[], gaya: GayaSitasi): strin
 /* ------- Pedoman kampus: lapisan TERATAS (mengalahkan gaya proyek) ------- */
 
 /** Isi slot template pedoman {penulis} {judul} {kota} … dari satu Sumber. */
-function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}): string {
+function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}, angkaArab = false): string {
   const nilai: Record<string, string> = {
     penulis: s.penulis,
     judul: s.judul,
@@ -157,7 +157,7 @@ function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}): stri
     doi: s.doi ?? "",
     edisi: s.edisi ?? "",
   };
-  return template
+  let hasil = template
     .replace(/\{(\w+)\}/g, (_, k: string) => nilai[k] ?? "")
     .replace(/\(\s*[:،,]?\s*\)/g, "")
     .replace(/،\s*،/g, "،")
@@ -165,11 +165,23 @@ function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}): stri
     .replace(/\s+/g, " ")
     .replace(/\s+([،.])/g, "$1")
     .trim();
+  if (angkaArab) {
+    // Pedoman meminta angka Arab (٠١٢٣): ubah semua digit, KECUALI DOI —
+    // pengenal DOI harus tetap persis seperti terdaftar.
+    const doi = s.doi?.trim();
+    if (doi && hasil.includes(doi)) {
+      const jaga = "\u0001DOI\u0001";
+      hasil = keAngkaArab(hasil.replace(doi, jaga)).replace(jaga, doi);
+    } else {
+      hasil = keAngkaArab(hasil);
+    }
+  }
+  return hasil;
 }
 
 /** Footnote menurut template pedoman kampus user (bila proyek punya pedoman). */
 export function footnotePedoman(s: Sumber, pedoman: PedomanRules, opsi: OpsiFootnote = {}): string {
-  return isiTemplate(pedoman.formatFootnote, s, opsi);
+  return isiTemplate(pedoman.formatFootnote, s, opsi, pedoman.angkaArab);
 }
 
 /** Daftar pustaka menurut template pedoman kampus user, urut alfabet Arab. */
@@ -177,5 +189,5 @@ export function daftarPustakaPedoman(items: Sumber[], pedoman: PedomanRules): st
   const collator = new Intl.Collator("ar");
   return [...items]
     .sort((a, b) => collator.compare(a.penulis, b.penulis) || (a.tahun || "").localeCompare(b.tahun || ""))
-    .map((s) => isiTemplate(pedoman.formatPustaka, s));
+    .map((s) => isiTemplate(pedoman.formatPustaka, s, {}, pedoman.angkaArab));
 }
