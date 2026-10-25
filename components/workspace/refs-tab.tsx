@@ -18,13 +18,14 @@ import { GAYA_LABEL, gayaSah, type GayaSitasi } from "@/lib/engine/citation";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { CopyButton, Field, Note } from "@/components/ui";
 import { PedomanPanel } from "@/components/workspace/pedoman-panel";
+import { PencarianTopikPanel } from "@/components/workspace/pencarian-topik-panel";
 
 const KOSONG: Sumber = sumberBaru("kitab");
 
 export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>) => void }) {
   const [baru, setBaru] = useState<Sumber>(KOSONG);
   const [buka, setBuka] = useState<string | null>(null);
-  const [sub, setSub] = useState<"sumber" | "pedoman">("sumber");
+  const [sub, setSub] = useState<"sumber" | "cari" | "pedoman">("sumber");
   const [imporTeks, setImporTeks] = useState("");
   const [pesanImpor, setPesanImpor] = useState("");
   const [peringatanDuplikat, setPeringatanDuplikat] = useState("");
@@ -105,6 +106,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
       <div role="tablist" aria-label="Bagian rujukan" className="flex gap-1 border-b border-ink-900/10 pb-2">
         {([
           { id: "sumber" as const, label: "Sumber & daftar pustaka" },
+          { id: "cari" as const, label: "Cari online & lokal" },
           { id: "pedoman" as const, label: "Pedoman kampus" },
         ]).map((tab) => (
           <button
@@ -123,6 +125,8 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
       </div>
 
       {sub === "pedoman" && <PedomanPanel p={p} ubah={ubah} />}
+
+      {sub === "cari" && <PencarianTopikPanel p={p} ubah={ubah} />}
 
       {sub === "sumber" && (
       <>
