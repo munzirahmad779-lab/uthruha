@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Pematangan pasca-kajian (26 Okt 2026)
+- **GDrive disambungkan ke workspace**: konverter `projectKeTersimpan()` + tombol "Sinkronkan proyek ini ke Drive" dan muat proyek Drive lewat gerbang `migrasiProyek()`. (Sebelumnya komponen login Drive tidak terhubung ke aliran Project sama sekali.)
+- **Pedoman kampus = lapisan teratas sitasi**: bila proyek punya pedoman, template `formatFootnote`/`formatPustaka` pedoman yang dipakai — mengalahkan gaya proyek; gaya hanya berlaku tanpa pedoman.
+- **Kalimat kunci, bukan kata kunci**: ekstraksi AI helper menyusun kalimat kunci (frasa utuh 3–7 kata); pencarian kitab berjalan per kalimat kunci Arab (maks 3) lewat route refs, hasil didedup per halaman; label UI diperbarui.
+
 ## Fase 2 — Referensi, Pencarian Jurnal & Kitab, AI Helper (26 Okt 2026, branch `fase2`)
 
 Dikerjakan mengikuti *Rancangan Lengkap Fase 1 v2*. Enam paket, satu commit per paket, `npm run build` + `typecheck` hijau di tiap paket.
