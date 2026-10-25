@@ -41,6 +41,37 @@ export interface Project {
 }
 
 const KEY = "uthruha:projects:v1";
+const KEY_CADANGAN = "uthruha:projects:cadangan";
+export const VERSI_SKEMA_SAAT_INI = 2;
+
+/** Dilempar saat localStorage penuh — UI wajib menampilkannya, jangan ditelan. */
+export class SimpanPenuhError extends Error {
+  constructor() {
+    super("Penyimpanan peramban penuh. Ekspor proyek atau sinkronkan ke Google Drive, lalu coba lagi.");
+    this.name = "SimpanPenuhError";
+  }
+}
+
+/** Estimasi byte UTF-8 satu proyek (akurat untuk teks Arab, bukan panjang string). */
+export function ukurProyek(p: Project): number {
+  return new Blob([JSON.stringify(p)]).size;
+}
+
+/** Estimasi total byte semua kunci uthruha:* di localStorage. */
+export function ukurPenyimpanan(): { terpakai: number; kuotaPerkiraan: number; persen: number } {
+  let terpakai = 0;
+  if (typeof window !== "undefined") {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k && k.startsWith("uthruha:")) {
+        const v = window.localStorage.getItem(k) ?? "";
+        terpakai += new Blob([k + v]).size;
+      }
+    }
+  }
+  const kuotaPerkiraan = 5 * 1024 * 1024; // batas umum per origin ±5MB
+  return { terpakai, kuotaPerkiraan, persen: Math.min(100, Math.round((terpakai / kuotaPerkiraan) * 100)) };
+}
 
 export function newProject(init: Partial<Project> = {}): Project {
   const now = new Date().toISOString();
@@ -68,21 +99,61 @@ export function newProject(init: Partial<Project> = {}): Project {
   };
 }
 
-function bacaSemua(): Project[] {
-  if (typeof window === "undefined") return [];
+function bacaMentah(): string | null {
+  if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return [];
+    return window.localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+
+function bacaSemua(): Project[] {
+  const raw = bacaMentah();
+  if (!raw) return [];
+  try {
     const data = JSON.parse(raw);
     return Array.isArray(data) ? (data as Project[]) : [];
   } catch {
+    // JANGAN kembalikan daftar kosong begitu saja: JSON rusak sekali bisa
+    // berarti seluruh proyek user. Amankan salinan mentahnya agar bisa
+    // dipulihkan, lalu laporkan lewat flag agar UI memberi tahu user.
+    try {
+      window.localStorage.setItem(`uthruha:projects:rusak:${Date.now()}`, raw);
+      window.localStorage.setItem("uthruha:projects:ada-yang-rusak", "1");
+    } catch {
+      /* penyimpanan benar-benar tidak bisa ditulis — UI akan gagal simpan dengan pesan */
+    }
     return [];
   }
 }
 
 function tulisSemua(list: Project[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(list));
+  const json = JSON.stringify(list);
+  try {
+    // Cadangan bergilir: salinan daftar SEBELUM penimpaan ini, disimpan hanya
+    // bila ukurannya masuk akal agar tidak mempercepat penuh (maks ±40% kuota).
+    const lama = bacaMentah();
+    if (lama && new Blob([lama]).size < 2 * 1024 * 1024) {
+      try {
+        window.localStorage.setItem(KEY_CADANGAN, lama);
+      } catch {
+        /* cadangan boleh gagal; penulisan utama tetap dicoba */
+      }
+    }
+    window.localStorage.setItem(KEY, json);
+  } catch (e) {
+    // Kembalikan data lama bila penimpaan gagal di tengah, lalu lempar error
+    // yang bisa dijelaskan UI. Kegagalan simpan tidak boleh senyap.
+    try {
+      const lama = window.localStorage.getItem(KEY_CADANGAN);
+      if (lama) window.localStorage.setItem(KEY, lama);
+    } catch {
+      /* abaikan */
+    }
+    throw new SimpanPenuhError();
+  }
 }
 
 export function daftarProyek(): Project[] {

@@ -249,7 +249,7 @@ export const PENYEDIA: Penyedia[] = [
     "Tier gratis, cepat (LPU)",
     ["GROQ_API_KEY"],
     "https://api.groq.com/openai/v1",
-    process.env.GROQ_MODEL?.trim() || "qwen/qwen3-32b",
+    process.env.GROQ_MODEL?.trim() || "qwen/qwen3.8-27b", // terverifikasi di akun pemilik 25 Okt 2026 (qwen3-32b sudah tidak ada di katalog)
   ),
   buatOpenAI(
     "cerebras",
