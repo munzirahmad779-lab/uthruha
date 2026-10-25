@@ -116,13 +116,35 @@ function pesanErrorGIS(type: string | undefined): string {
     case "popup_failed_to_open":
       return "Popup Google gagal dibuka — browser memblokirnya. Izinkan popup untuk situs ini lalu coba lagi.";
     case "access_denied":
-      return "Izin akses Google Drive ditolak. Login memerlukan izin drive.file agar proyek bisa disimpan di Drive Anda sendiri.";
-    case "invalid_request":
+      return "Google menolak akun ini. Penyebab tersering: akun Anda belum didaftarkan pengelola sebagai pengguna uji (aplikasi masih mode pengujian), atau izin Drive tidak diberikan. Pakai akun yang terdaftar dan setujui izinnya; bila tetap ditolak, sampaikan pesan ini ke pengelola.";
     case "idpiframe_initialization_failed":
+      return "Browser memblokir cookie pihak ketiga yang dibutuhkan login Google. Matikan pemblokiran cookie untuk situs ini, hindari mode incognito/penyamaran, atau coba Google Chrome.";
+    case "invalid_request":
       return "Google menolak permintaan login dari alamat situs ini. Alamat situs (origin) kemungkinan belum didaftarkan di Google Cloud Console → Credentials → Authorized JavaScript origins.";
     default:
-      return `Login Google gagal (${type ?? "kesalahan tidak dikenal"}). Coba lagi; bila berulang, periksa Console Google Cloud (origin & status aplikasi OAuth).`;
+      return `Login Google gagal (${type ?? "kesalahan tidak dikenal"}). Coba lagi di Google Chrome dengan popup & cookie diizinkan; bila berulang, catat pesan ini untuk pengelola.`;
   }
+}
+
+/**
+ * Deteksi browser DALAM aplikasi (WhatsApp, Instagram, Facebook, TikTok, dsb.).
+ * Google menolak login OAuth di webview semacam itu, jadi pengguna harus
+ * diarahkan membuka situs di Chrome/browser penuh sebelum mencoba login.
+ */
+export function browserDalamAplikasi(ua?: string): boolean {
+  const s = (ua ?? (typeof navigator !== "undefined" ? navigator.userAgent : "")).toLowerCase();
+  if (!s) return false;
+  return (
+    s.includes("whatsapp") ||
+    s.includes("instagram") ||
+    s.includes("fban") ||
+    s.includes("fbav") ||
+    s.includes("tiktok") ||
+    s.includes("musical_ly") ||
+    s.includes("line/") ||
+    s.includes("telegram") ||
+    (s.includes("android") && s.includes("; wv)"))
+  );
 }
 
 /**
@@ -230,7 +252,21 @@ async function driveAPI(path: string, token: string, options: RequestInit = {}):
       ...options.headers,
     },
   });
-  if (!res.ok) throw new Error(`Drive API error: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    // Sertakan pesan asli Google agar penyebabnya terbaca (mis. Drive API
+    // belum diaktifkan di project, kuota, atau token ditolak) — bukan sekadar kode.
+    let rincian = "";
+    try {
+      const badan = await res.json();
+      const pesan: string | undefined = badan?.error?.message;
+      const alasan: string | undefined = badan?.error?.errors?.[0]?.reason;
+      if (pesan) rincian = ` — ${pesan}${alasan ? ` (${alasan})` : ""}`;
+    } catch { /* badan bukan JSON; abaikan */ }
+    if (res.status === 403 && /has not been used in project|accessNotConfigured|Drive API/i.test(rincian)) {
+      throw new Error(`Drive API error: 403${rincian}. Pengelola: aktifkan "Google Drive API" di Google Cloud Console → APIs & Services untuk project ini.`);
+    }
+    throw new Error(`Drive API error: ${res.status} ${res.statusText}${rincian}`);
+  }
   return res.json();
 }
 

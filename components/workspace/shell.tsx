@@ -26,7 +26,7 @@ import { ExportTab } from "@/components/workspace/export-tab";
 import { GDriveLogin } from "@/components/workspace/gdrive-login";
 import { PenyimpananStrip } from "@/components/workspace/penyimpanan-strip";
 import { migrasiProyek } from "@/lib/engine/project";
-import { projectKeTersimpan, simpanProyekKeDrive, type ProyekTersimpan } from "@/lib/engine/gdrive-storage";
+import { projectKeTersimpan, simpanProyekKeDrive, mintaTokenDrive, simpanTokenDrive, type ProyekTersimpan } from "@/lib/engine/gdrive-storage";
 
 const TAB = [
   { id: "ringkas", label: "Ringkasan", ar: "نظرة" },
@@ -126,11 +126,26 @@ export function Workspace({ id }: { id: string }) {
       setPesanDrive("Tersinkron ke Google Drive (folder Utruha).");
     } catch (e) {
       const pesan = e instanceof Error ? e.message : "";
-      setPesanDrive(
-        /\b401\b/.test(pesan)
-          ? "Sesi Google sudah berakhir (token berlaku ±1 jam). Masuk lagi lewat panel Google Drive di atas, lalu sinkronkan ulang."
-          : `Gagal sinkron: ${pesan || "kesalahan tidak dikenal"}`,
-      );
+      if (!/\b401\b/.test(pesan)) {
+        setPesanDrive(`Gagal sinkron: ${pesan || "kesalahan tidak dikenal"}`);
+        return;
+      }
+      // Token kedaluwarsa di tengah sesi: segarkan sekali secara diam-diam, lalu ulangi.
+      try {
+        setPesanDrive("Sesi Google berakhir — menyegarkan sesi lalu mencoba lagi…");
+        const segar = await mintaTokenDrive();
+        setDriveToken(segar);
+        simpanTokenDrive(segar);
+        await simpanProyekKeDrive(segar, projectKeTersimpan(proyek));
+        setPesanDrive("Tersinkron ke Google Drive (folder Utruha).");
+      } catch (e2) {
+        const pesan2 = e2 instanceof Error ? e2.message : "";
+        setPesanDrive(
+          /\b401\b/.test(pesan2)
+            ? "Sesi Google sudah berakhir (token berlaku ±1 jam). Masuk lagi lewat panel Google Drive di atas, lalu sinkronkan ulang."
+            : `Gagal sinkron: ${pesan2 || "kesalahan tidak dikenal"}`,
+        );
+      }
     }
   }
 

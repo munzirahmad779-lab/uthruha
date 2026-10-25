@@ -8,6 +8,7 @@ import {
   ambilTokenDrive,
   hapusTokenDrive,
   galatToken,
+  browserDalamAplikasi,
   listProyekDiDrive,
   simpanProyekKeDrive,
   muatProyekDariDrive,
@@ -25,9 +26,11 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
   const [error, setError] = useState<string | null>(null);
   const [proyekList, setProyekList] = useState<Array<{ id: string; name: string; modified: string }>>([]);
   const [showProyek, setShowProyek] = useState(false);
+  const [dalamAplikasi, setDalamAplikasi] = useState(false);
 
   // Pra-muat Google Identity Services + pulihkan token sesi yang belum kedaluwarsa
   useEffect(() => {
+    setDalamAplikasi(browserDalamAplikasi());
     void muatGIS().catch(() => undefined);
     const saved = ambilTokenDrive();
     if (saved) {
@@ -68,7 +71,18 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
     if (!token) return;
     setLoading(true);
     try {
-      const proyek = await muatProyekDariDrive(token, projectId);
+      let proyek = null;
+      try {
+        proyek = await muatProyekDariDrive(token, projectId);
+      } catch (e1) {
+        // Token basi di tengah sesi: coba segarkan sekali secara diam-diam.
+        if (!(e1 instanceof Error) || !galatToken(e1.message)) throw e1;
+        const segar = await mintaTokenDrive();
+        setToken(segar);
+        simpanTokenDrive(segar);
+        onLogin?.(segar);
+        proyek = await muatProyekDariDrive(segar, projectId);
+      }
       if (proyek) {
         onProyekDimuat?.(proyek);
       } else {
@@ -144,6 +158,13 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
 
   return (
     <div className="space-y-2">
+      {dalamAplikasi && (
+        <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-[13px] leading-relaxed text-amber-900">
+          Kamu membuka web ini dari browser di dalam aplikasi (WhatsApp/Instagram/dsb.) — login Google
+          <strong> pasti ditolak</strong> di sini. Ketuk menu <strong>⋮</strong> lalu pilih
+          <strong> “Buka di Chrome”</strong> / “Buka di browser”, baru masuk dari sana.
+        </div>
+      )}
       <button
         onClick={handleLogin}
         disabled={loading}
@@ -172,7 +193,18 @@ export function GDriveLogin({ onLogin, onProyekDimuat }: GDriveLoginProps) {
 
       <p className="text-xs text-gray-500">
         Proyek Anda akan disimpan di Google Drive pribadi. Data tidak disimpan di server kami.
+        Gunakan akun Google yang sudah didaftarkan pengelola sebagai pengguna uji.
       </p>
+
+      <details className="text-xs text-gray-600">
+        <summary className="cursor-pointer font-medium text-gray-700">Login gagal? Cek 4 hal ini</summary>
+        <ul className="mt-1.5 list-disc space-y-1 pl-4 leading-relaxed">
+          <li>Buka web ini di <strong>Google Chrome</strong> — bukan browser di dalam WhatsApp/Instagram (Google menolak login di sana).</li>
+          <li><strong>Izinkan popup</strong> untuk situs ini; login Google muncul sebagai jendela popup.</li>
+          <li>Jangan pakai <strong>mode incognito/penyamaran</strong> dan jangan blokir cookie — login Google membutuhkannya.</li>
+          <li>Pakai <strong>akun yang terdaftar</strong> sebagai pengguna uji oleh pengelola, dan setujui izin Drive-nya. Akun lain akan ditolak Google selama aplikasi masih mode pengujian.</li>
+        </ul>
+      </details>
     </div>
   );
 }
