@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Perbaikan login Google Drive (26 Okt 2026)
+- **Akar gantung "Menghubungkan..." ditemukan & diperbaiki**: `requestDriveAccess()` lama tidak memasang `error_callback`, jadi kegagalan popup Google (ditutup, terblokir, origin belum diizinkan, izin ditolak) tidak pernah memanggil callback apa pun dan UI menunggu selamanya. Kini `mintaTokenDrive()`: pemuat GIS bersama (`muatGIS()`, timeout 15 dtk), `error_callback` dengan pesan Bahasa Indonesia yang bisa ditindaklanjuti per jenis error, dan watchdog 90 detik — login tidak bisa lagi menggantung tanpa penjelasan.
+- Token sesi kini sadar kedaluwarsa (±55 menit dari umur token GIS 1 jam): token basi tidak dipakai lagi secara diam-diam; error 401 saat sinkron/muat memberi pesan "sesi berakhir, masuk lagi".
+
 ## Struktur dari Isykaliyyat (26 Okt 2026)
 - **Daftar isi milik proyek (pola Ma'had Aly DDI Mangkoso)**: setiap bab isi mewakili satu isykal — isykal 1 → BAB II, isykal 2 → BAB III, isykal 3 → BAB IV (analisis akhir: تلخيص ما تقدم، التحليل والموازنة، الترجيح والجواب النهائي، تطبيق الجواب وآثاره). Generator `susunDaftarIsiIsykal()` menyusun dari rumusan masalah; bab pengurai memakai sub-bab تصوير المسألة، أقوال العلماء، أدلة الأقوال، مناقشة الأدلة.
 - **Editor daftar isi** di tab Struktur: susun dari isykaliyyat, ganti judul bab/sub-bab (Indonesia/Arab), tambah/kurang/pindah sub-bab, hapus bab, susun ulang, atau kembali ke bawaan. Daftar efektif dipakai shell, tab Tulis/Periksa/Istilah, compose, dan ekspor lewat `strukturProyek()`.
