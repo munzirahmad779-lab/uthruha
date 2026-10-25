@@ -14,6 +14,7 @@ import {
 } from "@/lib/engine/cite";
 import type { Project } from "@/lib/engine/project";
 import { cariDuplikat, parseImpor } from "@/lib/engine/referensi";
+import { GAYA_LABEL, gayaSah, type GayaSitasi } from "@/lib/engine/citation";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { CopyButton, Field, Note } from "@/components/ui";
 import { PedomanPanel } from "@/components/workspace/pedoman-panel";
@@ -125,6 +126,24 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
 
       {sub === "sumber" && (
       <>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ink-900/10 bg-white/60 px-3 py-2">
+        <span className="text-[12px] font-semibold text-ink-800">Gaya sitasi proyek:</span>
+        <select
+          className="input !w-auto !py-1 text-[12px]"
+          value={gayaSah(p.gayaSitasi)}
+          onChange={(e) => ubah({ gayaSitasi: e.target.value as GayaSitasi })}
+          aria-label="Gaya sitasi"
+        >
+          {(Object.keys(GAYA_LABEL) as GayaSitasi[]).map((g) => (
+            <option key={g} value={g}>
+              {GAYA_LABEL[g]}
+            </option>
+          ))}
+        </select>
+        <span className="text-[10.5px] text-ink-500">
+          Berlaku untuk penanda sitasi [[ref:…]] saat ekspor. Format salin cepat di bawah tetap gaya bawaan.
+        </span>
+      </div>
       <div className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Jenis sumber">

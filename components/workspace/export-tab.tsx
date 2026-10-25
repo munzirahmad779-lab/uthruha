@@ -5,6 +5,8 @@ import { getStruktur } from "@/lib/content/struktur";
 import { composeNaskah } from "@/lib/engine/compose";
 import { buatDocx, unduh } from "@/lib/engine/export";
 import { susunDaftarPustaka } from "@/lib/engine/cite";
+import { gayaSah, susunDaftarPustakaGaya } from "@/lib/engine/citation";
+import { kompilasiMarker } from "@/lib/engine/marker";
 import type { Project } from "@/lib/engine/project";
 import { IconDoc, IconDownload } from "@/components/icons";
 import { CopyButton, Note, Stat } from "@/components/ui";
@@ -22,8 +24,16 @@ export function ExportTab({ p }: { p: Project }) {
   const [sedang, setSedang] = useState(false);
 
   const markdown = useMemo(() => {
-    const isi = composeNaskah(p);
+    const gaya = gayaSah(p.gayaSitasi);
+    const hasil = kompilasiMarker(composeNaskah(p), p);
+    const isi = hasil.markdown;
     if (!pakaiRujukan || p.sumber.length === 0) return isi;
+    if (gaya !== "arab-klasik") {
+      const entri = susunDaftarPustakaGaya(p.sumber, gaya)
+        .map((e, i) => `${i + 1}. ${e}`)
+        .join("\n");
+      return `${isi}\n\n---\n\n# قائمة المراجع\n\n${entri}`;
+    }
     const daftar = susunDaftarPustaka(p.sumber)
       .map((g) => `### ${g.judul}\n\n${g.entri.map((e, i) => `${i + 1}. ${e}`).join("\n")}`)
       .join("\n\n");

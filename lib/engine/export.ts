@@ -357,13 +357,30 @@ export function markdownKeWord(md: string): string {
   return dokumenDanCatatan(md).body;
 }
 
+/**
+ * Run-run isi footnote: segmen *miring* menjadi run <w:i/> (judul kitab/jurnal
+ * pada gaya Turabian/Chicago), segmen lain teks polos. Penanda ** tidak dipakai
+ * di footnote.
+ */
+function runsFootnote(teks: string, ukuran: number): string {
+  return teks
+    .split(/(\*[^*]+\*)/g)
+    .filter(Boolean)
+    .map((seg) => {
+      const miring = /^\*[^*]+\*$/.test(seg);
+      const isi = miring ? seg.slice(1, -1) : seg;
+      return `<w:r><w:rPr>${miring ? "<w:i/><w:iCs/>" : ""}<w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:t xml:space="preserve">${esc(isi)}</w:t></w:r>`;
+    })
+    .join("");
+}
+
 /** Bangun `word/footnotes.xml` berisi definisi footnote. */
 function footnotesXml(dipakai: string[], definisi: Map<string, string>): string {
   const ukuran = Math.round(DOK.ukuranFootnote * 2);
   const isi = dipakai
     .map((nomor, i) => {
       const teks = definisi.get(nomor) ?? "";
-      return `<w:footnote w:id="${i + 1}"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:bidi/><w:jc w:val="both"/><w:spacing w:after="0" w:line="${barisSpasi()}" w:lineRule="auto"/><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr></w:pPr><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/><w:vertAlign w:val="superscript"/><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:footnoteRef/></w:r><w:r><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r><w:r><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:t xml:space="preserve">${esc(teks)}</w:t></w:r></w:p></w:footnote>`;
+      return `<w:footnote w:id="${i + 1}"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:bidi/><w:jc w:val="both"/><w:spacing w:after="0" w:line="${barisSpasi()}" w:lineRule="auto"/><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr></w:pPr><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/><w:vertAlign w:val="superscript"/><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:footnoteRef/></w:r><w:r><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>${runsFootnote(teks, ukuran)}</w:p></w:footnote>`;
     })
     .join("");
 
