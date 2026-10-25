@@ -15,6 +15,7 @@ import {
   type KataKunci,
 } from "@/lib/engine/pencarian-topik";
 import { Field, Note } from "@/components/ui";
+import { PetunjukCtrlF, TombolSalinCtrlF } from "@/components/workspace/ctrl-f";
 
 type Mode = "jurnal" | "kitab" | "lokal";
 
@@ -232,9 +233,11 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
                   <p className="mt-1 line-clamp-2 text-right font-naskh text-[12.5px] leading-relaxed text-ink-700" dir="rtl">
                     {h.teks_kutipan}
                   </p>
+                  <PetunjukCtrlF />
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
                   <a className="btn-quiet text-center" href={h.url_sumber} target="_blank" rel="noreferrer">Buka ↗</a>
+                  <TombolSalinCtrlF teks={h.teks_kutipan} />
                   <button
                     type="button"
                     className="btn-quiet"

@@ -18,6 +18,7 @@ import {
 import { IconCheck, IconExternal, IconPen, IconScale, IconSearch, IconSparkle, IconTrash } from "@/components/icons";
 import { Note } from "@/components/ui";
 import { BatasStrip } from "@/components/workspace/batas-strip";
+import { PetunjukCtrlF, TombolSalinCtrlF } from "@/components/workspace/ctrl-f";
 
 const URUTAN: SourceId[] = ["turath", "shamela", "ketabonline", "usul"];
 
@@ -546,6 +547,7 @@ export function RefFinder({
                         <p className="mt-2 rounded-lg bg-parchment-100/70 p-2 font-naskh text-[12.5px] leading-relaxed text-ink-800" dir="rtl">
                           {h.teks_kutipan.slice(0, 220)}
                         </p>
+                        <PetunjukCtrlF />
 
                         {h.judul_bab && (
                           <p className="mt-1.5 rounded-lg border border-ink-900/10 bg-white/60 p-2 text-[10.5px] leading-relaxed text-ink-600">
@@ -579,6 +581,7 @@ export function RefFinder({
                             {dipilih ? <IconCheck className="me-1 inline h-3 w-3" /> : null}
                             {dipilih ? "Dipilih" : "Pilih"}
                           </button>
+                          <TombolSalinCtrlF teks={h.teks_kutipan} />
                           {h.url_sumber ? (
                             <a href={h.url_sumber} target="_blank" rel="noopener noreferrer" className="btn-quiet !px-2 !py-1 !text-[11px]">
                               <IconExternal className="h-3 w-3" /> Sumber
