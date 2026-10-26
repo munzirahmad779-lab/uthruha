@@ -29,8 +29,8 @@ cek("bagian A: 1 footnote", daftarA.length === 1, `${daftarA.length}`);
 cek("bagian A: nomor 1 & format pedoman", daftarA[0]?.nomor === "1" && (daftarA[0]?.teks.includes("المجموع شرح المهذب") ?? false), daftarA[0]?.teks);
 const daftarB = footnoteBagian(p, secB);
 cek("bagian B: 2 footnote (baru + ulangan)", daftarB.length === 2, `${daftarB.length}`);
-cek("bagian B: فتح الباري nomor 2", daftarB.find((d) => d.teks.includes("فتح الباري"))?.nomor === "2");
-cek("bagian B: ulangan النووي tetap nomor 1", daftarB.find((d) => d.teks.includes("المجموع"))?.nomor === "1");
+cek("bagian B: فتح الباري nomor 2 bentuk penuh", daftarB.find((d) => d.teks.includes("فتح الباري"))?.nomor === "2" && (daftarB.find((d) => d.teks.includes("فتح الباري"))?.teks.includes("دار الحديث") ?? false));
+cek("bagian B: ulangan النووي nomor 3 bentuk SINGKAT", daftarB.find((d) => d.teks.includes("المجموع"))?.nomor === "3" && !(daftarB.find((d) => d.teks.includes("المجموع"))?.teks.includes("دار الفكر") ?? true), daftarB.find((d) => d.teks.includes("المجموع"))?.teks);
 cek("tanpa penanda mentah di teks strip", daftarB.every((d) => !d.teks.includes("[[ref:")));
 
 console.log(gagal === 0 ? "\nSEMUA LULUS" : `\n${gagal} GAGAL`);

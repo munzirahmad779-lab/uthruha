@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { Project } from "@/lib/engine/project";
 import type { Sumber } from "@/lib/engine/cite";
 import { strukturProyek } from "@/lib/content/struktur";
-import { composeNaskah } from "@/lib/engine/compose";
+import { composeNaskah, composeSection } from "@/lib/engine/compose";
 import { kompilasiMarker } from "@/lib/engine/marker";
 import { footnoteGaya, footnotePedoman, gayaSah } from "@/lib/engine/citation";
 
@@ -94,7 +94,7 @@ export function PasangFootnote({
       halaman: halaman.trim() || undefined,
       jilid: jilid.trim() || undefined,
     };
-    const teksFootnote = p.pedoman?.formatFootnote
+    const teksCadangan = p.pedoman?.formatFootnote
       ? footnotePedoman(sumber, p.pedoman, opsi)
       : footnoteGaya(sumber, gayaSah(p.gayaSitasi), opsi);
     const bayangan: Project = {
@@ -103,10 +103,48 @@ export function PasangFootnote({
       draf: { ...p.draf, [sectionId]: drafBaru },
     };
     const hasil = kompilasiMarker(composeNaskah(bayangan), bayangan);
-    const defs = [...hasil.markdown.matchAll(/^\[\^(\d+)\]: (.*)$/gm)];
-    const cocok = defs.find((m) => (m[2] ?? "") === teksFootnote);
-    return { teksFootnote, nomor: cocok?.[1] ?? "?" };
-  }, [p, sumber, sectionId, drafBaru, halaman, jilid]);
+    const defs = [...hasil.markdown.matchAll(/^\[\^(\d+)\]: (.*)$/gm)].map((m) => ({
+      nomor: m[1] ?? "?",
+      teks: m[2] ?? "",
+    }));
+    // Indeks kemunculan penanda sisipan dalam urutan naskah bayangan —
+    // penomoran kini per kemunculan (berulang = bentuk singkat), jadi nomor
+    // & teks pratinjau diambil dari def urutan itu, bukan pencocokan teks.
+    const POLA = /\[\[ref:([^\]|]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
+    const perId = new Set(bayangan.sumber.map((s) => s.id));
+    const st = strukturProyek(bayangan);
+    let berjalan = 0;
+    let idx = -1;
+    let selesai = false;
+    for (const c of st.chapters) {
+      if (selesai) break;
+      for (const s of c.sections) {
+        const drafS = bayangan.draf[s.id];
+        const teksS = drafS && drafS.trim().length > 20 ? drafS : composeSection(bayangan, s.id).markdown;
+        const cocok = [...teksS.matchAll(POLA)].filter((m) => perId.has((m[1] ?? "").trim()));
+        if (s.id === sectionId) {
+          if (modeBaru) {
+            idx = berjalan + cocok.length - 1;
+          } else {
+            const pars = drafBaru.split(/\n\s*\n/);
+            let offset = 0;
+            for (let i = 0; i < paragrafIdx && i < pars.length; i++) offset += (pars[i]?.length ?? 0) + 2;
+            const kal = pecahKalimatLokal(pars[paragrafIdx] ?? "");
+            let dalam = 0;
+            for (let j = 0; j <= kalimatIdx && j < kal.length; j++) dalam += (kal[j]?.length ?? 0) + (j > 0 ? 1 : 0);
+            const posisi = offset + dalam;
+            const sebelum = cocok.filter((m) => (m.index ?? 0) <= posisi + 1).length;
+            idx = berjalan + Math.max(sebelum - 1, 0);
+          }
+          selesai = true;
+          break;
+        }
+        berjalan += cocok.length;
+      }
+    }
+    const def = idx >= 0 ? defs[idx] : undefined;
+    return { teksFootnote: def?.teks ?? teksCadangan, nomor: def?.nomor ?? "?" };
+  }, [p, sumber, sectionId, drafBaru, halaman, jilid, modeBaru, paragrafIdx, kalimatIdx]);
 
   function pasang() {
     const drafMapBaru = { ...p.draf, [sectionId]: drafBaru };

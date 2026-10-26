@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Sitasi makin rapi: slot kosong, bentuk singkat, pemeriksa sitasi (26 Okt 2026)
+- **Slot kosong di footnote/dafar pustaka pedoman dibersihkan**: label yang datanya kosong (mis. "ج" untuk jilid pada sumber tanpa jilid) tidak lagi menggantung tercetak ("…، ج، ص ١٣٧"); unit templat kosong dibuang rapi termasuk kurung cetakan yang tinggal separuh dan titik ganda.
+- **Sitasi berulang tampil bentuk singkat** (kaidah Turabian): penomoran kompilasi kini per kemunculan — kemunculan pertama satu sumber = bentuk penuh sesuai pedoman/gaya, kemunculan berikutnya = penulis singkat، judul singkat (≤4 kata)، halaman. Berlaku seragam di naskah, ekspor Word, strip footnote per bagian, dan pratinjau dialog pasang footnote (yang kini menghitung nomor dari indeks kemunculan, bukan pencocokan teks).
+- **Panel "Pemeriksaan sitasi" di tab Ekspor**: daftar masalah sebelum ekspor — penanda yang rujukannya sudah terhapus, sitasi kitab/artikel tanpa halaman, dan rujukan terpakai yang masih bertanda perlu verifikasi — masing-masing dengan label bab/bagian dan tombol "Buka bagian". Bila bersih, panel menyatakan jumlah sitasi yang lolos; rujukan yang belum pernah disitasi dilaporkan sebagai informasi saja. Mesinnya `lib/engine/periksa-sitasi.ts` (deterministik, tanpa AI).
+- **Perbaikan lama qa-refs**: pembersih jawaban LLM (`bersihkanJawaban`) kini benar-benar membuang kata tunggal — konsep adalah frasa 2–5 kata, selaras aturan prompt istilah itu sendiri. Kegagalan uji "llm membuang kata tunggal" yang lama menggantung kini beres; seluruh suite qa-refs hijau.
+- Usulan panel pemeriksaan dosen TIDAK dibangun atas arahan pemilik: web ini bantuan belajar mahasiswa, bukan alat resmi kampus.
+
 ## Sisip sitasi lama dihapus — footnote langsung sesuai pedoman (26 Okt 2026)
 - **Bar "Sisip sitasi" manual di tab Tulis DIHAPUS** (dropdown rujukan + kolom hlm. + tombol "Sisipkan penanda" + peringatan soal kode [[ref:…]]). Mahasiswa tidak lagi menyisipkan/menjaga kode penanda dengan tangan.
 - **Penggantinya strip "Footnote bagian ini"** di bawah editor: footnote bagian yang sedang dibuka tampil langsung sebagai hasil jadi — terformat pedoman kampus (atau gaya proyek) dan bernomor persis seperti di naskah utuh & ekspor (penomoran dihitung dari kompilasi naskah sebenarnya), siap salin per item.

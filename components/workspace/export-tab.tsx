@@ -7,6 +7,7 @@ import { buatDocx, unduh } from "@/lib/engine/export";
 import { susunDaftarPustaka } from "@/lib/engine/cite";
 import { daftarPustakaPedoman, gayaSah, susunDaftarPustakaGaya } from "@/lib/engine/citation";
 import { kompilasiMarker } from "@/lib/engine/marker";
+import { periksaSitasi } from "@/lib/engine/periksa-sitasi";
 import type { Project } from "@/lib/engine/project";
 import { IconDoc, IconDownload } from "@/components/icons";
 import { CopyButton, Note, Stat } from "@/components/ui";
@@ -19,9 +20,10 @@ function namaBerkas(p: Project, ekstensi: string) {
   return `${dasar}.${ekstensi}`;
 }
 
-export function ExportTab({ p }: { p: Project }) {
+export function ExportTab({ p, onBuka }: { p: Project; onBuka?: (sectionId: string) => void }) {
   const [pakaiRujukan, setPakaiRujukan] = useState(true);
   const [sedang, setSedang] = useState(false);
+  const periksa = useMemo(() => periksaSitasi(p), [p]);
 
   const markdown = useMemo(() => {
     const gaya = gayaSah(p.gayaSitasi);
@@ -84,6 +86,41 @@ export function ExportTab({ p }: { p: Project }) {
           Berkas .docx dihasilkan langsung di peramban: arah kanan-ke-kiri, rata kiri-kanan,
           dan penanda bagian kosong tetap terlihat agar tidak ada yang terlupa.
         </p>
+      </div>
+
+
+      <div className={`rounded-2xl border p-4 ${periksa.masalah.length > 0 ? "border-amber-500/40 bg-amber-50" : "border-emerald-600/30 bg-emerald-50"}`}>
+        <h3 className="text-[13px] font-bold text-ink-900">
+          Pemeriksaan sitasi {periksa.masalah.length > 0 ? `— ${periksa.masalah.length} hal perlu dibereskan` : "— bersih ✓"}
+        </h3>
+        {periksa.masalah.length === 0 ? (
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-600">
+            {periksa.jumlahSitasi} sitasi di naskah semuanya dikenal, mencantumkan halaman, dan
+            rujukannya sudah diverifikasi.
+            {periksa.jumlahSumberTakTerpakai > 0
+              ? ` Ada ${periksa.jumlahSumberTakTerpakai} rujukan di daftar referensi yang belum pernah disitasi (tidak ikut masalah — hanya informasi).`
+              : ""}
+          </p>
+        ) : (
+          <ul className="mt-2 space-y-1.5">
+            {periksa.masalah.map((m, i) => (
+              <li key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/70 px-2.5 py-1.5">
+                <span className="min-w-0 text-[12px] leading-relaxed text-ink-700">
+                  <span className="font-semibold text-amber-800">
+                    {m.jenis === "tak-dikenal" ? "Rujukan hilang" : m.jenis === "tanpa-halaman" ? "Tanpa halaman" : "Belum diverifikasi"}:
+                  </span>{" "}
+                  {m.pesan}
+                  {m.labelBagian && <span className="text-ink-500"> ({m.labelBagian})</span>}
+                </span>
+                {m.sectionId && onBuka && (
+                  <button type="button" className="btn-quiet shrink-0 !px-2 !py-0.5 !text-[11px]" onClick={() => onBuka(m.sectionId!)}>
+                    Buka bagian
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

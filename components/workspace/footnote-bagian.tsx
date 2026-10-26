@@ -13,13 +13,13 @@ import { CopyButton } from "@/components/ui";
  * proyek), bernomor seperti di naskah utuh. Mahasiswa tidak lagi menyisipkan
  * atau menjaga kode penanda secara manual: pemasangan sitasi berjalan lewat
  * dialog pasang footnote (pratinjau pedoman) dan pencari rujukan (AI).
- * Penomoran diambil dari kompilasi naskah yang sebenarnya agar selalu cocok
- * dengan hasil ekspor.
+ * Penomoran per kemunculan (sitasi berulang = bentuk singkat) diambil dari
+ * kompilasi naskah yang sebenarnya agar selalu cocok dengan hasil ekspor.
  */
 
 const POLA = /\[\[ref:([^\]|]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
 
-interface EntriFootnote {
+export interface EntriFootnote {
   nomor: string;
   teks: string;
   kunci: string;
@@ -32,24 +32,26 @@ export function footnoteBagian(p: Project, bagian: string): EntriFootnote[] {
     teks: m[2] ?? "",
   }));
   if (defs.length === 0) return [];
-  const nomorUntuk = new Map<string, number>();
+  const perId = new Set(p.sumber.map((s) => s.id));
   const st = strukturProyek(p);
+  let berjalan = 0;
   for (const c of st.chapters) {
     for (const s of c.sections) {
       // Cerminkan composeNaskah persis: draf mahasiswa dipakai bila ada,
       // selain itu teks susunan otomatis bagian itu.
       const draf = p.draf[s.id];
       const teksBagian = draf && draf.trim().length > 20 ? draf : composeSection(p, s.id).markdown;
-      const daftar: EntriFootnote[] = [];
-      for (const m of teksBagian.matchAll(POLA)) {
-        const kunci = `${(m[1] ?? "").trim()}|${m[2] ?? ""}|${m[3] ?? ""}`;
-        if (!nomorUntuk.has(kunci)) nomorUntuk.set(kunci, nomorUntuk.size);
-        const idx = nomorUntuk.get(kunci) ?? 0;
-        if (s.id === bagian && defs[idx] && !daftar.some((d) => d.kunci === kunci)) {
-          daftar.push({ nomor: defs[idx].nomor, teks: defs[idx].teks, kunci });
-        }
+      const cocok = [...teksBagian.matchAll(POLA)].filter((m) => perId.has((m[1] ?? "").trim()));
+      if (s.id === bagian) {
+        return cocok
+          .map((_, i) => ({
+            nomor: defs[berjalan + i]?.nomor ?? "?",
+            teks: defs[berjalan + i]?.teks ?? "",
+            kunci: `${s.id}-${berjalan + i}`,
+          }))
+          .filter((e) => e.teks);
       }
-      if (s.id === bagian) return daftar;
+      berjalan += cocok.length;
     }
   }
   return [];

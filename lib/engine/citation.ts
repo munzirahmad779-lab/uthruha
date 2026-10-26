@@ -137,6 +137,22 @@ export function susunDaftarPustakaGaya(items: Sumber[], gaya: GayaSitasi): strin
 
 /* ------- Pedoman kampus: lapisan TERATAS (mengalahkan gaya proyek) ------- */
 
+
+/**
+ * Buang unit "label {slot}" dari templat bila nilai slot itu kosong —
+ * misalnya "ج {jilid}" saat sumber tidak berjilid — agar label tidak
+ * menggantung ("…، ج، ص ١٣٧"). Slot mandiri tanpa label juga dibuang.
+ */
+function pangkasSlotKosong(template: string, nilai: Record<string, string>): string {
+  let t = template;
+  for (const [k, v] of Object.entries(nilai)) {
+    if (v.trim()) continue;
+    t = t.replace(new RegExp(`[^\\s{}()]+\\s*\\{${k}\\}`, "g"), "");
+    t = t.replaceAll(`{${k}}`, "");
+  }
+  return t;
+}
+
 /** Isi slot template pedoman {penulis} {judul} {kota} … dari satu Sumber. */
 function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}, angkaArab = false): string {
   const nilai: Record<string, string> = {
@@ -157,13 +173,20 @@ function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}, angka
     doi: s.doi ?? "",
     edisi: s.edisi ?? "",
   };
-  let hasil = template
+  let hasil = pangkasSlotKosong(template, nilai)
     .replace(/\{(\w+)\}/g, (_, k: string) => nilai[k] ?? "")
     .replace(/\(\s*[:،,]?\s*\)/g, "")
+    .replace(/\(\s*:\s*/g, "(")
+    .replace(/:\s*\)/g, ")")
     .replace(/،\s*،/g, "،")
     .replace(/:\s*،/g, "،")
+    .replace(/،\s*\./g, ".")
+    .replace(/\.\s+\./g, ".")
+    .replace(/\(\s*[،,]\s*/g, "(")
+    .replace(/\(([^():]*)\)/g, (utuh, isi: string) => (isi.includes(":") ? utuh : isi.trim()))
     .replace(/\s+/g, " ")
     .replace(/\s+([،.])/g, "$1")
+    .replace(/\.{2,}/g, ".")
     .trim();
   if (angkaArab) {
     // Pedoman meminta angka Arab (٠١٢٣): ubah semua digit, KECUALI DOI —
@@ -177,6 +200,40 @@ function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}, angka
     }
   }
   return hasil;
+}
+
+
+/** Judul singkat untuk sitasi berulang: maksimal 4 kata pertama. */
+export function judulSingkat(judul: string): string {
+  const bersih = judul.replace(/[،.:؛]+$/g, "").trim();
+  const kata = bersih.split(/\s+/).filter(Boolean);
+  return kata.length > 4 ? kata.slice(0, 4).join(" ") : bersih;
+}
+
+/** Penulis singkat: segmen pertama (laqab/nama keluarga). */
+export function penulisSingkat(penulis: string): string {
+  return penulis.split(/،|,/)[0]?.trim() || penulis;
+}
+
+/**
+ * Bentuk singkat sitasi BERULANG (kaidah Turabian): penulis singkat،
+ * judul singkat، ج jilid، ص halaman. Sitasi pertama tetap bentuk penuh.
+ */
+export function footnoteSingkat(s: Sumber, opsi: OpsiFootnote = {}, angkaArab = false): string {
+  const hal = opsi.halaman ?? s.halaman;
+  const jil = opsi.jilid ?? s.jilid;
+  let hasil: string;
+  if (s.jenis === "artikel") {
+    const bag = [penulisSingkat(s.penulis), `“${judulSingkat(s.judul)}”`];
+    if (hal) bag.push(`hlm. ${hal}`);
+    hasil = bag.filter(Boolean).join(", ") + ".";
+  } else {
+    const bag = [penulisSingkat(s.penulis), judulSingkat(s.judul)];
+    if (jil) bag.push(`ج ${jil}`);
+    if (hal) bag.push(`ص ${hal}`);
+    hasil = bag.filter(Boolean).join("، ") + ".";
+  }
+  return angkaArab ? keAngkaArab(hasil) : hasil;
 }
 
 /** Footnote menurut template pedoman kampus user (bila proyek punya pedoman). */

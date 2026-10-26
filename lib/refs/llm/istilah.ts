@@ -61,8 +61,9 @@ export function bersihkanJawaban(teks: string, maks = 8): string[] {
     if (!/^[\u0600-\u06FF\s'’\-]+$/u.test(b)) continue;
 
     const kata = b.split(/\s+/).filter(Boolean);
-    // 1..5 kata: terima istilah baik 1 kata penting maupun frasa
-    if (kata.length < 1 || kata.length > 5) continue;
+    // 2..5 kata: konsep adalah FRASA — kata tunggal dibuang (aturan prompt
+    // istilah sendiri melarang kata مفردة; kata lepas terlalu umum untuk dicari).
+    if (kata.length < 2 || kata.length > 5) continue;
     if (!out.includes(b)) out.push(b);
     if (out.length >= maks) break;
   }

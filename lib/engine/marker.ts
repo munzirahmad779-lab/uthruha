@@ -6,7 +6,7 @@
  * pernah ditulis tangan user, jadi tidak ada nomor yang basi saat naskah
  * disusun ulang. Draf lama tanpa marker tidak berubah sama sekali.
  */
-import { footnoteGaya, footnotePedoman, gayaSah } from "@/lib/engine/citation";
+import { footnoteGaya, footnotePedoman, footnoteSingkat, gayaSah } from "@/lib/engine/citation";
 import type { Project } from "@/lib/engine/project";
 
 export interface MarkerSitasi {
@@ -56,11 +56,14 @@ export interface HasilKompilasi {
 export function kompilasiMarker(markdown: string, p: Project): HasilKompilasi {
   const gaya = gayaSah(p.gayaSitasi);
   const perId = new Map(p.sumber.map((s) => [s.id, s]));
-  const nomorUntuk = new Map<string, number>();
   const definisi: string[] = [];
   const takDikenal: MarkerSitasi[] = [];
   let jumlah = 0;
 
+  // Penomoran PER KEMUNCULAN (kaidah catatan kaki): setiap penanda mendapat
+  // footnote sendiri. Kemunculan pertama satu sumber = bentuk penuh;
+  // kemunculan berikutnya = bentuk singkat (penulis & judul singkat + halaman).
+  const sudahDikutip = new Set<string>();
   const diganti = markdown.replace(POLA, (mentah, idRaw: string, hlm?: string, jil?: string) => {
     const id = idRaw.trim();
     const sumber = perId.get(id);
@@ -68,20 +71,21 @@ export function kompilasiMarker(markdown: string, p: Project): HasilKompilasi {
       takDikenal.push({ mentah, id, halaman: hlm, jilid: jil, posisi: 0 });
       return mentah;
     }
-    const kunci = `${id}|${hlm ?? ""}|${jil ?? ""}`;
-    let nomor = nomorUntuk.get(kunci);
-    if (nomor === undefined) {
-      nomor = definisi.length + 1;
-      nomorUntuk.set(kunci, nomor);
-      const opsi = { halaman: hlm?.trim() || undefined, jilid: jil?.trim() || undefined };
-      // Pedoman kampus adalah lapisan teratas: bila proyek punya pedoman,
-      // template footnote pedoman yang dipakai, bukan gaya proyek.
-      const teksFootnote = p.pedoman?.formatFootnote
+    const nomor = definisi.length + 1;
+    const opsi = { halaman: hlm?.trim() || undefined, jilid: jil?.trim() || undefined };
+    const pertama = !sudahDikutip.has(id);
+    sudahDikutip.add(id);
+    // Pedoman kampus adalah lapisan teratas: bila proyek punya pedoman,
+    // template footnote pedoman yang dipakai, bukan gaya proyek.
+    const teksFootnote = p.pedoman?.formatFootnote
+      ? pertama
         ? footnotePedoman(sumber, p.pedoman, opsi)
-        : footnoteGaya(sumber, gaya, opsi);
-      definisi.push(`[^${nomor}]: ${teksFootnote}`);
-      jumlah++;
-    }
+        : footnoteSingkat(sumber, opsi, p.pedoman.angkaArab)
+      : pertama || gaya === "apa7"
+        ? footnoteGaya(sumber, gaya, opsi)
+        : footnoteSingkat(sumber, opsi, false);
+    definisi.push(`[^${nomor}]: ${teksFootnote}`);
+    jumlah++;
     return `[^${nomor}]`;
   });
 

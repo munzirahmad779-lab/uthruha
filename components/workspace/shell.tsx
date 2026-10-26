@@ -302,7 +302,7 @@ export function Workspace({ id }: { id: string }) {
           {tab === "istilah" && <IstilahTab p={proyek} ubah={ubah} />}
           {tab === "rujukan" && <RefTab p={proyek} ubah={ubah} />}
           {tab === "periksa" && <AuditTab p={proyek} ubah={ubah} bagian={bagian} />}
-          {tab === "ekspor" && <ExportTab p={proyek} />}
+          {tab === "ekspor" && <ExportTab p={proyek} onBuka={bukaBagian} />}
         </div>
       </div>
 
