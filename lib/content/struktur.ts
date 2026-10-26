@@ -565,7 +565,7 @@ export function findSection(karya: KaryaType, sectionId: string) {
    Hasil susunan menjadi daftar isi MILIK proyek dan bebas diedit mahasiswa.
    ========================================================================== */
 
-import type { BabKustom, Project } from "@/lib/engine/project";
+import type { BabKustom, Project, SubBabKustom } from "@/lib/engine/project";
 
 const ORDINAL_AR = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر"];
 const ROMAWI = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
@@ -648,7 +648,8 @@ export function susunDaftarIsiIsykal(p: Project): BabKustom[] | null {
 /**
  * Struktur efektif proyek: daftar isi kustom bila ada, bawaan jenis karya bila tidak.
  * Sub-bab yang id-nya dikenal dari templat mewarisi panduan/pemicu/target templat;
- * sub-bab baru mendapat panduan umum bab isykal.
+ * sub-bab baru mendapat panduan umum bab isykal. Fasal/matlab (anak sub-bab)
+ * diratakan tepat di bawah induknya dengan tingkat 2.
  */
 export function strukturProyek(p: Project): StrukturDef {
   const tpl = getStruktur(p.jenis);
@@ -656,29 +657,52 @@ export function strukturProyek(p: Project): StrukturDef {
   const dikenal = new Map<string, SectionDef>();
   for (const c of tpl.chapters) for (const s of c.sections) dikenal.set(s.id, s);
 
+  const keSectionDef = (s: SubBabKustom, tingkat: number): SectionDef => {
+    const dasar = dikenal.get(s.id);
+    if (dasar) return { ...dasar, labelId: s.labelId, labelAr: s.labelAr, headingAr: s.labelAr || dasar.headingAr, tingkat };
+    const analisis = /-(talkhis|muwazana|tarjih|atsar)$/.test(s.id);
+    return {
+      id: s.id,
+      labelId: s.labelId,
+      labelAr: s.labelAr,
+      headingAr: s.labelAr,
+      panduan: analisis
+        ? "Bab analisis akhir: kumpulkan hasil bab-bab sebelumnya, timbang dalil dan pendapatnya, lalu tetapkan jawaban/judul akhir secara terperinci beserta penerapannya."
+        : tingkat === 2
+          ? "Fasal/matlab di bawah sub-bab induknya: uraikan satu aspek khusus sub-bab itu dari kitab dan sumber primer, dengan kalimat kunci yang bisa diverifikasi."
+          : "Uraikan bagian isykal ini dari kitab dan sumber primer: gambarkan masalahnya, tampilkan pendapat ulama beserta dalilnya, lalu bahas dengan kalimat kunci yang bisa diverifikasi.",
+      pemicu: [],
+      targetKata: analisis ? 650 : tingkat === 2 ? 350 : 500,
+      tingkat,
+    };
+  };
+
   const chapters: ChapterDef[] = p.daftarIsi.map((b) => ({
     id: b.id,
     labelId: b.labelId,
     labelAr: b.labelAr,
     babAr: b.babAr,
-    sections: b.sections.map((s): SectionDef => {
-      const dasar = dikenal.get(s.id);
-      if (dasar) return { ...dasar, labelId: s.labelId, labelAr: s.labelAr, headingAr: s.labelAr || dasar.headingAr };
-      const analisis = /-(talkhis|muwazana|tarjih|atsar)$/.test(s.id);
-      return {
-        id: s.id,
-        labelId: s.labelId,
-        labelAr: s.labelAr,
-        headingAr: s.labelAr,
-        panduan: analisis
-          ? "Bab analisis akhir: kumpulkan hasil bab-bab sebelumnya, timbang dalil dan pendapatnya, lalu tetapkan jawaban/judul akhir secara terperinci beserta penerapannya."
-          : "Uraikan bagian isykal ini dari kitab dan sumber primer: gambarkan masalahnya, tampilkan pendapat ulama beserta dalilnya, lalu bahas dengan kalimat kunci yang bisa diverifikasi.",
-        pemicu: [],
-        targetKata: analisis ? 650 : 500,
-      };
-    }),
+    sections: b.sections.flatMap((s) => [
+      keSectionDef(s, 1),
+      ...(s.anak ?? []).map((a) => keSectionDef(a, 2)),
+    ]),
   }));
   return { ...tpl, chapters };
+}
+
+/**
+ * Salin struktur bawaan jenis karya menjadi daftar isi milik proyek —
+ * agar judul bab/sub-bab bisa diganti dan isi bisa ditambah/kurangi
+ * walaupun proyek tidak memakai pola isykaliyyat.
+ */
+export function susunDaftarIsiBawaan(p: Project): BabKustom[] {
+  return getStruktur(p.jenis).chapters.map((c) => ({
+    id: c.id,
+    labelId: c.labelId,
+    labelAr: c.labelAr,
+    babAr: c.babAr,
+    sections: c.sections.map((s) => ({ id: s.id, labelId: s.labelId, labelAr: s.labelAr })),
+  }));
 }
 
 /** Cari section dalam struktur EFEKTIF proyek (termasuk daftar isi kustom). */

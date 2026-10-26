@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Rujukan siap salin sesuai pedoman + daftar isi fasal (26 Okt 2026)
+- **Daftar pustaka tab Rujukan kini mengikuti pedoman kampus** (template pustaka pedoman), bukan format bawaan. Daftar footnote baru "Footnote di naskah ini — bernomor & sesuai pedoman/gaya": footnote persis seperti di dokumen akhir, lengkap dengan nomor urut sitasinya, siap salin satu per satu atau semua — tanpa kode penanda [[ref:…]].
+- **Daftar isi**: struktur bawaan kini bisa dijadikan daftar isi milik proyek yang bisa diedit walau tanpa rumusan ("Jadikan struktur bawaan bisa diedit") — judul bab/sub-bab bebas diganti untuk semua proyek. Tingkat ketiga **fasal/matlab** (فصل/مطلب): tombol "+ Fasal" di bawah tiap sub-bab; fasal dirender sebagai sub-judul (###) di naskah dan menjorok di tab Struktur.
+
 ## Perbaikan login Google Drive (26 Okt 2026)
 - **Akar gantung "Menghubungkan..." ditemukan & diperbaiki**: `requestDriveAccess()` lama tidak memasang `error_callback`, jadi kegagalan popup Google (ditutup, terblokir, origin belum diizinkan, izin ditolak) tidak pernah memanggil callback apa pun dan UI menunggu selamanya. Kini `mintaTokenDrive()`: pemuat GIS bersama (`muatGIS()`, timeout 15 dtk), `error_callback` dengan pesan Bahasa Indonesia yang bisa ditindaklanjuti per jenis error, dan watchdog 90 detik — login tidak bisa lagi menggantung tanpa penjelasan.
 - Token sesi kini sadar kedaluwarsa (±55 menit dari umur token GIS 1 jam): token basi tidak dipakai lagi secara diam-diam; error 401 saat sinkron/muat memberi pesan "sesi berakhir, masuk lagi".

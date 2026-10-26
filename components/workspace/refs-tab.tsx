@@ -14,7 +14,9 @@ import {
 } from "@/lib/engine/cite";
 import type { Project } from "@/lib/engine/project";
 import { cariDuplikat, parseImpor } from "@/lib/engine/referensi";
-import { GAYA_LABEL, gayaSah, type GayaSitasi } from "@/lib/engine/citation";
+import { GAYA_LABEL, daftarPustakaPedoman, gayaSah, type GayaSitasi } from "@/lib/engine/citation";
+import { composeNaskah } from "@/lib/engine/compose";
+import { kompilasiMarker } from "@/lib/engine/marker";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { CopyButton, Field, Note } from "@/components/ui";
 import { PedomanPanel } from "@/components/workspace/pedoman-panel";
@@ -42,7 +44,26 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     }
   }
 
-  const daftar = useMemo(() => susunDaftarPustaka(p.sumber), [p.sumber]);
+  // Daftar pustaka: pedoman kampus adalah lapisan teratas — bila proyek punya
+  // pedoman, entri disusun dari template pustaka pedoman (bukan format bawaan).
+  const daftar = useMemo(
+    () =>
+      p.pedoman?.formatPustaka
+        ? [{ judul: "قائمة المراجع", entri: daftarPustakaPedoman(p.sumber, p.pedoman) }]
+        : susunDaftarPustaka(p.sumber),
+    [p.sumber, p.pedoman],
+  );
+
+  // Footnote yang benar-benar terpakai di naskah, SUDAH bernomor mengikuti
+  // urutan sitasi dan terformat pedoman/gaya — siap salin ke dokumen mahasiswa
+  // tanpa kode penanda [[ref:…]] sama sekali.
+  const footnoteNaskah = useMemo(() => {
+    const hasil = kompilasiMarker(composeNaskah(p), p);
+    return [...hasil.markdown.matchAll(/^\[\^(\d+)\]: (.*)$/gm)].map((m) => ({
+      nomor: m[1] ?? "",
+      teks: m[2] ?? "",
+    }));
+  }, [p]);
   const teksDaftar = useMemo(
     () =>
       daftar
@@ -171,7 +192,8 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
           ))}
         </select>
         <span className="text-[10.5px] text-ink-500">
-          Berlaku untuk penanda sitasi [[ref:…]] saat ekspor. Format salin cepat di bawah tetap gaya bawaan.
+          Berlaku untuk penanda sitasi [[ref:…]] saat ekspor. Daftar pustaka & footnote siap salin
+          di bawah mengikuti pedoman kampus bila proyek ini punya pedoman.
         </span>
       </div>
       <div className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
@@ -436,6 +458,36 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {footnoteNaskah.length > 0 && (
+        <div className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[13px] font-bold text-ink-900">
+              Footnote di naskah ini — bernomor & sesuai {p.pedoman?.formatFootnote ? "pedoman kampus" : "gaya proyek"} ({footnoteNaskah.length})
+            </h3>
+            <CopyButton
+              teks={footnoteNaskah.map((f) => `${f.nomor}. ${f.teks}`).join("\n")}
+              label="Salin semua footnote"
+            />
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-500">
+            Inilah footnote persis seperti yang tampil di dokumen akhir — lengkap dengan nomornya,
+            tanpa kode penanda. Salin satu per satu atau semuanya, lalu tempel ke dokumen Anda.
+            Nomor mengikuti urutan sitasi pertama di naskah dan berubah otomatis bila naskah berubah.
+          </p>
+          <ol className="mt-3 space-y-2">
+            {footnoteNaskah.map((f) => (
+              <li key={f.nomor} className="flex items-start justify-between gap-2 rounded-lg bg-parchment-100/60 px-2.5 py-2">
+                <p className="min-w-0 text-[12px] leading-relaxed text-ink-800">
+                  <span className="me-1.5 font-bold text-ink-900">{f.nomor}.</span>
+                  <span className="font-naskh" dir="rtl">{f.teks}</span>
+                </p>
+                <CopyButton teks={`${f.nomor}. ${f.teks}`} label="Salin" className="btn-quiet shrink-0 !px-2 !py-1 !text-[11px]" />
+              </li>
+            ))}
+          </ol>
         </div>
       )}
 

@@ -515,7 +515,7 @@ export function composeSection(p: Project, sectionId: string, seed = 0): HasilKo
   let markdown = fn
     ? fn(p, v, hash0)
     : par(
-        `## ${found?.section.headingAr ?? sectionId}`,
+        `${found?.section.tingkat === 2 ? "###" : "##"} ${found?.section.headingAr ?? sectionId}`,
         isi("[هذا القسم لم يُحرَّر بعد — استخدم أسئلة التوجيه أعلاه ثم اكتب هنا]", v),
       );
 

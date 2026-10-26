@@ -58,6 +58,8 @@ export interface SubBabKustom {
   id: string;
   labelId: string;
   labelAr: string;
+  /** Fasal/matlab (فصل/مطلب) di bawah sub-bab ini — tingkat ketiga daftar isi. */
+  anak?: SubBabKustom[];
 }
 
 /** Satu bab dalam daftar isi kustom proyek. */
@@ -79,16 +81,28 @@ export function sanitasiDaftarIsi(mentah: unknown): BabKustom[] | undefined {
     if (typeof b !== "object" || b === null) return;
     const rec = b as Record<string, unknown>;
     const sections: SubBabKustom[] = [];
+    const bersihSub = (sr: Record<string, unknown>, j: number, dalam: boolean): SubBabKustom | null => {
+      if (typeof sr.id !== "string" || !sr.id) return null;
+      const anak: SubBabKustom[] = [];
+      if (!dalam && Array.isArray(sr.anak)) {
+        sr.anak.forEach((a, k) => {
+          if (typeof a !== "object" || a === null) return;
+          const sub = bersihSub(a as Record<string, unknown>, k, true);
+          if (sub) anak.push(sub);
+        });
+      }
+      return {
+        id: sr.id,
+        labelId: typeof sr.labelId === "string" ? sr.labelId : `Sub-bab ${j + 1}`,
+        labelAr: typeof sr.labelAr === "string" ? sr.labelAr : "",
+        ...(anak.length > 0 ? { anak } : {}),
+      };
+    };
     if (Array.isArray(rec.sections)) {
       rec.sections.forEach((s, j) => {
         if (typeof s !== "object" || s === null) return;
-        const sr = s as Record<string, unknown>;
-        if (typeof sr.id !== "string" || !sr.id) return;
-        sections.push({
-          id: sr.id,
-          labelId: typeof sr.labelId === "string" ? sr.labelId : `Sub-bab ${j + 1}`,
-          labelAr: typeof sr.labelAr === "string" ? sr.labelAr : "",
-        });
+        const sub = bersihSub(s as Record<string, unknown>, j, false);
+        if (sub) sections.push(sub);
       });
     }
     if (sections.length === 0) return;

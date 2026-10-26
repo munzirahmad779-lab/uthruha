@@ -56,6 +56,8 @@ export interface SectionDef {
   targetKata: number;
   /** Batasi bagian ini ke metode tertentu. */
   metode?: Metode[];
+  /** Kedalaman di daftar isi: 1 = sub-bab (bawaan), 2 = fasal/matlab di bawah sub-bab. */
+  tingkat?: number;
   /** Tandai bagian yang butuh data lapangan penulis. */
   butuhData?: boolean;
 }
