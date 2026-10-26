@@ -16,7 +16,9 @@ import {
   padananArabDari,
   promptMuseLugawi,
   simpulkanLugawi,
+  amanUrl,
   KETERANGAN_JAM_CHAT,
+  TAUTAN_BOT_TELEGRAM,
   type EntriKamus,
 } from "@/lib/engine/lugawi";
 import { CopyButton, Note } from "@/components/ui";
@@ -26,7 +28,7 @@ import { PetunjukCtrlF } from "@/components/workspace/ctrl-f";
  * Panel Lugawi & Istilahi — menjawab kesulitan mahasiswa mencari makna kamus
  * (lugawi) dan makna istilah (istilahi) satu kata, termasuk kata serapan dan
  * istilah kontemporer non-Arab: dicek ke kitab, kamus/ensiklopedia terbuka,
- * dan jurnal; kesimpulan bertingkat; bila mentok, prompt siap salin ke Muse.
+ * dan jurnal; kesimpulan bertingkat; bila mentok, prompt siap salin ke Yusuf AI.
  */
 export function LugawiPanel({ online }: { online: boolean }) {
   const [kata, setKata] = useState("");
@@ -129,7 +131,7 @@ export function LugawiPanel({ online }: { online: boolean }) {
           }`}
         >
           <span className="font-bold">
-            {kesimpulan.tingkat === "di-kitab" ? "Ditemukan di kitab/kamus Arab. " : kesimpulan.tingkat === "ada-padanan" ? "Istilah kontemporer / kata serapan. " : "Belum ditemukan. "}
+            {kesimpulan.tingkat === "di-kitab" ? "Ditemukan di kitab Arab. " : kesimpulan.tingkat === "di-kamus" ? "Ada entri kamus terbuka. " : kesimpulan.tingkat === "ada-padanan" ? "Istilah kontemporer / kata serapan. " : "Belum ditemukan. "}
           </span>
           {kesimpulan.pesan}
           {kataKitabDipakai && (
@@ -151,7 +153,9 @@ export function LugawiPanel({ online }: { online: boolean }) {
                 {h.penulis ?? ""}{h.jilid ? ` · jilid ${h.jilid}` : ""}{h.halaman_cetak ? ` · hlm. cetak ${h.halaman_cetak}` : ""} · sumber: {h.source}
               </p>
               <p className="mt-1 line-clamp-2 text-right font-naskh text-[12.5px] leading-relaxed text-ink-700" dir="rtl">{h.teks_kutipan}</p>
-              <a className="btn-quiet mt-1.5 inline-block" href={h.url_sumber} target="_blank" rel="noreferrer">Buka ↗</a>
+              {amanUrl(h.url_sumber) && (
+                <a className="btn-quiet mt-1.5 inline-block" href={amanUrl(h.url_sumber)} target="_blank" rel="noreferrer">Buka ↗</a>
+              )}
             </div>
           ))}
         </div>
@@ -207,7 +211,7 @@ export function LugawiPanel({ online }: { online: boolean }) {
         <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-parchment-100/80 p-2.5 text-[11px] leading-relaxed text-ink-700">{prompt}</pre>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <CopyButton teks={prompt} label="Salin prompt" />
-          <a className="btn-quiet" href="https://t.me/Deepmusee_bot" target="_blank" rel="noreferrer">Buka bot Telegram ↗</a>
+          <a className="btn-quiet" href={TAUTAN_BOT_TELEGRAM} target="_blank" rel="noreferrer">Buka bot Telegram ↗</a>
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-ink-500">{KETERANGAN_JAM_CHAT}</p>
       </div>

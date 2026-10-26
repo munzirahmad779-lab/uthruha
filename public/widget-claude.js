@@ -8,7 +8,7 @@
   var MAILBOX_URL = "https://kotak-surat-muse.munzirahmad779.workers.dev"; // mis. https://webku.sch.id/mailbox
   var session = localStorage.getItem("claude-widget-session");
   if (!session) {
-    session = "s-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    session = "s-" + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
     localStorage.setItem("claude-widget-session", session);
   }
 
@@ -63,18 +63,82 @@
     return d;
   }
 
+  var KUNCI_TERTUNDA = "cw-jobs-tertunda";
+  var BATAS_JOB_MS = 24 * 60 * 60 * 1000;
+
+  function bacaTertunda() {
+    try { return JSON.parse(localStorage.getItem(KUNCI_TERTUNDA) || "[]"); } catch (e) { return []; }
+  }
+  function tulisTertunda(daftar) {
+    try { localStorage.setItem(KUNCI_TERTUNDA, JSON.stringify(daftar)); } catch (e) { /* penyimpanan diblokir: abaikan */ }
+  }
+  function jamWita() {
+    return parseInt(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Makassar", hour: "2-digit", hourCycle: "h23" }).format(new Date()), 10);
+  }
+  function diJendelaLayanan() { return jamWita() >= 19; }
+
+  // Pantau satu job sampai dijawab, lalu panggil tampilkan(jawaban).
+  function pantau(job, tampilkan) {
+    // Rem kuota kotak surat (ditambahkan Muse saat memasang tambalan audit):
+    // 2 detik pada 5 menit pertama, lalu melambat ke 20 detik, dan berhenti
+    // sesudah 2 jam. Job tetap tersimpan; membuka lagi halaman melanjutkan
+    // pemantauan. Tanpa rem, satu tab yang lupa ditutup membaca kotak surat
+    // puluhan ribu kali dan bisa menghabiskan kuota untuk semua pengunjung.
+    var mulai = Date.now();
+    var berhenti = false;
+    function jadwal() {
+      if (berhenti) return;
+      var jalan = Date.now() - mulai;
+      if (jalan > 2 * 60 * 60 * 1000) return;
+      setTimeout(cekSekali, jalan < 5 * 60 * 1000 ? 2000 : 20000);
+    }
+    function cekSekali() {
+      fetch(MAILBOX_URL + "/jawaban/" + encodeURIComponent(job.id) + "?session=" + encodeURIComponent(session))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j.status === "dijawab") {
+            berhenti = true;
+            tulisTertunda(bacaTertunda().filter(function (x) { return x.id !== job.id; }));
+            tampilkan(j.answer);
+          } else {
+            jadwal();
+          }
+        })
+        .catch(function () { jadwal(); });
+    }
+    jadwal();
+  }
+
+  // Pertanyaan yang belum terjawab (mis. ditanya di luar jam) dipulihkan saat halaman dibuka lagi.
+  function pulihkan() {
+    var sekarang = Date.now();
+    var daftar = bacaTertunda().filter(function (x) { return sekarang - x.dibuat < BATAS_JOB_MS; });
+    tulisTertunda(daftar);
+    daftar.forEach(function (job) {
+      tambah("cw-status", "Pertanyaan sebelumnya masih menunggu jawaban: " + job.teks);
+      pantau(job, function (jawaban) { tambah("cw-bot", jawaban); });
+    });
+  }
+
   function tanya() {
+    if (kirim.disabled) return; // Enter saat masih menunggu jawaban: jangan kirim ganda
     var t = teks.value.trim();
     if (!t) return;
     teks.value = "";
     tambah("cw-user", t);
     kirim.disabled = true;
+
     var mulai = Date.now();
-    var status = tambah("cw-status", "Sedang diproses Yusuf AI — biasanya 10–30 detik, mohon ditunggu.");
-    var pewaktu = setInterval(function () {
+    var status = tambah("cw-status", "");
+    function tampilStatus() {
       var dtk = Math.round((Date.now() - mulai) / 1000);
-      status.textContent = "Sedang diproses Yusuf AI — biasanya 10–30 detik, mohon ditunggu. (" + dtk + " dtk)";
-    }, 1000);
+      var dasar = diJendelaLayanan()
+        ? "Sedang diproses Yusuf AI — biasanya 10–30 detik, mohon ditunggu."
+        : "Di luar jam layanan (19.00–00.00 WITA). Pertanyaanmu sudah tercatat dan dijawab saat jendela buka; kamu boleh menutup halaman ini.";
+      status.textContent = dasar + " (" + dtk + " dtk)";
+    }
+    tampilStatus();
+    var pewaktu = setInterval(tampilStatus, 1000);
 
     function selesai(pesan, isBot) {
       clearInterval(pewaktu);
@@ -91,22 +155,18 @@
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
-        if (!res.ok) return selesai(res.j.error || "Maaf, lagi ada gangguan. Coba lagi ya.", false);
-        var jobId = res.j.job_id;
-        var cek = setInterval(function () {
-          fetch(MAILBOX_URL + "/jawaban/" + jobId + "?session=" + encodeURIComponent(session))
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-              if (j.status === "dijawab") {
-                clearInterval(cek);
-                selesai(j.answer, true);
-              }
-            })
-            .catch(function () { /* abaikan, coba lagi di putaran berikut */ });
-        }, 2000);
+        if (!res.ok || !res.j.job_id) {
+          return selesai(res.j.error || "Maaf, lagi ada gangguan. Coba lagi ya.", false);
+        }
+        var job = { id: res.j.job_id, teks: t.slice(0, 60), dibuat: Date.now() };
+        tulisTertunda(bacaTertunda().concat([job]));
+        pantau(job, function (jawaban) { selesai(jawaban, true); });
+        // Setelah 5 menit, pengguna boleh bertanya lagi, tetapi pemantauan tetap berjalan.
         setTimeout(function () {
-          clearInterval(cek);
-          if (kirim.disabled) selesai("Maaf, jawabannya kelamaan. Coba kirim lagi ya.", false);
+          if (!kirim.disabled) return;
+          clearInterval(pewaktu);
+          status.textContent = "Jawaban belum datang. Pertanyaanmu tetap tercatat dan akan muncul di sini saat tersedia.";
+          kirim.disabled = false;
         }, 300000);
       })
       .catch(function () { selesai("Maaf, tidak bisa terhubung. Coba lagi ya.", false); });
@@ -114,4 +174,5 @@
 
   kirim.addEventListener("click", tanya);
   teks.addEventListener("keydown", function (e) { if (e.key === "Enter") tanya(); });
+  pulihkan();
 })();

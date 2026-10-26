@@ -15,7 +15,8 @@ import {
   type HitKitabMentah,
   type KataKunci,
 } from "@/lib/engine/pencarian-topik";
-import { Field, Note } from "@/components/ui";
+import { CopyButton, Field, Note } from "@/components/ui";
+import { TAUTAN_BOT_TELEGRAM } from "@/lib/engine/lugawi";
 import { PetunjukCtrlF, TombolSalinCtrlF } from "@/components/workspace/ctrl-f";
 import { PasangFootnote } from "@/components/workspace/pasang-footnote";
 import { LugawiPanel } from "@/components/workspace/lugawi-panel";
@@ -332,9 +333,8 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
     setKunci.kalimat.length > 0
       ? `Kalimat kunci: ${setKunci.kalimat.map((k) => k.teks).join("؛ ")}`
       : `Topik: ${teks}`,
-    `Balas dengan kutipan persisnya, nama kitab, jilid, dan halaman — untuk saya verifikasi dengan Ctrl+F.`,
+    `Balas dengan kutipan persisnya, nama kitab, jilid, dan halaman. Jika kamu tidak yakin ada, katakan terus terang tidak tahu — jangan mengarang. Saya akan memverifikasi dengan Ctrl+F sebelum disitasi.`,
   ].join("\n");
-  const tautanMintaBot = `https://t.me/share/url?url=${encodeURIComponent("https://uthruha.vercel.app")}&text=${encodeURIComponent(teksMintaBot)}`;
 
   const temuanBabIni = (p.temuan ?? []).filter((t) => t.babId === babKey);
 
@@ -623,8 +623,8 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
             <a className="btn-quiet" href={tautanTurath} target="_blank" rel="noreferrer">Pencarian mendalam di Turath.io ↗</a>
             <a className="btn-quiet" href={tautanShamela} target="_blank" rel="noreferrer">Buka di Shamela ↗</a>
             <a className="btn-quiet" href={tautanGaruda} target="_blank" rel="noreferrer">Buka di Garuda ↗</a>
-            <a className="btn-quiet" href={tautanMintaBot} target="_blank" rel="noreferrer">Minta bot bantu cari ↗</a>
-            <a className="btn-quiet" href="https://t.me/Deepmusee_bot" target="_blank" rel="noreferrer">Buka bot Telegram ↗</a>
+            <CopyButton teks={teksMintaBot} label="Salin pesan untuk bot" />
+            <a className="btn-quiet" href={TAUTAN_BOT_TELEGRAM} target="_blank" rel="noreferrer">Buka bot Telegram ↗</a>
           </div>
           {hasilKitab.map((h) => {
             const sHit = hitKeSumber(h);

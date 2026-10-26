@@ -3,7 +3,7 @@
 // termasuk kata serapan & istilah kontemporer non-Arab. Sumber terbuka:
 // Wiktionary (etimologi + padanan Arab) & Wikipedia (Arab/Indonesia).
 // Kesimpulan dibuat bertingkat & jujur: ditemukan di kitab/kamus, hanya ada
-// padanan, atau tidak ditemukan sama sekali (lalu diarahkan bertanya ke Muse).
+// padanan, atau tidak ditemukan sama sekali (lalu diarahkan bertanya ke Yusuf AI).
 
 export interface EntriKamus {
   sumber: string;
@@ -84,7 +84,21 @@ export function padananArabDari(mentah: string): string | null {
   return arab ? arab[0].trim() : null;
 }
 
-export type TingkatLugawi = "di-kitab" | "ada-padanan" | "tidak-ditemukan";
+export type TingkatLugawi = "di-kitab" | "di-kamus" | "ada-padanan" | "tidak-ditemukan";
+
+/** Tautan bot Telegram Yusuf AI — satu sumber kebenaran untuk semua tombol. */
+export const TAUTAN_BOT_TELEGRAM = "https://t.me/Deepmusee_bot";
+
+/** Hanya tautan http(s) dari sumber eksternal yang boleh dijadikan <a href>. */
+export function amanUrl(u: string | undefined): string | undefined {
+  if (!u) return undefined;
+  try {
+    const x = new URL(u);
+    return x.protocol === "https:" || x.protocol === "http:" ? x.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export function simpulkanLugawi(x: {
   adaKitab: boolean;
@@ -92,11 +106,18 @@ export function simpulkanLugawi(x: {
   adaPadanan: boolean;
   adaJurnal: boolean;
 }): { tingkat: TingkatLugawi; pesan: string } {
-  if (x.adaKitab || x.adaKamus) {
+  if (x.adaKitab) {
     return {
       tingkat: "di-kitab",
       pesan:
-        "Kata ini DITEMUKAN di kitab/kamus Arab (lihat hasil di bawah) — makna lugawi-nya ada rujukannya. Tetap verifikasi edisi & halaman cetak dengan Ctrl+F sebelum disitasi.",
+        "Kata ini DITEMUKAN di kitab Arab yang terdaftar di pencarian (lihat hasil di bawah). Tetap verifikasi edisi & halaman cetak dengan Ctrl+F sebelum disitasi.",
+    };
+  }
+  if (x.adaKamus) {
+    return {
+      tingkat: "di-kamus",
+      pesan:
+        "Ada entri ensiklopedia atau kamus terbuka untuk kata ini (lihat di bawah). Itu belum berarti kata ini tercantum di kamus klasik; untuk kepastian, periksa لسان العرب atau القاموس المحيط secara langsung.",
     };
   }
   if (x.adaPadanan || x.adaJurnal) {
@@ -113,20 +134,20 @@ export function simpulkanLugawi(x: {
   };
 }
 
-/** Prompt siap salin untuk ditanyakan ke Muse (widget chat / bot) bila pemeriksaan web mentok. */
+/** Prompt siap salin untuk ditanyakan ke Yusuf AI (widget chat / bot) bila pemeriksaan web mentok. */
 export function promptMuseLugawi(kata: string): string {
   return [
     `Saya sedang menulis karya ilmiah berbahasa Arab dan kesulitan memahami kata/istilah: "${kata}".`,
     `Tolong jelaskan:`,
     `1. Makna LUGHAWI-nya (makna kamus & asal kata; akar katanya bila dari bahasa Arab).`,
     `2. Makna ISTILAHI-nya (makna teknis dalam bidang yang terkait).`,
-    `3. Apakah kata ini ADA di kamus/kitab Arab klasik (لسان العرب، القاموس المحيط، المعجم الوسيط)? Bila ada, sebutkan maknanya di sana; bila tidak ada, katakan terus terang tidak ada.`,
+    `3. Apakah kata ini ADA di kamus/kitab Arab klasik (لسان العرب، القاموس المحيط، المعجم الوسيط)? Bila ada, sebutkan maknanya di sana; bila tidak ada, katakan terus terang tidak ada. Jangan mengarang nama kitab, jilid, atau nomor halaman; bila tidak yakin, katakan tidak yakin.`,
     `4. Bila ini kata serapan / istilah asing kontemporer: dari bahasa apa asalnya, dan apa PADANAN ARAB yang paling tepat untuk karya ilmiah?`,
     `5. Beri satu contoh kalimat akademik berbahasa Arab yang memakai kata/padanannya.`,
     `Jawab dalam Bahasa Indonesia; istilah Arab ditulis dengan huruf Arab.`,
   ].join("\n");
 }
 
-/** Keterangan jam dijawabnya chat Yusuf AI (jendela hub 19.00–00.00 WITA). */
+/** Keterangan jam dijawabnya chat Yusuf AI (jendela layanan 19.00–00.00 WITA). */
 export const KETERANGAN_JAM_CHAT =
   "Chat Yusuf AI di web ini (tombol “Tanya Yusuf AI” di pojok halaman) dijawab langsung pada pukul 19.00–00.00 WITA. Di luar jam itu pertanyaan tetap masuk dan dijawab saat jendela berikutnya buka.";
