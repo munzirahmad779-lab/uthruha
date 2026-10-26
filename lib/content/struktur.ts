@@ -388,6 +388,26 @@ const jurnal: ChapterDef[] = [
         ],
         targetKata: 200,
       },
+      {
+        id: "abstrakEn",
+        labelId: "Abstrak Bahasa Inggris (Abstract)",
+        labelAr: "Abstract",
+        headingAr: "Abstract",
+        panduan:
+          "Terjemahan setia abstrak Arab ke bahasa Inggris akademik — jurnal bereputasi menolak naskah tanpa abstract berbahasa Inggris. Istilah kunci diterjemahkan konsisten dengan kata kunci.",
+        pemicu: ["Apakah abstract ini terbaca natural bagi penutur akademik Inggris?"],
+        targetKata: 200,
+      },
+      {
+        id: "kataKunciArtikel",
+        labelId: "Kata Kunci",
+        labelAr: "الكلمات المفتاحية",
+        headingAr: "الكلمات المفتاحية",
+        panduan:
+          "3–5 kata kunci dalam tiga bahasa bila jurnal memintanya (Arab, Inggris, Indonesia), dipilih dari istilah yang benar-benar dicari pembaca di basis data.",
+        pemicu: ["Istilah apa yang dipakai peneliti lain untuk menemukan topik ini?"],
+        targetKata: 40,
+      },
     ],
   },
   {
@@ -402,12 +422,12 @@ const jurnal: ChapterDef[] = [
         labelAr: "المقدمة",
         headingAr: "المقدمة",
         panduan:
-          "Pola funnel: konteks → penelitian sebelumnya → celah → tujuan & kebaruan artikel. Tanpa sub-judul.",
+          "Pola funnel: konteks → penelitian sebelumnya → celah → tujuan & kebaruan artikel. Tanpa sub-judul. Pendahuluan artikel jurnal bereputasi wajib memuat pernyataan kebaruan (novelty) yang eksplisit dan posisi terhadap literatur mutakhir — tanpa itu, naskah ditolak sebelum dinilai isinya.",
         pemicu: [
           "Mengapa artikel ini perlu dibaca sekarang?",
           "Apa celah yang diisi artikel ini dibanding studi terdahulu?",
         ],
-        targetKata: 900,
+        targetKata: 1300,
       },
     ],
   },
@@ -449,7 +469,7 @@ const jurnal: ChapterDef[] = [
           "Apa pola utama dalam data?",
           "Bagaimana temuan ini berbicara dengan literatur yang Anda kutip?",
         ],
-        targetKata: 1400,
+        targetKata: 3200,
         butuhData: true,
       },
     ],
@@ -471,7 +491,37 @@ const jurnal: ChapterDef[] = [
           "Apa satu kalimat yang harus diingat pembaca?",
           "Riset lanjutan apa yang paling logis?",
         ],
-        targetKata: 350,
+        targetKata: 400,
+      },
+      {
+        id: "keterbatasan",
+        labelId: "Keterbatasan Penelitian",
+        labelAr: "حدود البحث",
+        headingAr: "حدود البحث",
+        panduan:
+          "Nyatakan keterbatasan secara jujur dan spesifik — cakupan data, metode, generalisasi — beserta dampaknya pada kesimpulan. Jurnal bereputasi menilai kejujuran ini sebagai tanda kematangan, bukan kelemahan.",
+        pemicu: ["Apa yang tidak bisa dijawab penelitian ini, dan mengapa?"],
+        targetKata: 300,
+      },
+      {
+        id: "pendanaan",
+        labelId: "Ucapan Terima Kasih & Pendanaan",
+        labelAr: "شكر وتقدير والتمويل",
+        headingAr: "شكر وتقدير",
+        panduan:
+          "Sebutkan sumber pendanaan (atau nyatakan tidak ada pendanaan khusus) dan pihak yang membantu secara substansial tetapi tidak memenuhi syarat penulis.",
+        pemicu: ["Siapa yang mendanai atau membantu tanpa menjadi penulis?"],
+        targetKata: 80,
+      },
+      {
+        id: "pernyataanEtik",
+        labelId: "Pernyataan Konflik Kepentingan & Ketersediaan Data",
+        labelAr: "الإفصاح عن تضارب المصالح",
+        headingAr: "الإفصاح",
+        panduan:
+          "Satu-dua kalimat baku: penulis menyatakan tidak ada konflik kepentingan; data tersedia dari penulis atas permintaan yang wajar (atau sebutkan repositorinya). Banyak jurnal Scopus menolak naskah tanpa pernyataan ini.",
+        pemicu: ["Apakah ada kepentingan apa pun yang bisa memengaruhi penilaian pembaca?"],
+        targetKata: 60,
       },
       {
         id: "maraji",
@@ -479,16 +529,113 @@ const jurnal: ChapterDef[] = [
         labelAr: "المراجع",
         headingAr: "المراجع",
         panduan:
-          "Rujukan yang benar-benar disitasi, format konsisten, judul kitab/artikel tidak diterjemahkan. Periksa setiap entri pada sumber aslinya.",
+          "Standar jurnal bereputasi: minimal 25 referensi, minimal 70% berupa artikel jurnal, dan dominan terbit dalam 10 tahun terakhir. Referensi di luar standar ini harus punya alasan kuat (sumber primer/turats).",
         pemicu: [
           "Apakah semua rujukan di badan teks muncul di daftar ini?",
           "Apakah nama penulis, tahun, dan penerbit sudah benar?",
         ],
-        targetKata: 120,
+        targetKata: 150,
       },
     ],
   },
 ];
+
+
+/** Bagian khas jenjang — membedakan skripsi/tesis/disertasi secara SUBSTANSI,
+ * bukan sekadar pengali kata. Disisipkan ke bab bawaan oleh babJenjang(). */
+const SEC_KONTRIBUSI = (target: number): SectionDef => ({
+  id: "kontribusi",
+  labelId: "Kontribusi Penelitian",
+  labelAr: "إسهام البحث",
+  headingAr: "إسهام البحث",
+  panduan:
+    "Nyatakan dengan tegas sumbangan penelitian ini: bagi teori (konsep/kerangka yang diperkuat atau dibangun), bagi praktik, dan bagi kajian keislaman/turats. Satu paragraf per jenis kontribusi, masing-masing ditopang temuan Bab IV — bukan janji umum.",
+  pemicu: [
+    "Apa yang berubah dalam pemahaman bidang ini sesudah penelitian Anda?",
+    "Siapa yang terbantu secara praktik, dan bagaimana?",
+  ],
+  targetKata: target,
+});
+
+const SEC_SINTESIS = (target: number): SectionDef => ({
+  id: "sintesisTeori",
+  labelId: "Sintesis & Kritik Teori",
+  labelAr: "تركيب النظرية ونقدها",
+  headingAr: "تركيب النظرية ونقدها",
+  panduan:
+    "Jangan berhenti memaparkan teori: bandingkan antar-teori, tunjukkan ketegangan dan keterbatasannya, lalu nyatakan posisi teoritis yang Anda ambil beserta alasannya. Bagian inilah yang membedakan tesis/disertasi dari skripsi.",
+  pemicu: [
+    "Di mana dua teori utama topik ini saling bertentangan?",
+    "Posisi mana yang Anda ambil, dan apa buktinya?",
+  ],
+  targetKata: target,
+});
+
+const SEC_KEBARUAN: SectionDef = {
+  id: "kebaruan",
+  labelId: "Kebaruan & Orisinalitas",
+  labelAr: "جدة البحث وأصالته",
+  headingAr: "جدة البحث وأصالته",
+  panduan:
+    "Bagian WAJIB disertasi: rumuskan kebaruan (novelty) secara eksplisit — apa yang belum pernah dikaji atau dijawab sebelumnya — dan buktikan dari peta penelitian terdahulu. Kebaruan yang tidak menunjuk celah literatur yang konkret akan runtuh di ruang ujian.",
+  pemicu: [
+    "Apa persisnya yang baru: objek, metode, sudut pandang, atau jawaban?",
+    "Studi terdekat apa yang membuktikan celah itu masih kosong?",
+  ],
+  targetKata: 900,
+};
+
+const SEC_PETA_JALAN: SectionDef = {
+  id: "petaJalan",
+  labelId: "Peta Jalan & Posisi Penelitian",
+  labelAr: "خارطة البحث وموقعه",
+  headingAr: "خارطة البحث وموقعه",
+  panduan:
+    "Petakan perkembangan kajian topik ini dari masa ke masa — aliran, periode, tokoh kunci — lalu tandai persis di mana penelitian Anda berdiri dan ke mana ia menggerakkan bidang ini.",
+  pemicu: [
+    "Bagaimana kajian topik ini berubah dari generasi ke generasi?",
+    "Di titik mana peta itu Anda masuk, dan apa yang bergeser karenanya?",
+  ],
+  targetKata: 800,
+};
+
+function sisipSesudah(chapters: ChapterDef[], babId: string, sesudahId: string, section: SectionDef) {
+  const bab = chapters.find((c) => c.id === babId);
+  if (!bab) return;
+  const i = bab.sections.findIndex((x) => x.id === sesudahId);
+  bab.sections.splice(i >= 0 ? i + 1 : bab.sections.length, 0, section);
+}
+
+function gantiPanduan(chapters: ChapterDef[], id: string, panduan: string) {
+  for (const c of chapters) for (const x of c.sections) if (x.id === id) x.panduan = panduan;
+}
+
+function tambahPanduan(chapters: ChapterDef[], id: string, tambahan: string) {
+  for (const c of chapters) for (const x of c.sections) if (x.id === id) x.panduan = `${x.panduan} ${tambahan}`;
+}
+
+/** Rakit bab per jenjang: bab bawaan yang sama di permukaan, aturan berbeda di dalamnya. */
+function babJenjang(karya: Exclude<KaryaType, "jurnal">, skala: number): ChapterDef[] {
+  const chapters = [bab1(skala), bab2(skala), bab3(skala), bab4(skala), bab5(skala)];
+  if (karya === "tesis" || karya === "disertasi") {
+    sisipSesudah(chapters, "bab1", "fawaid", SEC_KONTRIBUSI(karya === "tesis" ? 450 : 700));
+    sisipSesudah(chapters, "bab2", "ithar", SEC_SINTESIS(karya === "tesis" ? 800 : 1200));
+    gantiPanduan(
+      chapters,
+      "dirasat",
+      karya === "tesis"
+        ? "Standar tesis: minimal 15 studi terdahulu dibandingkan secara kritis — persamaan, perbedaan, dan kelemahannya — bukan diringkas satu per satu. Akhiri dengan posisi yang tegas: celah apa yang tersisa untuk penelitian Anda."
+        : "Standar disertasi: petakan state of the art dari minimal 25 studi — termasuk literatur internasional dan sumber turats primer — secara kronologis-tematis, kritik keterbatasan tiap arus, dan tunjukkan celah yang hanya bisa diisi penelitian Anda. Bagian ini fondasi klaim kebaruan di Bab I.",
+    );
+  }
+  if (karya === "disertasi") {
+    sisipSesudah(chapters, "bab1", "hudud", SEC_KEBARUAN);
+    sisipSesudah(chapters, "bab2", "dirasat", SEC_PETA_JALAN);
+    tambahPanduan(chapters, "khalfiya", "Untuk disertasi, latar belakang wajib ditutup dengan pernyataan celah kebaruan yang tegas: apa yang belum terjawab oleh seluruh kajian sebelumnya.");
+    tambahPanduan(chapters, "ithar", "Untuk disertasi, teori tidak cukup dipinjam: tunjukkan bagaimana penelitian ini menguji, memperluas, atau membangun teori.");
+  }
+  return chapters;
+}
 
 const akademik = (karya: Exclude<KaryaType, "jurnal">, skala: number): StrukturDef => ({
   karya,
@@ -508,7 +655,7 @@ const akademik = (karya: Exclude<KaryaType, "jurnal">, skala: number): StrukturD
         : "Lima bab dengan kontribusi teoretis orisinal, uji ketat, dan kebaruan yang harus dipertahankan.",
   rentang:
     karya === "skripsi" ? "60–120 halaman" : karya === "tesis" ? "100–180 halaman" : "180–350 halaman",
-  chapters: [bab1(skala), bab2(skala), bab3(skala), bab4(skala), bab5(skala)],
+  chapters: babJenjang(karya, skala),
   frontMatter: [
     "صفحة العنوان",
     "ملخص البحث",
@@ -522,9 +669,9 @@ const akademik = (karya: Exclude<KaryaType, "jurnal">, skala: number): StrukturD
 });
 
 export const STRUKTUR: Record<KaryaType, StrukturDef> = {
-  skripsi: akademik("skripsi", 1),
-  tesis: akademik("tesis", 1.45),
-  disertasi: akademik("disertasi", 1.95),
+  skripsi: akademik("skripsi", 1.7),
+  tesis: akademik("tesis", 2.8),
+  disertasi: akademik("disertasi", 5.2),
   jurnal: {
     karya: "jurnal",
     labelId: "Artikel Jurnal",

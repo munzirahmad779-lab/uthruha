@@ -3,10 +3,11 @@
 import { useMemo, useState } from "react";
 import { strukturProyek } from "@/lib/content/struktur";
 import { perbaikiOtomatis, periksaOrtografi } from "@/lib/engine/orthografi";
+import { periksaGerbang } from "@/lib/engine/gerbang-mutu";
 import type { Project } from "@/lib/engine/project";
 import { IconCheck, IconSparkle } from "@/components/icons";
 import { Note, Stat } from "@/components/ui";
-import { CrosscheckPanel } from "@/components/workspace/crosscheck-panel";
+import { PemeriksaanSitasiPanel } from "@/components/workspace/pemeriksaan-sitasi-panel";
 
 const LEVEL: Record<string, string> = {
   kritis: "bg-red-50 text-red-700 border-red-200",
@@ -40,6 +41,7 @@ export function AuditTab({
   );
 
   const laporan = useMemo(() => periksaOrtografi(teks), [teks]);
+  const gerbang = useMemo(() => periksaGerbang(p), [p]);
   const tampil = laporan.temuan.filter((t) => filter === "semua" || t.tingkat === filter);
 
   const kosong = semuaBagian.filter((s) => (p.draf[s.id] ?? "").trim().length <= 80);
@@ -184,7 +186,31 @@ export function AuditTab({
         </div>
       </div>
 
-      <CrosscheckPanel p={p} ubah={ubah} />
+      <div className={`rounded-xl border p-4 ${gerbang.lolos ? "border-emerald-600/30 bg-emerald-50" : "border-amber-500/40 bg-amber-50"}`}>
+        <h3 className="text-[12.5px] font-bold text-ink-900">
+          Gerbang mutu {gerbang.jenjang} —{" "}
+          {gerbang.lolos ? "LOLOS ✓" : `BELUM LOLOS (${gerbang.syarat.filter((s) => !s.terpenuhi).length} dari ${gerbang.syarat.length} syarat)`}
+        </h3>
+        <p className="mt-1 text-[11.5px] leading-relaxed text-ink-600">
+          Aturan ketat khusus jenjang karya ini — setiap jenjang punya syaratnya sendiri, tidak
+          disamakan. Gerbang ini menilai syarat yang bisa diperiksa mesin; mutu isi tetap dinilai
+          pembimbing dan penguji.
+        </p>
+        <ul className="mt-2 space-y-1.5">
+          {gerbang.syarat.map((s) => (
+            <li key={s.id} className="flex items-start gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-[12px] leading-relaxed text-ink-700">
+              <span className={s.terpenuhi ? "font-bold text-emerald-700" : "font-bold text-amber-700"}>
+                {s.terpenuhi ? "✓" : "✗"}
+              </span>
+              <span>
+                <b>{s.label}.</b> <span className="text-ink-500">{s.detail}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <PemeriksaanSitasiPanel p={p} ubah={ubah} />
     </div>
   );
 }

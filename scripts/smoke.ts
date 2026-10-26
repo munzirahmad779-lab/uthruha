@@ -54,7 +54,8 @@ for (const jenis of jenisList) {
       for (const s of ch.sections) {
         const h = composeSection(proj, s.id, 7);
         bagian++;
-        const ok = h.markdown.length > 120 && !h.markdown.includes("{{") && arRatio(h.markdown) > 0.1;
+        // abstrakEn memang berbahasa Inggris — dikecualikan dari syarat rasio Arab.
+        const ok = h.markdown.length > 120 && !h.markdown.includes("{{") && (s.id === "abstrakEn" || arRatio(h.markdown) > 0.1);
         if (!ok) {
           gagalBagian++;
           console.log(`   gagal: ${jenis}/${metode}/${s.id} len=${h.markdown.length} ar=${arRatio(h.markdown).toFixed(2)}`);
