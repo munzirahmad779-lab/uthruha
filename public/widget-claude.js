@@ -1,4 +1,4 @@
-/* Widget Chat Muse — Pintu Web
+/* Widget Chat Yusuf AI — Pintu Web
  * Cara pasang: sesuaikan MAILBOX_URL di bawah dengan alamat kotak surat
  * di website ini, lalu sertakan berkas ini sebelum </body>:
  *   <script src="/widget-claude.js"></script>
@@ -33,13 +33,13 @@
 
   var tombol = document.createElement("button");
   tombol.id = "cw-tombol";
-  tombol.textContent = "Tanya Muse";
+  tombol.textContent = "Tanya Yusuf AI";
   document.body.appendChild(tombol);
 
   var kotak = document.createElement("div");
   kotak.id = "cw-kotak";
   kotak.innerHTML =
-    '<div id="cw-kepala">Asisten Muse</div>' +
+    '<div id="cw-kepala">Asisten Yusuf AI</div>' +
     '<div id="cw-isi"><div class="cw-pesan cw-bot">Halo! Silakan tulis pertanyaanmu, nanti kujawab di sini. Chat ini dijawab langsung pukul 19.00–00.00 WITA — di luar jam itu pertanyaanmu tetap masuk dan kujawab saat jendela buka.</div></div>' +
     '<div id="cw-bawah"><input id="cw-teks" type="text" placeholder="Tulis pertanyaan..." maxlength="1000">' +
     '<button id="cw-kirim">Kirim</button></div>';
@@ -70,10 +70,10 @@
     tambah("cw-user", t);
     kirim.disabled = true;
     var mulai = Date.now();
-    var status = tambah("cw-status", "Sedang diproses Muse — biasanya 10–30 detik, mohon ditunggu.");
+    var status = tambah("cw-status", "Sedang diproses Yusuf AI — biasanya 10–30 detik, mohon ditunggu.");
     var pewaktu = setInterval(function () {
       var dtk = Math.round((Date.now() - mulai) / 1000);
-      status.textContent = "Sedang diproses Muse — biasanya 10–30 detik, mohon ditunggu. (" + dtk + " dtk)";
+      status.textContent = "Sedang diproses Yusuf AI — biasanya 10–30 detik, mohon ditunggu. (" + dtk + " dtk)";
     }, 1000);
 
     function selesai(pesan, isBot) {
