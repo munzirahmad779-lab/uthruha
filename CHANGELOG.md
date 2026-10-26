@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Pedoman dwibahasa (Arab–Indonesia) + templat dari contoh (26 Okt 2026)
+- **Contoh di pedoman kini benar-benar menjadi pola.** Sebelumnya contoh footnote/daftar pustaka di pedoman.md hanya dicatat — pola yang dipakai selalu pola bawaan. Sekarang pola diturunkan dari contoh persis pedoman (penulis، judul، (kota: penerbit، tahun)، ج، ص) dan dipakai untuk footnote & daftar pustaka; bila penurunan gagal, kegagalannya dicatat terbuka di ringkasan pedoman.
+- **Pedoman berbahasa Arab terbaca penuh**: label Arab untuk ukuran/spasi (تباعد الأسطر)/margin (سم)/penomoran (لكل باب)/angka (الأرقام العربية), angka Arab-Indic (١٢٣) dinormalisasi, dan bagian daftar isi berjudul المحتويات (atau نظام الكتابة، هيكل البحث, dll) dibaca parser sistematika. Teruji pulang-pergi: footnote hasil render sama persis dengan contoh di pedoman Arab.
+
 ## Daftar isi dari pedoman kampus (26 Okt 2026)
 - **Pedoman kini bisa mengatur daftar isi.** Prompt pembuat pedoman.md ditambah bagian "Daftar Isi (Sistematika Penulisan)" (daftar bersarang), dan tab Struktur mendapat panel "Daftar isi dari pedoman kampus": satu tombol menerapkan sistematika dari pedoman terunggah menjadi daftar isi proyek yang bisa diedit. Pedoman lama yang belum memuat sistematika diberi petunjuk jelas (unggah ulang dengan prompt baru).
 - **Tempel daftar isi manual**: mahasiswa bisa menempel daftar isi dari buku pedoman (indentasi bersarang atau penomoran desimal 1/1.1/1.1.1, Arab maupun Latin) dan web menyusunnya menjadi bab/sub-bab/fasal — tanpa perlu unggah ulang pedoman.

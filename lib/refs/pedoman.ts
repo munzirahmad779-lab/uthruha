@@ -89,12 +89,100 @@ function angka(id: string, label: string, nilai: number, pola: RegExp[], md: str
   return null;
 }
 
+
+/** Samakan angka Arab-Indic (٠١٢٣) ke Latin agar regex angka bekerja dwibahasa. */
+export function angkaArabKeLatin(s: string): string {
+  return s.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+}
+
+/**
+ * Turunkan templat footnote dari CONTOH persis di pedoman (Arab/Indonesia).
+ * Pola kanonis pedoman: penulis، judul، (kota: penerbit، tahun)، ج jilid، ص halaman.
+ * Penulis boleh dua segmen (laqab، nama) — segmen terakhir kepala = judul.
+ * Null bila contoh tidak cukup lengkap; pemanggil memakai pola bawaan.
+ */
+export function templatFootnoteDariContoh(contoh: string): string | null {
+  let s = angkaArabKeLatin(contoh.trim());
+  if (s.length < 15) return null;
+  const titikAkhir = /[.。]\s*$/.test(s);
+  s = s.replace(/[.。]\s*$/, "");
+  const iKurung = s.indexOf("(");
+  const kepalaMentah = iKurung >= 0 ? s.slice(0, iKurung) : s;
+  const kepala = kepalaMentah.trim();
+  const bagKepala = kepala.split(/،|,/).map((x) => x.trim()).filter(Boolean);
+  if (bagKepala.length < 2) return null;
+  const pemisah = kepala.includes("،") ? "، " : ", ";
+  let hasil = "{penulis}" + pemisah + "{judul}";
+  let ekor = iKurung >= 0 ? s.slice(iKurung) : "";
+  if (!ekor && bagKepala.length > 2) {
+    const judul = bagKepala[bagKepala.length - 1];
+    ekor = kepala.slice(kepala.lastIndexOf(judul) + judul.length);
+  }
+  if (ekor) {
+    let e = ekor;
+    e = e.replace(/\(([^:()]+):/, "({kota}:");
+    e = e.replace(/:\s*([^،,()]+?)(?=\s*[،,]|\s*\)|\s*$)/, ": {penerbit}");
+    e = e.replace(/(1[0-9]{3}|20[0-9]{2})\s*(هـ)?/, "{tahun}");
+    e = e.replace(/ج\s*[0-9]+/, "ج {jilid}");
+    e = e.replace(/jilid\s*[0-9]+/i, "jilid {jilid}");
+    e = e.replace(/ص\s*[0-9]+/, "ص {halaman}");
+    e = e.replace(/hlm\.?\s*[0-9]+/i, "hlm. {halaman}");
+    const sambung = iKurung >= 0 ? (kepalaMentah.match(/(،|,)\s*$/)?.[0] ?? pemisah) : "";
+    hasil += sambung + e;
+  }
+  if (!hasil.includes("{tahun}") && !hasil.includes("{halaman}")) return null;
+  if (!hasil.includes("{penulis}") || !hasil.includes("{judul}")) return null;
+  return hasil + (titikAkhir ? "." : "");
+}
+
+/**
+ * Turunkan templat daftar pustaka dari contoh pedoman.
+ * Pola kanonis: penulis. judul. kota: penerbit، tahun. (ج jilid.)
+ */
+export function templatPustakaDariContoh(contoh: string): string | null {
+  let s = angkaArabKeLatin(contoh.trim());
+  if (s.length < 15) return null;
+  const titikAkhir = /[.。]\s*$/.test(s);
+  s = s.replace(/[.。]\s*$/, "");
+  const seg = s.split(/\.\s+/).map((x) => x.trim()).filter(Boolean);
+  if (seg.length < 3) return null;
+  const out: string[] = ["{penulis}", "{judul}"];
+  let adaKota = false;
+  let adaTahun = false;
+  for (const g of seg.slice(2)) {
+    let t = g;
+    if (/^(1[0-9]{3}|20[0-9]{2})/.test(t)) {
+      out.push("{tahun}");
+      adaTahun = true;
+      continue;
+    }
+    if (/^ج\s*[0-9]+/.test(t)) {
+      out.push("ج {jilid}");
+      continue;
+    }
+    if (t.includes(":")) {
+      t = t.replace(/^[^:]+:/, "{kota}:").replace(/:\s*[^،,]+/, ": {penerbit}");
+      adaKota = true;
+      t = t.replace(/(1[0-9]{3}|20[0-9]{2})\s*(هـ)?/, () => {
+        adaTahun = true;
+        return "{tahun}";
+      });
+      out.push(t);
+      continue;
+    }
+    out.push(t);
+  }
+  if (!adaKota || !adaTahun) return null;
+  return out.join(". ") + (titikAkhir ? "." : "");
+}
+
 export function parsePedoman(md: string, namaBerkas = "pedoman.md"): PedomanRules {
   const aturan = pedomanDefault();
   aturan.mentah = md.slice(0, 24000);
   aturan.namaBerkas = namaBerkas;
 
   const teks = md.replace(/\r\n/g, "\n");
+  const teksA = angkaArabKeLatin(teks);
   const catat = (label: string, nilai: string, asal: string) => aturan.catatan.push({ label, nilai, asal });
 
   // Nama kampus / universitas.
@@ -122,7 +210,7 @@ export function parsePedoman(md: string, namaBerkas = "pedoman.md"): PedomanRule
   }
 
   // Ukuran naskah vs footnote: cari angka pt di baris yang menyebut footnote.
-  const barisFootnote = barisPemicu(teks, /(footnote|catatan kaki|catatan perut|catatan bawah|هامش|الهوامش)/i);
+  const barisFootnote = barisPemicu(teksA, /(footnote|catatan kaki|catatan perut|catatan bawah|هامش|الهوامش|حاشية|الحواشي|حاشية سفلية)/i);
   if (barisFootnote) {
     const pt = barisFootnote.match(/(\d{1,2})\s*(?:pt|poin|point|بيونت)?/i);
     if (pt) {
@@ -136,7 +224,7 @@ export function parsePedoman(md: string, namaBerkas = "pedoman.md"): PedomanRule
     aturan.default.push("ukuran footnote (14 pt)");
   }
 
-  const barisNaskah = barisPemicu(teks, /(naskah|isi|body|teks utama|badan tulisan|المتن|نص البحث)/i);
+  const barisNaskah = barisPemicu(teksA, /(naskah|isi|body|teks utama|badan tulisan|المتن|نص البحث)/i);
   if (barisNaskah) {
     const pt = barisNaskah.match(/(\d{1,2})\s*(?:pt|poin|point)?/i);
     if (pt) {
@@ -151,7 +239,7 @@ export function parsePedoman(md: string, namaBerkas = "pedoman.md"): PedomanRule
   }
 
   // Spasi.
-  const spasiM = teks.match(/spasi\s*([0-9]+(?:[.,][0-9])?)/i) ?? teks.match(/([0-9]+[.,]5)\s*(?:spasi|line|baris)/i);
+  const spasiM = teksA.match(/spasi\s*([0-9]+(?:[.,][0-9])?)/i) ?? teksA.match(/(?:تباعد(?: الأسطر)?|المسافة بين الأسطر)\s*:?\s*([0-9]+(?:[.,][0-9])?)/) ?? teksA.match(/([0-9]+[.,]5)\s*(?:spasi|line|baris)/i);
   if (spasiM) {
     const n = Number.parseFloat(spasiM[1].replace(",", "."));
     if (n >= 1 && n <= 3) {
@@ -163,7 +251,7 @@ export function parsePedoman(md: string, namaBerkas = "pedoman.md"): PedomanRule
   }
 
   // Margin.
-  const m = angka("margin", "Margin", 0, [/margin[^\n]{0,30}?(\d{1,2}(?:[.,]\d)?)\s*cm/i, /(\d{1,2}(?:[.,]\d)?)\s*cm[^\n]{0,20}margin/i], teks);
+  const m = angka("margin", "Margin", 0, [/margin[^\n]{0,30}?(\d{1,2}(?:[.,]\d)?)\s*cm/i, /(\d{1,2}(?:[.,]\d)?)\s*cm[^\n]{0,20}margin/i, /(\d{1,2}(?:[.,]\d)?)\s*(?:cm|سم)/i, /هوامش[^\n]{0,30}?(\d{1,2}(?:[.,]\d)?)/], teksA);
   if (m) {
     aturan.marginCm = m.nilai;
     catat("Margin (cm)", String(m.nilai).replace(".", ","), m.asal);
@@ -200,11 +288,40 @@ export function parsePedoman(md: string, namaBerkas = "pedoman.md"): PedomanRule
   }
 
   // Angka Arab.
-  if (/(angka arab|arabic-indic|٠١٢٣|digit arab)/i.test(teks)) {
+  if (/(angka arab|arabic-indic|٠١٢٣|digit arab|الأرقام العربية|أرقام عربية|أرقام مشرقية)/i.test(teks)) {
     aturan.angkaArab = true;
-  } else if (/(angka latin|western digit|0-9)/i.test(teks)) {
+  } else if (/(angka latin|western digit|0-9|الأرقام اللاتينية|أرقام لاتينية)/i.test(teks)) {
     aturan.angkaArab = false;
     catat("Angka", "Latin (0-9)", barisPemicu(teks, /(angka latin|0-9)/i) ?? "");
+  }
+
+
+  // Contoh footnote & daftar pustaka -> templat (dwibahasa). Inilah pola
+  // kampus yang sebenarnya; bila penurunan gagal, pola bawaan dipertahankan
+  // dan kegagalannya dicatat jujur.
+  const nilaiSetelahLabel = (baris: string | null): string =>
+    baris ? baris.split(/[:：]/).slice(1).join(":").trim() : "";
+  const barisContohFootnote = barisPemicu(teks, /(contoh|مثال)[^\n]{0,30}(footnote|catatan kaki|حاشية|هامش)/i);
+  const contohFootnote = nilaiSetelahLabel(barisContohFootnote);
+  if (contohFootnote) {
+    const tpl = templatFootnoteDariContoh(contohFootnote);
+    if (tpl) {
+      aturan.formatFootnote = tpl;
+      catat("Bentuk footnote", "diturunkan dari contoh pedoman", barisContohFootnote ?? "");
+    } else {
+      catat("Contoh footnote", `${contohFootnote.slice(0, 110)} (pola tidak bisa diturunkan — memakai pola bawaan)`, barisContohFootnote ?? "");
+    }
+  }
+  const barisContohPustaka = barisPemicu(teks, /(contoh|مثال)[^\n]{0,30}(daftar pustaka|قائمة المراجع|قائمة المصادر|المصادر والمراجع)/i);
+  const contohPustaka = nilaiSetelahLabel(barisContohPustaka);
+  if (contohPustaka) {
+    const tpl = templatPustakaDariContoh(contohPustaka);
+    if (tpl) {
+      aturan.formatPustaka = tpl;
+      catat("Bentuk daftar pustaka", "diturunkan dari contoh pedoman", barisContohPustaka ?? "");
+    } else {
+      catat("Contoh daftar pustaka", `${contohPustaka.slice(0, 110)} (pola tidak bisa diturunkan — memakai pola bawaan)`, barisContohPustaka ?? "");
+    }
   }
 
   // Batas keras produk tidak boleh dilewati pedoman apa pun.
@@ -258,6 +375,7 @@ bab tanpa indentasi, sub-bab menjorok 2 spasi, fasal menjorok 4 spasi.
 - <poin-poin lain yang relevan: penulisan judul, transliterasi, kutipan panjang, dll>
 
 Aturan penting:
+- Judul bagian tetap Bahasa Indonesia seperti contoh di atas, meskipun isi dan contohnya berbahasa Arab.
 - Jangan mengarang. Jika pedoman tidak menyebut sesuatu, tulis "tidak disebut".
 - Pertahankan contoh footnote/daftar pustaka apa adanya, karena saya akan memakainya sebagai pola.
 - Keluarkan hanya markdown di atas, tanpa penjelasan tambahan.

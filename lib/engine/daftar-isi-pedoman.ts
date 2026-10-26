@@ -12,6 +12,7 @@
 // Penomoran desimal (1, 1.1, 1.1.1) juga dipahami dan mengalahkan indentasi.
 
 import type { BabKustom, SubBabKustom } from "@/lib/engine/project";
+import { angkaArabKeLatin } from "@/lib/refs/pedoman";
 
 const BAB_AR = [
   "الأول", "الثاني", "الثالث", "الرابع", "الخامس",
@@ -36,6 +37,7 @@ function bersihkanBaris(raw: string): { tingkat: number; teks: string } | null {
 
   // Penanda daftar markdown / penomoran.
   isi = isi.replace(/^[-*•]\s+/, "");
+  isi = angkaArabKeLatin(isi);
   let tingkatDesimal: number | null = null;
   const desimal = isi.match(/^(\d+(?:\.\d+){0,2})[.)]?\s+(.+)$/);
   if (desimal) {
@@ -44,7 +46,7 @@ function bersihkanBaris(raw: string): { tingkat: number; teks: string } | null {
   } else {
     isi = isi.replace(/^\d+[.)]\s+/, "");
   }
-  const teks = isi.replace(/\*\*/g, "").trim();
+  const teks = angkaArabKeLatin(isi.replace(/\*\*/g, "").trim());
   if (!teks) return null;
 
   const babTegas = /^(BAB\s|الباب\s|Bab\s)/.test(teks);
@@ -113,7 +115,7 @@ export function parseOutlinePedoman(mentah: string): BabKustom[] | null {
   const lines = mentah.split(/\r?\n/);
   let mulai = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (/^#{1,4}\s/.test(lines[i]) && /(daftar isi|sistematika|struktur)/i.test(lines[i])) {
+    if (/^#{1,4}\s/.test(lines[i]) && /(daftar isi|sistematika|struktur|المحتويات|فهرس المحتويات|نظام الكتابة|هيكل البحث|خطة البحث|ترتيب الأبواب|منهجية الكتابة|نظام البحث)/i.test(lines[i])) {
       mulai = i + 1;
       break;
     }
@@ -127,7 +129,7 @@ export function parseOutlinePedoman(mentah: string): BabKustom[] | null {
     }
   }
   const potongan = lines.slice(mulai, akhir).join("\n");
-  if (/tidak disebut/i.test(potongan) && potongan.replace(/tidak disebut/i, "").trim().length < 10) return null;
+  if (/(tidak disebut|غير مذكور|غير موجود|لا يوجد|غير متوفر)/i.test(potongan) && potongan.replace(/(tidak disebut|غير مذكور|غير موجود|لا يوجد|غير متوفر)/gi, "").trim().length < 10) return null;
   const baris = kumpulkan(potongan);
   if (baris.length === 0) return null;
   const daftar = barisKeDaftarIsi(baris);
