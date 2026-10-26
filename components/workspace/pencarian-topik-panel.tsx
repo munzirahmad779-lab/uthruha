@@ -18,8 +18,9 @@ import {
 import { Field, Note } from "@/components/ui";
 import { PetunjukCtrlF, TombolSalinCtrlF } from "@/components/workspace/ctrl-f";
 import { PasangFootnote } from "@/components/workspace/pasang-footnote";
+import { LugawiPanel } from "@/components/workspace/lugawi-panel";
 
-type Mode = "jurnal" | "kitab" | "lokal";
+type Mode = "jurnal" | "kitab" | "lokal" | "lugawi";
 type HitKitab = HitKitabMentah;
 
 const PERAN_LABEL: Record<KalimatKunci["peran"], string> = {
@@ -57,6 +58,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
   const [judul, setJudul] = useState(p.judulAr || p.topikAr || "");
   const [kk, setKk] = useState<KataKunci | null>(null);
   const [hasilJurnal, setHasilJurnal] = useState<Sumber[]>([]);
+  const [labelHasil, setLabelHasil] = useState("");
   const [statusJurnal, setStatusJurnal] = useState<{ sumber: string; ok: boolean; pesan?: string }[]>([]);
   const [hasilKitab, setHasilKitab] = useState<HitKitab[]>([]);
   const [hasilLokal, setHasilLokal] = useState<HasilLokal[]>([]);
@@ -232,6 +234,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         setPesan("Belum ada kalimat kunci kurasi — pencarian memakai ekstrak otomatis dari teks. Lebih baik susun kalimat kunci dulu di atas.");
       }
       setKk(kunci);
+      setLabelHasil(setKunci.kalimat.length > 0 ? "gabungan semua kalimat kunci" : "ekstrak teks topik");
       const hasil = await cariJurnalTopik(kunci);
       setHasilJurnal(hasil.entri);
       setStatusJurnal(hasil.status);
@@ -254,11 +257,60 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
       }
       const { hits, frasaDipakai } = await cariKitabKalimat(frasaArab, teks);
       setHasilKitab(hits);
+      setLabelHasil(frasaArab.length > 0 ? "gabungan semua kalimat kunci" : "teks topik");
       if (hits.length === 0) {
         setPesan(
           `Tidak ada kecocokan frasa di kitab untuk kalimat kunci: ${frasaDipakai.join(" · ")}. Coba kalimat kunci lain, atau minta bot bantu cari di bawah.`,
         );
       }
+    } catch {
+      setPesan("Pencarian kitab gagal — server tidak menjawab. Coba lagi sebentar.");
+    } finally {
+      setSibuk("");
+    }
+  }
+
+  function gulirKeHasil() {
+    setTimeout(() => document.getElementById("hasil-topik")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  /** Cari jurnal LANGSUNG dari satu kalimat kunci — tanpa menyalin ulang. */
+  async function jalankanJurnalSatu(k: KalimatKunci, i: number) {
+    setMode("jurnal");
+    setSibuk("jurnal");
+    setPesan("");
+    try {
+      const kunci: KataKunci = {
+        arab: [k.teks],
+        indonesia: k.arti ? [k.arti] : [],
+        inggris: [],
+        sumber: "kurasi Anda",
+      };
+      setKk(kunci);
+      setLabelHasil(`kalimat ${i + 1} — ${PERAN_LABEL[k.peran]}`);
+      const hasil = await cariJurnalTopik(kunci);
+      setHasilJurnal(hasil.entri);
+      setStatusJurnal(hasil.status);
+      if (hasil.entri.length === 0) setPesan("Tidak ditemukan untuk kalimat ini. Coba kalimat lain, atau perbaiki padanan Indonesianya.");
+      gulirKeHasil();
+    } catch {
+      setPesan("Pencarian jurnal gagal — periksa koneksi, lalu coba lagi.");
+    } finally {
+      setSibuk("");
+    }
+  }
+
+  /** Cari kitab LANGSUNG dari satu kalimat kunci — tanpa menyalin ulang. */
+  async function jalankanKitabSatu(k: KalimatKunci, i: number) {
+    setMode("kitab");
+    setSibuk("kitab");
+    setPesan("");
+    try {
+      setLabelHasil(`kalimat ${i + 1} — ${PERAN_LABEL[k.peran]}`);
+      const { hits } = await cariKitabKalimat([k.teks], "");
+      setHasilKitab(hits);
+      if (hits.length === 0) setPesan(`Tidak ada kecocokan frasa di kitab untuk kalimat ini: ${k.teks}`);
+      gulirKeHasil();
     } catch {
       setPesan("Pencarian kitab gagal — server tidak menjawab. Coba lagi sebentar.");
     } finally {
@@ -430,6 +482,15 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
                     placeholder="Padanan Bahasa Indonesia (untuk pencarian jurnal)"
                   />
                   {k.alasan && <p className="mt-1 text-[10.5px] italic leading-relaxed text-ink-500">Kenapa begini: {k.alasan}</p>}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-ink-900/5 pt-2">
+                    <button type="button" className="btn-quiet !py-1 !text-[11px]" disabled={!online || sibuk !== ""} onClick={() => jalankanJurnalSatu(k, i)}>
+                      Cari jurnal dari kalimat ini
+                    </button>
+                    <button type="button" className="btn-quiet !py-1 !text-[11px]" disabled={!online || sibuk !== ""} onClick={() => jalankanKitabSatu(k, i)}>
+                      Cari kitab dari kalimat ini
+                    </button>
+                    <span className="text-[10.5px] text-ink-500">Langsung memakai kalimat ini — tanpa menyalin ulang.</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -451,6 +512,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
             { id: "jurnal", label: "Jurnal ilmiah" },
             { id: "kitab", label: "Kitab & scan" },
             { id: "lokal", label: "Di referensi saya" },
+            { id: "lugawi", label: "Lugawi & Istilahi" },
           ] as const
         ).map((t) => (
           <button
@@ -468,6 +530,9 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         ))}
       </div>
 
+      {mode === "lugawi" && <LugawiPanel online={online} />}
+
+      {mode !== "lugawi" && (
       <div className="flex flex-wrap items-start gap-2">
         <textarea
           className="input min-h-16 flex-1 text-[13px]"
@@ -493,7 +558,9 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         )}
       </div>
 
-      {!online && mode !== "lokal" && (
+      )}
+
+      {!online && mode !== "lokal" && mode !== "lugawi" && (
         <Note>Anda sedang offline. Mode ini butuh internet — pencarian &quot;Di referensi saya&quot; tetap bekerja penuh.</Note>
       )}
       {mode === "kitab" && (
@@ -504,7 +571,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         </Note>
       )}
 
-      {kk && mode !== "lokal" && (
+      {kk && (mode === "jurnal" || mode === "kitab") && (
         <div className="rounded-xl bg-parchment-100/70 px-3 py-2 text-[11.5px] text-ink-700">
           <span className="font-semibold">Kalimat kunci terpakai</span> (sumber: {kk.sumber}) — Arab:{" "}
           <span dir="rtl" className="font-naskh">{kk.arab.join(" · ")}</span>
@@ -516,10 +583,14 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         </div>
       )}
 
+      <div id="hasil-topik" />
       {pesan && <p className="text-[12px] text-ink-700">{pesan}</p>}
 
       {mode === "jurnal" && hasilJurnal.length > 0 && (
         <div className="space-y-2">
+          <p className="text-[11.5px] font-semibold text-ink-700">
+            {hasilJurnal.length} jurnal{labelHasil ? ` — hasil untuk: ${labelHasil}` : ""} <span className="font-normal text-ink-500">(ditampung maks 15)</span>
+          </p>
           {hasilJurnal.map((s) => (
             <div key={s.id} className="flex items-start justify-between gap-3 rounded-xl border border-ink-900/10 bg-white/70 p-3">
               <div className="min-w-0">
@@ -543,6 +614,11 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
 
       {mode === "kitab" && (
         <div className="space-y-3">
+          {hasilKitab.length > 0 && (
+            <p className="text-[11.5px] font-semibold text-ink-700">
+              {hasilKitab.length} hasil kitab{labelHasil ? ` — hasil untuk: ${labelHasil}` : ""} <span className="font-normal text-ink-500">(ditampung maks 20)</span>
+            </p>
+          )}
           <div className="flex flex-wrap gap-1.5">
             <a className="btn-quiet" href={tautanTurath} target="_blank" rel="noreferrer">Pencarian mendalam di Turath.io ↗</a>
             <a className="btn-quiet" href={tautanShamela} target="_blank" rel="noreferrer">Buka di Shamela ↗</a>

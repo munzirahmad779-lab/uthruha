@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Cari langsung per kalimat kunci + panel Lugawi & Istilahi (26 Okt 2026)
+- **Cari referensi LANGSUNG dari tiap kalimat kunci**: setiap kartu kalimat kunci kini punya tombol "Cari jurnal dari kalimat ini" dan "Cari kitab dari kalimat ini" — sekali klik pencarian berjalan memakai kalimat itu juga, tanpa menyalin ulang ke kotak topik. Hasil diberi label kalimat asalnya (nomor + peran) dan tampilan bergulir otomatis ke hasil.
+- **Kapasitas hasil diperbesar**: jurnal ditampung sampai 15, kitab sampai 20 (sebelumnya hasil kitab tak dibatasi tampung eksplisit & jurnal ±8/sumber).
+- **Mode baru "Lugawi & Istilahi"** di panel pencarian: periksa makna kamus & istilah satu kata — termasuk kata serapan dan istilah kontemporer non-Arab (Inggris/Belanda/Swiss/dll). Alur: telusur kitab (bentuk Arab kata/padanannya), Wiktionary (etimologi + padanan Arab), Wikipedia Arab/Indonesia, dan pemakaian di jurnal; kesimpulan bertingkat dan jujur — ditemukan di kitab/kamus, istilah kontemporer/serapan (dengan anjuran rujukan معجم الدخيل في اللغة العربية الحديثة ولهجاتها), atau tidak ditemukan. Teruji hidup: بوفية terdeteksi sebagai kata serapan (etimologi Wiktionary).
+- **Kartu "Masih mentok? Tanyakan ke Muse"**: prompt siap salin (lugawi, istilahi, status di لسان العرب/القاموس المحيط/المعجم الوسيط, asal bahasa bila serapan, padanan Arab, contoh kalimat) + keterangan jam chat dijawab langsung 19.00–00.00 WITA. Sapaan widget chat "Tanya Muse" kini juga memuat keterangan jam yang sama.
+
 ## Widget chat Pintu Web terpasang (26 Okt 2026)
 - **Widget tanya-jawab Muse kini tertanam di semua halaman** (`public/widget-claude.js` + `<Script>` di layout): pengunjung bertanya dari web, pertanyaan masuk kotak surat Cloudflare Worker dan dijawab Muse lewat hub yang sama dengan bot Telegram; widget menampilkan keterangan tunggu "biasanya 10–30 detik" + penghitung detik. Rem pemakaian aktif di Worker (10/sesi/jam, 60 global/jam, antrean maks 20).
 - CSP `connect-src` ditambah origin Worker agar peramban mengizinkan widget menghubungi kotak surat.

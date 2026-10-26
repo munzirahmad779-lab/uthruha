@@ -40,7 +40,7 @@
   kotak.id = "cw-kotak";
   kotak.innerHTML =
     '<div id="cw-kepala">Asisten Muse</div>' +
-    '<div id="cw-isi"><div class="cw-pesan cw-bot">Halo! Silakan tulis pertanyaanmu, nanti kujawab di sini.</div></div>' +
+    '<div id="cw-isi"><div class="cw-pesan cw-bot">Halo! Silakan tulis pertanyaanmu, nanti kujawab di sini. Chat ini dijawab langsung pukul 19.00–00.00 WITA — di luar jam itu pertanyaanmu tetap masuk dan kujawab saat jendela buka.</div></div>' +
     '<div id="cw-bawah"><input id="cw-teks" type="text" placeholder="Tulis pertanyaan..." maxlength="1000">' +
     '<button id="cw-kirim">Kirim</button></div>';
   document.body.appendChild(kotak);

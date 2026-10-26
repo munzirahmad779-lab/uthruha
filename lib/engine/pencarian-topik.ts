@@ -81,7 +81,7 @@ export interface HasilJurnal {
 }
 
 /** Cari jurnal dari gabungan kata kunci (Inggris+Indonesia+Arab teratas). */
-export async function cariJurnalTopik(kk: KataKunci, perSumber = 8): Promise<HasilJurnal> {
+export async function cariJurnalTopik(kk: KataKunci, perSumber = 10): Promise<HasilJurnal> {
   const q = [kk.inggris[0], kk.indonesia[0], kk.arab[0]].filter(Boolean).join(" ");
   const qDoaj = [kk.indonesia[0], kk.indonesia[1]].filter(Boolean).join(" ") || q;
   const status: HasilJurnal["status"] = [];
@@ -119,14 +119,16 @@ export async function cariJurnalTopik(kk: KataKunci, perSumber = 8): Promise<Has
   ];
   await Promise.all(tugas);
 
-  // Dedup DOI exact lalu judul ternormalisasi.
+  // Dedup DOI exact lalu judul ternormalisasi; tampung maksimal 15 jurnal.
   const terlihat = new Set<string>();
-  const entri = semua.filter((s) => {
-    const kunci = normalisasiDoi(s.doi) ? `doi:${normalisasiDoi(s.doi)}` : `judul:${normalisasiJudul(s.judul)}|${s.tahun}`;
-    if (terlihat.has(kunci)) return false;
-    terlihat.add(kunci);
-    return true;
-  });
+  const entri = semua
+    .filter((s) => {
+      const kunci = normalisasiDoi(s.doi) ? `doi:${normalisasiDoi(s.doi)}` : `judul:${normalisasiJudul(s.judul)}|${s.tahun}`;
+      if (terlihat.has(kunci)) return false;
+      terlihat.add(kunci);
+      return true;
+    })
+    .slice(0, 15);
   return { entri, status };
 }
 
@@ -169,12 +171,15 @@ export async function cariKitabKalimat(
     }
   }
   const terlihat = new Set<string>();
-  const hits = semua.filter((h) => {
-    const kunci = `${h.url_sumber}|${h.kitab}|${h.halaman_cetak ?? ""}`;
-    if (terlihat.has(kunci)) return false;
-    terlihat.add(kunci);
-    return true;
-  });
+  // Tampung maksimal 20 hasil kitab (gabungan semua frasa & sumber).
+  const hits = semua
+    .filter((h) => {
+      const kunci = `${h.url_sumber}|${h.kitab}|${h.halaman_cetak ?? ""}`;
+      if (terlihat.has(kunci)) return false;
+      terlihat.add(kunci);
+      return true;
+    })
+    .slice(0, 20);
   return { hits, frasaDipakai: frasa };
 }
 
