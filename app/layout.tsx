@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -65,6 +66,7 @@ export default function RootLayout({
         <SiteHeader />
         <main id="konten">{children}</main>
         <SiteFooter />
+        <Script src="/widget-claude.js" strategy="afterInteractive" />
       </body>
     </html>
   );

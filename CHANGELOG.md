@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Widget chat Pintu Web terpasang (26 Okt 2026)
+- **Widget tanya-jawab Muse kini tertanam di semua halaman** (`public/widget-claude.js` + `<Script>` di layout): pengunjung bertanya dari web, pertanyaan masuk kotak surat Cloudflare Worker dan dijawab Muse lewat hub yang sama dengan bot Telegram; widget menampilkan keterangan tunggu "biasanya 10–30 detik" + penghitung detik. Rem pemakaian aktif di Worker (10/sesi/jam, 60 global/jam, antrean maks 20).
+- CSP `connect-src` ditambah origin Worker agar peramban mengizinkan widget menghubungi kotak surat.
+- Koreksi alamat: nama Worker terdaftar memang `kotak-surat-muse` (huruf kecil semua) — salinan widget awal sempat tertulis `kotak-surat-claude` yang tidak ada; sudah diperbaiki di berkas sumber maupun salinan publik.
+
 ## Sitasi makin rapi: slot kosong, bentuk singkat, pemeriksa sitasi (26 Okt 2026)
 - **Slot kosong di footnote/dafar pustaka pedoman dibersihkan**: label yang datanya kosong (mis. "ج" untuk jilid pada sumber tanpa jilid) tidak lagi menggantung tercetak ("…، ج، ص ١٣٧"); unit templat kosong dibuang rapi termasuk kurung cetakan yang tinggal separuh dan titik ganda.
 - **Sitasi berulang tampil bentuk singkat** (kaidah Turabian): penomoran kompilasi kini per kemunculan — kemunculan pertama satu sumber = bentuk penuh sesuai pedoman/gaya, kemunculan berikutnya = penulis singkat، judul singkat (≤4 kata)، halaman. Berlaku seragam di naskah, ekspor Word, strip footnote per bagian, dan pratinjau dialog pasang footnote (yang kini menghitung nomor dari indeks kemunculan, bukan pencocokan teks).

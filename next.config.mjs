@@ -21,7 +21,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.googleusercontent.com",
   "font-src 'self' data:",
-  "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://api.crossref.org https://doaj.org https://shamela.ws https://api.openalex.org https://api.semanticscholar.org",
+  "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://api.crossref.org https://doaj.org https://shamela.ws https://api.openalex.org https://api.semanticscholar.org https://kotak-surat-muse.munzirahmad779.workers.dev",
   "media-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
