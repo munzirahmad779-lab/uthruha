@@ -20,6 +20,7 @@ import { kompilasiMarker } from "@/lib/engine/marker";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { CopyButton, Field, Note } from "@/components/ui";
 import { PedomanPanel } from "@/components/workspace/pedoman-panel";
+import { verifikasiDoi } from "@/lib/engine/validasi-ref";
 import { PencarianTopikPanel } from "@/components/workspace/pencarian-topik-panel";
 
 const KOSONG: Sumber = sumberBaru("kitab");
@@ -33,6 +34,10 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
   const [doiAmbil, setDoiAmbil] = useState("");
   const [sibukDoi, setSibukDoi] = useState(false);
   const [pesanDoi, setPesanDoi] = useState("");
+  const [pesanVerif, setPesanVerif] = useState("");
+  const [isbnAmbil, setIsbnAmbil] = useState("");
+  const [sibukIsbn, setSibukIsbn] = useState(false);
+  const [pesanIsbn, setPesanIsbn] = useState("");
 
   /** Ambil metadata jurnal dari DOI via CrossRef — mengisi formulir manual. */
   async function ambilDariDoi() {
@@ -114,7 +119,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     [daftar],
   );
 
-  function simpan(paksa = false) {
+  async function simpan(paksa = false) {
     if (!baru.penulis.trim() || !baru.judul.trim()) return;
     if (!paksa) {
       const dup = cariDuplikat(baru, p.sumber);
@@ -126,8 +131,62 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
       }
     }
     setPeringatanDuplikat("");
-    ubah({ sumber: [...p.sumber, { ...baru, id: baru.id || `src-${Date.now().toString(36)}` }] });
+    // Cek DOI cocok-judul: DOI tertukar/asal tempel tidak boleh lolos diam-diam.
+    let entri: Sumber = { ...baru, id: baru.id || `src-${Date.now().toString(36)}` };
+    if (baru.doi?.trim()) {
+      const h = await verifikasiDoi(baru.doi, baru.judul);
+      if (h.status === "tidak-cocok" || h.status === "tidak-ditemukan") {
+        entri = { ...entri, perluVerifikasi: true };
+        setPesanVerif(`Peringatan DOI: ${h.pesan} Referensi tetap disimpan dan ditandai perlu verifikasi.`);
+      } else if (h.status === "cocok") {
+        setPesanVerif(`DOI referensi terakhir terverifikasi cocok dengan judulnya di Crossref.`);
+      }
+    }
+    ubah({ sumber: [...p.sumber, entri] });
     setBaru({ ...KOSONG, id: "" });
+  }
+
+  /** Periksa DOI di kotak DOI terhadap JUDUL formulir: DOI harus milik judul itu. */
+  async function periksaDoiForm() {
+    if (!baru.judul.trim() || doiAmbil.trim().length < 6) return;
+    setSibukDoi(true);
+    setPesanVerif("");
+    try {
+      const h = await verifikasiDoi(doiAmbil, baru.judul);
+      setPesanVerif(h.pesan);
+    } finally {
+      setSibukDoi(false);
+    }
+  }
+
+  /** Ambil metadata kitab/buku dari ISBN via Google Books — mengisi formulir manual. */
+  async function ambilDariIsbn() {
+    const isbn = isbnAmbil.replace(/[\s-]/g, "");
+    if (isbn.length < 10) return;
+    setSibukIsbn(true);
+    setPesanIsbn("");
+    try {
+      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}`);
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      const v = data?.items?.[0]?.volumeInfo;
+      if (!v) throw new Error("kosong");
+      setBaru((b) => ({
+        ...b,
+        jenis: "kitab",
+        judul: v.title || b.judul,
+        penulis: Array.isArray(v.authors) ? v.authors.join("; ") : b.penulis,
+        penerbit: v.publisher ?? b.penerbit,
+        tahun: v.publishedDate ? String(v.publishedDate).slice(0, 4) : b.tahun,
+        halaman: v.pageCount ? String(v.pageCount) : b.halaman,
+        isbn,
+      }));
+      setPesanIsbn(`Metadata ISBN ${isbn} terisi ke formulir — periksa kota & edisinya (Google Books jarang memuat kota terbit), lalu tambahkan.`);
+    } catch {
+      setPesanIsbn("ISBN tidak ditemukan di Google Books atau koneksi gagal. Periksa penulisannya, atau isi manual.");
+    } finally {
+      setSibukIsbn(false);
+    }
   }
 
   function impor() {
@@ -258,6 +317,32 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
               {sibukDoi ? "Mengambil…" : "Ambil dari DOI"}
             </button>
             {pesanDoi && <span className="text-[11px] text-ink-600">{pesanDoi}</span>}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-ink-900/5 pt-2">
+            <button type="button" className="btn-quiet" disabled={sibukDoi || doiAmbil.trim().length < 6 || !baru.judul.trim()} onClick={() => void periksaDoiForm()}>
+              Periksa kecocokan DOI
+            </button>
+            <span className="text-[11px] text-ink-500">
+              Membandingkan DOI dengan judul yang Anda ketik di formulir — DOI tertukar atau asal tempel akan ketahuan.
+            </span>
+            {pesanVerif && <span className="w-full text-[11px] font-medium text-ink-700">{pesanVerif}</span>}
+          </div>
+        </div>
+        <div className="mb-3 rounded-xl bg-parchment-100/70 px-3 py-2.5">
+          <p className="text-[12px] font-semibold text-ink-900">Punya ISBN kitab/buku? Ambil metadatanya otomatis</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              className="input w-72 !py-1.5 text-[12px]"
+              dir="ltr"
+              value={isbnAmbil}
+              onChange={(e) => setIsbnAmbil(e.target.value)}
+              placeholder="978-… atau 979-…"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void ambilDariIsbn(); } }}
+            />
+            <button type="button" className="btn-quiet" disabled={sibukIsbn || isbnAmbil.replace(/[\s-]/g, "").length < 10} onClick={() => void ambilDariIsbn()}>
+              {sibukIsbn ? "Mengambil…" : "Ambil dari ISBN"}
+            </button>
+            {pesanIsbn && <span className="text-[11px] text-ink-600">{pesanIsbn}</span>}
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">

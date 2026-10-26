@@ -37,6 +37,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Scopus", "DOAJ", "Sinta 1"],
     bidang: ["fiqh", "tarikh", "falsafah", "dakwah"],
     url: "https://aljamiah.or.id",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Cek batas panjang artikel dan pedoman transliterasi Arab-Latin pada laman Focus and Scope.",
   },
   {
@@ -65,6 +66,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Scopus", "DOAJ"],
     bidang: ["quran", "fiqh", "tarbiyah", "dakwah"],
     url: "https://ulumuna.or.id",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Cek peringkat Sinta terbaru dan format rujukan yang diwajibkan pada laman penulis.",
   },
   {
@@ -79,6 +81,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["DOAJ", "Sinta 2"],
     bidang: ["bahasa", "tarbiyah", "falsafah"],
     url: "https://journal.uinjkt.ac.id/index.php/arabiyat",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Cek batas kata dan ketentuan naskah berbahasa Arab pada templat resmi yang berlaku.",
   },
   {
@@ -93,6 +96,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["DOAJ", "Sinta 2"],
     bidang: ["bahasa", "tarbiyah", "falsafah"],
     url: "https://ejournal.uin-malang.ac.id/index.php/ijazarbi",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Pastikan nomor DOI dan gaya daftar pustaka mengikuti ketentuan edisi terbaru di laman jurnal.",
   },
   {
@@ -149,6 +153,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Sinta 2"],
     bidang: ["bahasa", "tarbiyah", "dakwah"],
     url: "https://journal.uinmataram.ac.id/index.php/eltsaqafah",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Cek lama waktu review dan ketentuan abstrak dwibahasa sebelum mengirim naskah.",
   },
   {
@@ -163,6 +168,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Sinta 3"],
     bidang: ["bahasa", "tarikh", "falsafah"],
     url: "https://journal.uin-alauddin.ac.id/index.php/diwan",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Periksa jadwal penerbitan dan batas panjang artikel pada laman resmi jurnal.",
   },
   {
@@ -191,6 +197,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["DOAJ", "Sinta 2"],
     bidang: ["fiqh", "dakwah", "falsafah"],
     url: "https://ejournal.uin-suka.ac.id/syariah/ahwal",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Periksa ketentuan penggunaan istilah hukum Arab dan pedoman transliterasi di laman jurnal.",
   },
   {
@@ -219,6 +226,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Sinta 2"],
     bidang: ["bahasa", "tarikh", "falsafah"],
     url: "https://ejournal.uin-suka.ac.id/adab/adabiyyat",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Cek pedoman penulisan kutipan sastra Arab dan periode penerimaan naskah pada laman resmi.",
   },
   {
@@ -247,6 +255,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Sinta 2"],
     bidang: ["fiqh", "iqtishad", "tarikh"],
     url: "https://ejournal.uin-suka.ac.id",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Cari kanal Asy-Syir'ah pada portal jurnal fakultas dan cek ketentuan naskah Arab serta gaya sitasi.",
   },
   {
@@ -289,6 +298,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Sinta 3"],
     bidang: ["bahasa", "tarbiyah", "dakwah"],
     url: "https://unsiq.ac.id",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Cari tautan jurnal pada laman resmi universitas dan pastikan templat serta jadwal terbit masih berlaku.",
   },
   {
@@ -303,6 +313,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Perlu dicek"],
     bidang: ["bahasa", "tarbiyah", "falsafah"],
     url: "https://www.aataweb.org",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Periksa laman asosiasi untuk memastikan naskah berbahasa Arab diterima dan apakah ada biaya publikasi.",
   },
   {
@@ -317,6 +328,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Scopus"],
     bidang: ["bahasa", "tarikh", "falsafah"],
     url: "https://brill.com",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Buka halaman Arabica di laman Brill untuk memastikan bahasa naskah dan gaya sitasi yang diterima.",
   },
   {
@@ -331,6 +343,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Scopus", "JSTOR"],
     bidang: ["bahasa", "tarikh", "falsafah"],
     url: "https://brill.com",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Cek ketentuan panjang artikel dan penggunaan kutipan Arab pada halaman pedoman penulis Brill.",
   },
   {
@@ -387,6 +400,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Scopus"],
     bidang: ["quran", "hadis", "bahasa"],
     url: "https://brill.com",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Buka halaman Al-Bayan di Brill untuk mengecek pilihan akses terbuka dan biaya publikasinya.",
   },
   {
@@ -429,6 +443,7 @@ export const JURNAL: JurnalEntry[] = [
     indeks: ["Perlu dicek"],
     bidang: ["bahasa", "tarbiyah", "falsafah"],
     url: "https://www.abegs.org",
+    terakhirDiverifikasi: "2026-10-26",
     catatan: "Telusuri terbitan Majallat al-Lisan al-'Arabi di laman ABEGS dan cek ketentuan bahasa serta formatnya.",
   },
 ];

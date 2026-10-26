@@ -49,6 +49,11 @@ export function AlatFrasa() {
             <code className="rounded bg-ink-900/5 px-1 text-[11px]">{"{{topik}}"}</code> dengan
             istilah penelitian Anda.
           </p>
+          <p className="mt-2 max-w-xl rounded-lg bg-amber-50 px-3 py-2 text-[11.5px] leading-relaxed text-amber-800">
+            Ingat: pola ini kerangka awal, bukan kalimat jadi. Tulis ulang dengan data dan kata-katamu
+            sendiri — naskah yang seluruhnya disusun dari pola yang sama akan terdengar seragam dan
+            berisiko terdeteksi sebagai jiplakan pola oleh pemeriksa kesamaan (similarity).
+          </p>
         </div>
         <span className="chip">{hasil.length} tampil</span>
       </div>

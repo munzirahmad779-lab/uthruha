@@ -77,6 +77,24 @@ const TA_MARBUTA_SUSPECT = [
   "حضاره",
   "قيمه",
   "مشكله",
+  "مساله",
+  "قضيه",
+  "نتيجه",
+  "قاعه",
+  "وسيله",
+  "طريقه",
+  "غايه",
+  "نهايه",
+  "بدايه",
+  "اهميه",
+  "خاصه",
+  "عامه",
+  "معلومه",
+  "مقدمه",
+  "خاتمه",
+  "حادثه",
+  "وظيفه",
+  "مهمه",
   "نتيجه",
   "طريقه",
   "وسيله",
@@ -91,6 +109,7 @@ const PUNCT_LATIN: { salah: RegExp; benar: string; ket: string }[] = [
   { salah: /(?<=\S);(?=\s)/g, benar: "؛", ket: "Gunakan titik koma Arab «؛»" },
   { salah: /(?<=\S)\?(?=\s|$)/g, benar: "؟", ket: "Gunakan tanda tanya Arab «؟»" },
   { salah: /\.\.\./g, benar: "…", ket: "Gunakan elipsis «…»" },
+  { salah: /(?<=\S) +(?=\.)/g, benar: "", ket: "Tidak ada spasi sebelum titik" },
   { salah: /(?<=\S) {2,}/g, benar: " ", ket: "Spasi ganda" },
 ];
 
@@ -157,7 +176,8 @@ export function periksaOrtografi(teks: string): LaporanOrtografi {
     const idx = teks.indexOf(w, kursor);
     if (idx >= 0) kursor = idx + w.length;
     const bersih = w.replace(/[\u064B-\u0652]/g, "");
-    if (TA_MARBUTA_SUSPECT.includes(bersih)) {
+    const tanpaAl = bersih.startsWith("ال") ? bersih.slice(2) : bersih;
+    if (TA_MARBUTA_SUSPECT.includes(bersih) || TA_MARBUTA_SUSPECT.includes(tanpaAl)) {
       const usul = bersih.replace(/ه$/, "ة");
       temuan.push({
         id: `ta-${idx}`,

@@ -114,6 +114,8 @@ export interface JurnalEntry {
   bidang: string[];
   url: string;
   catatan: string;
+  /** Tanggal tautan resmi terakhir berhasil diverifikasi hidup (YYYY-MM-DD). */
+  terakhirDiverifikasi?: string;
 }
 
 export interface MetodeDef {

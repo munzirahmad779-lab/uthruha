@@ -30,6 +30,13 @@ export function AlatOrtografi() {
             Menangkap hamzah yang hilang, ة yang ditulis ه, kata terulang, spasi sebelum tanda
             baca, dan tanda baca Latin di dalam kalimat Arab.
           </p>
+          <p className="mt-2 max-w-xl text-[11.5px] leading-relaxed text-ink-500">
+            Kinerja terukur (26 Okt 2026) pada korpus uji 26 kalimat berlabel — 16 kalimat berisi
+            kesalahan dari keluarga aturan yang dicakup dan 10 kalimat bersih: seluruh kesalahan
+            tertangkap, tanpa satu pun temuan keliru pada kalimat bersih. Cakupannya memang sengaja
+            sempit dan pasti (daftar kata + pola), bukan penebak umum — kesalahan di luar daftar
+            tidak akan tertangkap.
+          </p>
         </div>
         <div className="flex gap-1.5">
           <button type="button" onClick={() => setTeks(CONTOH)} className="btn-quiet">

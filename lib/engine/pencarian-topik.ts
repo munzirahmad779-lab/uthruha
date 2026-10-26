@@ -75,6 +75,55 @@ function dariDoaj(r: Record<string, unknown>): Sumber {
   };
 }
 
+
+/** Petakan satu work OpenAlex menjadi Sumber artikel. */
+function dariOpenAlex(w: Record<string, unknown>): Sumber {
+  const biblio = (w.biblio ?? {}) as Record<string, string | undefined>;
+  const penulisDaftar = ((w.authorships as { author?: { display_name?: string } }[]) ?? [])
+    .map((a) => a.author?.display_name ?? "")
+    .filter(Boolean);
+  const loc = (w.primary_location as { source?: { display_name?: string }; landing_page_url?: string } | null) ?? null;
+  const hal = biblio.first_page
+    ? biblio.last_page && biblio.last_page !== biblio.first_page
+      ? `${biblio.first_page}-${biblio.last_page}`
+      : biblio.first_page
+    : undefined;
+  return {
+    ...sumberBaru("artikel"),
+    id: `src-${Math.random().toString(36).slice(2, 9)}`,
+    penulis: penulisDaftar.join(", "),
+    penulisDaftar,
+    tahun: w.publication_year ? String(w.publication_year) : "",
+    judul: String(w.title ?? ""),
+    jurnal: loc?.source?.display_name,
+    volume: biblio.volume,
+    nomor: biblio.issue,
+    halaman: hal,
+    doi: typeof w.doi === "string" ? w.doi.replace(/^https?:\/\/doi\.org\//, "") : undefined,
+    url: loc?.landing_page_url ?? (typeof w.doi === "string" ? w.doi : undefined),
+    sumberImpor: "openalex",
+    perluVerifikasi: false,
+  };
+}
+
+/** Petakan satu paper Semantic Scholar menjadi Sumber artikel. */
+function dariSemanticScholar(p: Record<string, unknown>): Sumber {
+  const penulisDaftar = ((p.authors as { name?: string }[]) ?? []).map((a) => a.name ?? "").filter(Boolean);
+  const ext = (p.externalIds as { DOI?: string } | undefined) ?? undefined;
+  return {
+    ...sumberBaru("artikel"),
+    id: `src-${Math.random().toString(36).slice(2, 9)}`,
+    penulis: penulisDaftar.join(", "),
+    penulisDaftar,
+    tahun: p.year ? String(p.year) : "",
+    judul: String(p.title ?? ""),
+    jurnal: typeof p.venue === "string" && p.venue ? p.venue : undefined,
+    doi: ext?.DOI,
+    sumberImpor: "semanticscholar",
+    perluVerifikasi: false,
+  };
+}
+
 export interface HasilJurnal {
   entri: Sumber[];
   status: { sumber: string; ok: boolean; pesan?: string }[];
@@ -103,6 +152,32 @@ export async function cariJurnalTopik(kk: KataKunci, perSumber = 10): Promise<Ha
         status.push({ sumber: "crossref", ok: true });
       } catch (e) {
         status.push({ sumber: "crossref", ok: false, pesan: e instanceof Error ? e.message : "gagal" });
+      }
+    })(),
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://api.openalex.org/works?search=${encodeURIComponent(q)}&filter=type:article&per-page=${perSumber}`,
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        semua.push(...((data.results ?? []) as Record<string, unknown>[]).map(dariOpenAlex));
+        status.push({ sumber: "openalex", ok: true });
+      } catch (e) {
+        status.push({ sumber: "openalex", ok: false, pesan: e instanceof Error ? e.message : "gagal" });
+      }
+    })(),
+    (async () => {
+      try {
+        const res = await fetch(
+          `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(q)}&limit=${perSumber}&fields=title,authors,year,venue,externalIds`,
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        semua.push(...((data.data ?? []) as Record<string, unknown>[]).map(dariSemanticScholar));
+        status.push({ sumber: "semanticscholar", ok: true });
+      } catch (e) {
+        status.push({ sumber: "semanticscholar", ok: false, pesan: e instanceof Error ? e.message : "gagal" });
       }
     })(),
     (async () => {

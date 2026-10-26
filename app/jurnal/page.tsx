@@ -171,6 +171,11 @@ export default function JurnalPage() {
             <p className="mt-2.5 border-t border-dashed border-ink-900/10 pt-2 text-[10.5px] leading-relaxed text-ink-500">
               {j.catatan}
             </p>
+            {j.terakhirDiverifikasi && (
+              <p className="mt-1 text-[10.5px] text-ink-400">
+                Tautan resmi terakhir diverifikasi: {j.terakhirDiverifikasi}
+              </p>
+            )}
           </article>
         ))}
       </div>

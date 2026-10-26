@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## Panen audit eksternal: verifikasi DOI, ISBN, fallback jurnal, mutu terukur (26 Okt 2026)
+Menindaklanjuti audit & scaffold dari Claude lain (uthruha-core) — yang cocok dipanen ke produksi, yang sudah ada tidak dibangun ulang:
+- **Verifikasi DOI cocok-judul** (`verifikasiDoi` di validasi-ref.ts; kemiripan Jaccard sadar harakat, ambang 0,6 — dipanen dari resolver scaffold): tombol "Periksa kecocokan DOI" membandingkan DOI dengan judul yang diketik; dan setiap penyimpanan rujukan manual ber-DOI kini dicek otomatis — DOI tertukar/asal tempel membuat referensi tersimpan dengan tanda perlu verifikasi + peringatan yang menyebut judul asli Crossref-nya. Teruji hidup terhadap DOI jurnal Indonesia asli.
+- **Ambil dari ISBN** (Google Books) di formulir rujukan: judul, penulis, penerbit, tahun, dan jumlah halaman terisi otomatis; kota terbit tetap manual (Google Books jarang memuatnya, dinyatakan terbuka).
+- **Pencarian jurnal kini 4 sumber**: Crossref + DOAJ + **OpenAlex** + **Semantic Scholar** (fallback berlapis sesuai rancangan audit), status tiap sumber tetap ditampilkan; tampung tetap maks 15 sesudah dedup.
+- **Direktori jurnal: cap "Tautan resmi terakhir diverifikasi"** per entri — hanya untuk tautan yang benar-benar terkonfirmasi hidup saat pemeriksaan (15 dari 30 entri pada 26 Okt 2026; sisanya belum terjangkau dari jaringan pemeriksa, bukan berarti mati).
+- **Pemeriksa ortografi DIUKUR + DIPERBAIKI**: korpus uji berlabel (scripts/uji-ortografi-korpus.ts) menemukan aturan ta marbuta nyaris tidak pernah menyala karena daftar katanya tidak mengenali bentuk ber-ال — diperbaiki (pencocokan melepas ال + daftar diperluas) dan spasi sebelum titik ditambah. Hasil sesudah perbaikan: recall 16/16, nol temuan keliru pada 10 kalimat bersih. Angka + batas cakupan kini dinyatakan terbuka di halaman alat ortografi.
+- **Peringatan bank frasa**: pola adalah kerangka awal — tulis ulang dengan datamu sendiri agar naskah tidak seragam dan tidak terdeteksi jiplakan pola.
+- Tidak diadopsi dari scaffold: fondasi Next 14/skema CSL-JSON/IndexedDB-nya (produksi sudah lebih maju: Next 15, skema v2 + Drive, mesin templat pedoman) dan render CSL (digantikan mesin templat pedoman yang teruji contoh).
+
 ## Cari langsung per kalimat kunci + panel Lugawi & Istilahi (26 Okt 2026)
 - **Cari referensi LANGSUNG dari tiap kalimat kunci**: setiap kartu kalimat kunci kini punya tombol "Cari jurnal dari kalimat ini" dan "Cari kitab dari kalimat ini" — sekali klik pencarian berjalan memakai kalimat itu juga, tanpa menyalin ulang ke kotak topik. Hasil diberi label kalimat asalnya (nomor + peran) dan tampilan bergulir otomatis ke hasil.
 - **Kapasitas hasil diperbesar**: jurnal ditampung sampai 15, kitab sampai 20 (sebelumnya hasil kitab tak dibatasi tampung eksplisit & jurnal ±8/sumber).
