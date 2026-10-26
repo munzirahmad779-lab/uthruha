@@ -619,6 +619,54 @@ export function composeSection(p: Project, sectionId: string, seed = 0): HasilKo
   return { markdown: markdown.replace(/\n{3,}/g, "\n\n").trim(), seed, sectionId, frasa: FRASA.filter((f) => f.section === sectionId).length, kandidatFootnote };
 }
 
+
+/** Apakah blok markdown ini prosa biasa (bukan judul/daftar/kutip/definisi/tabel)? */
+function blokProsa(b: string): boolean {
+  const t = b.trim();
+  if (!t) return false;
+  if (/^#{1,6}\s/.test(t)) return false;
+  if (/^-{3,}$/.test(t)) return false;
+  if (t.startsWith(">")) return false;
+  if (/^\[\^[^\]]+\]:/.test(t)) return false;
+  if (t.startsWith("|")) return false;
+  return t
+    .split("\n")
+    .every((l) => {
+      const s = l.trim();
+      return !/^(-|\*|\d+[.)]|[٠-٩]+[.)])\s/.test(s) && !s.startsWith(">") && !s.startsWith("|");
+    });
+}
+
+/**
+ * Rapikan naskah dokumen: kalimat-kalimat hasil susunan yang tadinya berdiri
+ * sebagai blok terpisah (enak untuk menyisipkan sumber saat MENULIS) digabung
+ * menjadi paragraf mengalir tanpa celah antar-kalimat — sebagaimana tampilan
+ * dokumen akhir seharusnya. Judul, daftar, kutip, dan definisi footnote tidak
+ * disentuh. Dipakai HANYA pada keluaran tingkat dokumen (composeNaskah) dan
+ * hanya untuk bagian hasil susunan; draf tulisan mahasiswa tidak diubah.
+ */
+export function rapikanNaskah(md: string): string {
+  const hasil: string[] = [];
+  let prosa = "";
+  const tumpah = () => {
+    if (prosa) hasil.push(prosa);
+    prosa = "";
+  };
+  for (const b of md.split(/\n\n+/)) {
+    const t = b.trim();
+    if (!t) continue;
+    if (blokProsa(t)) {
+      const rata = t.replace(/\n/g, " ").replace(/ {2,}/g, " ");
+      prosa = prosa ? `${prosa} ${rata}` : rata;
+    } else {
+      tumpah();
+      hasil.push(t);
+    }
+  }
+  tumpah();
+  return hasil.join("\n\n");
+}
+
 export function composeNaskah(p: Project): string {
   const st = strukturProyek(p);
   const bagian: string[] = [];
@@ -640,7 +688,7 @@ export function composeNaskah(p: Project): string {
         bagian.push(draf.trim());
       } else {
         const hasil = composeSection(p, section.id);
-        bagian.push(`> *(مسودة تلقائية — لم تُراجع بعد)*\n\n${hasil.markdown}`);
+        bagian.push(`> *(مسودة تلقائية — لم تُراجع بعد)*\n\n${rapikanNaskah(hasil.markdown)}`);
       }
     }
   }
