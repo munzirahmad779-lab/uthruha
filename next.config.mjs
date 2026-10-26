@@ -39,7 +39,10 @@ const headerKeamanan = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
   },
-  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  // WAJIB allow-popups: nilai "same-origin" memutus hubungan window dengan
+  // popup OAuth Google (GIS) sehingga login Drive selalu dilaporkan
+  // "popup ditutup" / menggantung. Google mensyaratkan same-origin-allow-popups.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
   { key: "X-DNS-Prefetch-Control", value: "off" },
   ...(produksi

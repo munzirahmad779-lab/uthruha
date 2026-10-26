@@ -112,7 +112,7 @@ function pesanErrorGIS(type: string | undefined): string {
   switch (type) {
     case "popup_closed":
     case "popup_closed_by_user":
-      return "Popup Google ditutup sebelum login selesai. Klik tombol masuk lagi dan selesaikan pilihan akun di popup.";
+      return "Popup Google ditutup sebelum login selesai. Klik tombol masuk lagi dan selesaikan pilihan akun di popup. Bila popup sempat menampilkan pesan dari Google (mis. Error 400 atau “Access blocked”), catat teksnya — penyebabnya ada di pengaturan Google Cloud (alamat situs/pengguna uji), bukan di tombol ini.";
     case "popup_failed_to_open":
       return "Popup Google gagal dibuka — browser memblokirnya. Izinkan popup untuk situs ini lalu coba lagi.";
     case "access_denied":
