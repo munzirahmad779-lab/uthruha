@@ -39,10 +39,13 @@ const LABEL_MODE: Record<string, string> = {
 export function RefFinder({
   p,
   onSisip,
+  onPasang,
   tutup,
 }: {
   p: Project;
   onSisip: (blok: string, sumber: Sumber[]) => void;
+  /** Pasang footnote terarah (pilih paragraf & kalimat) — disediakan tab Tulis. */
+  onPasang?: (sumber: Sumber, kutipan: string) => void;
   tutup: () => void;
 }) {
   const pedoman: PedomanRules = p.pedoman ?? pedomanDefault();
@@ -582,6 +585,15 @@ export function RefFinder({
                             {dipilih ? "Dipilih" : "Pilih"}
                           </button>
                           <TombolSalinCtrlF teks={h.teks_kutipan} />
+                          {onPasang && (
+                            <button
+                              type="button"
+                              onClick={() => onPasang(kandidatKeSumber(h), h.teks_kutipan)}
+                              className="btn-quiet !px-2 !py-1 !text-[11px]"
+                            >
+                              Pasang footnote
+                            </button>
+                          )}
                           {h.url_sumber ? (
                             <a href={h.url_sumber} target="_blank" rel="noopener noreferrer" className="btn-quiet !px-2 !py-1 !text-[11px]">
                               <IconExternal className="h-3 w-3" /> Sumber

@@ -30,6 +30,48 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
   const [sub, setSub] = useState<"sumber" | "cari" | "pedoman">("sumber");
   const [imporTeks, setImporTeks] = useState("");
   const [pesanImpor, setPesanImpor] = useState("");
+  const [doiAmbil, setDoiAmbil] = useState("");
+  const [sibukDoi, setSibukDoi] = useState(false);
+  const [pesanDoi, setPesanDoi] = useState("");
+
+  /** Ambil metadata jurnal dari DOI via CrossRef — mengisi formulir manual. */
+  async function ambilDariDoi() {
+    const doi = doiAmbil.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, "");
+    if (doi.length < 6) return;
+    setSibukDoi(true);
+    setPesanDoi("");
+    try {
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      const m = data?.message ?? {};
+      const penulis: string = Array.isArray(m.author)
+        ? m.author
+            .map((a: { family?: string; given?: string }) => [a.family, a.given].filter(Boolean).join(", "))
+            .join("; ")
+        : "";
+      const tahun = m.issued?.["date-parts"]?.[0]?.[0] ?? m.created?.["date-parts"]?.[0]?.[0];
+      setBaru((b) => ({
+        ...b,
+        jenis: "artikel",
+        penulis: penulis || b.penulis,
+        judul: (Array.isArray(m.title) ? m.title[0] : "") || b.judul,
+        jurnal: (Array.isArray(m["container-title"]) ? m["container-title"][0] : "") || b.jurnal,
+        penerbit: m.publisher ?? b.penerbit,
+        tahun: tahun ? String(tahun) : b.tahun,
+        volume: m.volume ?? b.volume,
+        nomor: m.issue ?? b.nomor,
+        halaman: m.page ?? b.halaman,
+        doi,
+        url: m.URL ?? b.url,
+      }));
+      setPesanDoi(`Metadata DOI ${doi} terisi ke formulir — periksa, lalu tambahkan referensinya.`);
+    } catch {
+      setPesanDoi("DOI tidak ditemukan di CrossRef atau koneksi gagal. Periksa penulisannya, atau isi manual.");
+    } finally {
+      setSibukDoi(false);
+    }
+  }
   const [peringatanDuplikat, setPeringatanDuplikat] = useState("");
   const [tampilPetunjuk, setTampilPetunjuk] = useState(
     () => typeof window !== "undefined" && !window.localStorage.getItem("uthruha:petunjuk:referensi"),
@@ -197,6 +239,27 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
         </span>
       </div>
       <div className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
+        <div className="mb-3 rounded-xl bg-parchment-100/70 px-3 py-2.5">
+          <p className="text-[12px] font-semibold text-ink-900">Punya DOI jurnal? Ambil metadatanya otomatis</p>
+          <p className="mt-0.5 text-[11px] text-ink-600">
+            Jurnal Indonesia &amp; Inggris yang ber-DOI terisi lengkap (penulis, jurnal, volume,
+            halaman) tanpa mengetik ulang — tinggal periksa dan tambahkan.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              className="input w-72 !py-1.5 text-[12px]"
+              dir="ltr"
+              value={doiAmbil}
+              onChange={(e) => setDoiAmbil(e.target.value)}
+              placeholder="10.xxxx/xxxxx atau https://doi.org/…"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void ambilDariDoi(); } }}
+            />
+            <button type="button" className="btn-quiet" disabled={sibukDoi || doiAmbil.trim().length < 6} onClick={() => void ambilDariDoi()}>
+              {sibukDoi ? "Mengambil…" : "Ambil dari DOI"}
+            </button>
+            {pesanDoi && <span className="text-[11px] text-ink-600">{pesanDoi}</span>}
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Jenis sumber">
             <select

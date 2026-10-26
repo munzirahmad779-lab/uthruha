@@ -51,6 +51,101 @@ export interface Project {
    * mahasiswa (tambah/kurang/pindah sub-bab) di tab Struktur.
    */
   daftarIsi?: BabKustom[] | null;
+  /**
+   * Set kalimat kunci hasil KURASI mahasiswa per bab (kunci = id bab atau
+   * "umum"): kolam kata kunci terpilih + tepat 3 kalimat kunci berperan.
+   * Set inilah yang menjalankan pencarian rujukan — bukan ekstrak otomatis.
+   */
+  kunciPencarian?: Record<string, SetKunci>;
+  /** Kotak temuan: rujukan hasil pencarian yang disimpan untuk dipasang kemudian. */
+  temuan?: TemuanRujukan[];
+}
+
+/** Peran kalimat kunci mengikuti pola bab isykal: gambaran, dalil, analisis. */
+export type PeranKalimat = "taswir" | "aqwal" | "tarjih";
+
+/** Satu kalimat kunci hasil kurasi (generate AI atau tulis manual). */
+export interface KalimatKunci {
+  /** Kalimat kunci Arab (frasa utuh untuk pencarian kitab). */
+  teks: string;
+  /** Arti/padanan Bahasa Indonesia (untuk pencarian jurnal). */
+  arti: string;
+  /** Penjelasan kenapa kalimatnya disusun seperti itu. */
+  alasan: string;
+  peran: PeranKalimat;
+  /** Dikunci mahasiswa: generate ulang tidak menimpa kalimat ini. */
+  dikunci?: boolean;
+}
+
+/** Set kunci satu bab: kolam kata terpilih + kalimat kunci berperan. */
+export interface SetKunci {
+  /** Kolam kata kunci (Arab) hasil generate — bisa ditambah/dihapus mahasiswa. */
+  kata: string[];
+  /** Kata dari kolam yang dipilih untuk menyusun kalimat (kosong = semua). */
+  kataDipakai: string[];
+  kalimat: KalimatKunci[];
+}
+
+/** Rujukan temuan pencarian yang disimpan per bab untuk dipasang kemudian. */
+export interface TemuanRujukan {
+  id: string;
+  /** Id bab (daftar isi) tempat temuan ini disimpan. */
+  babId: string;
+  sumber: Sumber;
+  /** Kutipan teks sumber (untuk Ctrl+F & paragraf baru), bila ada. */
+  kutipan: string;
+  dibuat: string;
+}
+
+/** Saring set kunci dari data mentah. */
+export function sanitasiKunciPencarian(mentah: unknown): Record<string, SetKunci> | undefined {
+  if (typeof mentah !== "object" || mentah === null || Array.isArray(mentah)) return undefined;
+  const hasil: Record<string, SetKunci> = {};
+  for (const [k, v] of Object.entries(mentah as Record<string, unknown>)) {
+    if (typeof v !== "object" || v === null) continue;
+    const rec = v as Record<string, unknown>;
+    const kata = Array.isArray(rec.kata) ? rec.kata.filter((x): x is string => typeof x === "string") : [];
+    const kataDipakai = Array.isArray(rec.kataDipakai)
+      ? rec.kataDipakai.filter((x): x is string => typeof x === "string")
+      : [];
+    const kalimat: KalimatKunci[] = [];
+    if (Array.isArray(rec.kalimat)) {
+      for (const item of rec.kalimat) {
+        if (typeof item !== "object" || item === null) continue;
+        const ik = item as Record<string, unknown>;
+        if (typeof ik.teks !== "string" || !ik.teks.trim()) continue;
+        kalimat.push({
+          teks: ik.teks,
+          arti: typeof ik.arti === "string" ? ik.arti : "",
+          alasan: typeof ik.alasan === "string" ? ik.alasan : "",
+          peran: ik.peran === "aqwal" || ik.peran === "tarjih" ? ik.peran : "taswir",
+          ...(ik.dikunci === true ? { dikunci: true } : {}),
+        });
+      }
+    }
+    hasil[k] = { kata, kataDipakai, kalimat: kalimat.slice(0, 3) };
+  }
+  return Object.keys(hasil).length > 0 ? hasil : undefined;
+}
+
+/** Saring kotak temuan dari data mentah. */
+export function sanitasiTemuan(mentah: unknown): TemuanRujukan[] | undefined {
+  if (!Array.isArray(mentah)) return undefined;
+  const hasil: TemuanRujukan[] = [];
+  for (const item of mentah) {
+    if (typeof item !== "object" || item === null) continue;
+    const rec = item as Record<string, unknown>;
+    if (typeof rec.id !== "string" || typeof rec.babId !== "string") continue;
+    if (typeof rec.sumber !== "object" || rec.sumber === null) continue;
+    hasil.push({
+      id: rec.id,
+      babId: rec.babId,
+      sumber: normalisasiSumber(rec.sumber as Sumber),
+      kutipan: typeof rec.kutipan === "string" ? rec.kutipan : "",
+      dibuat: typeof rec.dibuat === "string" ? rec.dibuat : "",
+    });
+  }
+  return hasil.length > 0 ? hasil : undefined;
 }
 
 /** Satu sub-bab dalam daftar isi kustom proyek. */
@@ -269,6 +364,8 @@ export function migrasiProyek(mentah: unknown): Project {
     jawaban: p.jawaban ?? {},
     draf: p.draf ?? {},
     daftarIsi: sanitasiDaftarIsi(p.daftarIsi),
+    kunciPencarian: sanitasiKunciPencarian(p.kunciPencarian),
+    temuan: sanitasiTemuan(p.temuan),
   };
 }
 

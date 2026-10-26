@@ -15,6 +15,14 @@
 //   tidak pernah dari request body dan tidak pernah dikirim ke client.
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  PROMPT_KALIMAT,
+  PROMPT_KATA,
+  kalimatTanpaAI,
+  kataTanpaAI,
+  parseKalimat,
+  parseKata,
+} from "@/lib/engine/kata-kunci-server";
 
 export const runtime = "nodejs";
 
@@ -74,6 +82,53 @@ async function panggilOpenAICompatible(opts: {
   return isi ? parseKataKunci(isi) : null;
 }
 
+/** Panggil provider LLM berurutan (Groq → Cloudflare); kembalikan teks mentah. */
+async function panggilLLMMentah(system: string, user: string, maksToken: number): Promise<{ sumber: string; isi: string } | null> {
+  const penyedia: Array<{ sumber: string; baseURL: string; apiKey: string; model: string }> = [];
+  if (process.env.GROQ_API_KEY) {
+    penyedia.push({
+      sumber: "groq",
+      baseURL: "https://api.groq.com/openai/v1",
+      apiKey: process.env.GROQ_API_KEY,
+      model: process.env.GROQ_MODEL ?? "qwen/qwen3.8-27b",
+    });
+  }
+  if (process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID) {
+    penyedia.push({
+      sumber: "cloudflare",
+      baseURL: `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/ai/v1`,
+      apiKey: process.env.CLOUDFLARE_API_TOKEN,
+      model: process.env.CLOUDFLARE_MODEL ?? "@cf/meta/llama-3.1-8b-instruct",
+    });
+  }
+  for (const s of penyedia) {
+    try {
+      const res = await fetch(`${s.baseURL}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${s.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: s.model,
+          temperature: 0.2,
+          max_tokens: maksToken,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+        }),
+        signal: AbortSignal.timeout(25_000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const isi: string | undefined = data?.choices?.[0]?.message?.content;
+      if (isi) return { sumber: s.sumber, isi };
+    } catch {
+      /* provider berikutnya */
+    }
+  }
+  return null;
+}
+
 // Rate limit sederhana per IP (memori proses — cukup untuk skala awal;
 // di serverless ini per-instance, naikkan ke KV/Upstash bila trafik tumbuh).
 const jendela = new Map<string, { n: number; sejak: number }>();
@@ -98,6 +153,34 @@ export async function POST(req: NextRequest) {
   const teks = typeof body?.teks === "string" ? body.teks.trim().slice(0, 2000) : "";
   if (teks.length < 10) {
     return NextResponse.json({ error: "Teks terlalu pendek untuk diekstrak kata kuncinya." }, { status: 400 });
+  }
+
+  // ── Tahap kurasi v2 ──────────────────────────────────────────────────────
+  const tahap = typeof body?.tahap === "string" ? body.tahap : "";
+  if (tahap === "kata") {
+    const mentah = await panggilLLMMentah(PROMPT_KATA, teks, 500);
+    const kata = mentah ? parseKata(mentah.isi) : null;
+    if (kata) return NextResponse.json({ sumber: mentah!.sumber, kata });
+    return NextResponse.json({
+      sumber: "tanpa-ai",
+      kata: kataTanpaAI(teks),
+      catatan: "Provider AI tidak tersedia — kata kunci disaring dari teks Anda sendiri; periksa dan edit sebelum menyusun kalimat.",
+    });
+  }
+  if (tahap === "kalimat") {
+    const judul = typeof body?.judul === "string" ? body.judul.trim().slice(0, 300) : teks;
+    const kataPilihan: string[] = Array.isArray(body?.kata)
+      ? body.kata.filter((x: unknown) => typeof x === "string").slice(0, 12)
+      : [];
+    const user = `JUDUL: ${judul}\nKATA KUNCI TERPILIH: ${kataPilihan.join("، ") || "(belum ada — ambil dari judul)"}`;
+    const mentah = await panggilLLMMentah(PROMPT_KALIMAT, user, 800);
+    const kalimat = mentah ? parseKalimat(mentah.isi) : null;
+    if (kalimat) return NextResponse.json({ sumber: mentah!.sumber, kalimat });
+    return NextResponse.json({
+      sumber: "tanpa-ai",
+      kalimat: kalimatTanpaAI(judul, kataPilihan),
+      catatan: "Provider AI tidak tersedia — kalimat berupa templat per peran; edit sebelum mencari.",
+    });
   }
 
   // Provider 1 — Groq (Qwen). Key: GROQ_API_KEY (console.groq.com, gratis, tanpa kartu).

@@ -8,6 +8,7 @@ import { IconArrowRight, IconCheck, IconDownload, IconPen, IconSearch, IconSpark
 import { CopyButton, Note } from "@/components/ui";
 import { Manuscript } from "@/components/manuscript";
 import { RefFinder } from "@/components/workspace/ref-finder";
+import { PasangFootnote } from "@/components/workspace/pasang-footnote";
 import { BatasStrip } from "@/components/workspace/batas-strip";
 import { buatMarker } from "@/lib/engine/marker";
 
@@ -30,6 +31,8 @@ export function TulisTab({
   const [teks, setTeks] = useState(p.draf[bagian] ?? "");
   const [pratinjau, setPratinjau] = useState(false);
   const [cariRujukan, setCariRujukan] = useState(false);
+  const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string } | null>(null);
+  const [pesanPasang, setPesanPasang] = useState("");
   const [sitasiId, setSitasiId] = useState("");
   const [sitasiHalaman, setSitasiHalaman] = useState("");
   const sinkron = useRef(p.draf[bagian] ?? "");
@@ -269,6 +272,10 @@ export function TulisTab({
           <RefFinder
             p={p}
             tutup={() => setCariRujukan(false)}
+            onPasang={(sumber, kutipan) => {
+              setCariRujukan(false);
+              setPasangTarget({ sumber, kutipan });
+            }}
             onSisip={(blok, sumberBaru) => {
               const gabung = `${teks.trim()}\n\n${blok}`;
               setTeks(gabung);
@@ -277,6 +284,29 @@ export function TulisTab({
               setCariRujukan(false);
             }}
           />
+        )}
+
+        {pasangTarget && (
+          <PasangFootnote
+            p={p}
+            ubah={ubah}
+            sumber={pasangTarget.sumber}
+            kutipan={pasangTarget.kutipan}
+            babAwalId={bagian}
+            onTutup={() => setPasangTarget(null)}
+            onTerpasang={(m, drafMapBaru) => {
+              setPesanPasang(m);
+              // Segarkan editor dari draf hasil pemasangan agar penanda tidak tertimpa.
+              const baru = drafMapBaru?.[bagian];
+              if (typeof baru === "string") {
+                setTeks(baru);
+                sinkron.current = baru;
+              }
+            }}
+          />
+        )}
+        {pesanPasang && (
+          <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[12px] text-emerald-900">{pesanPasang}</p>
         )}
 
         <div className="mt-3">
