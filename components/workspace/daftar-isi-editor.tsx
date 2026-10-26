@@ -1,7 +1,91 @@
 "use client";
 
+import { useState } from "react";
 import type { BabKustom, Project } from "@/lib/engine/project";
 import { susunDaftarIsiIsykal, susunDaftarIsiBawaan } from "@/lib/content/struktur";
+import { parseOutlinePedoman, parseOutlineTempelan } from "@/lib/engine/daftar-isi-pedoman";
+
+/**
+ * Daftar isi dari pedoman kampus: membaca bagian sistematika di pedoman .md
+ * yang terunggah, atau tempelan daftar isi yang disalin mahasiswa dari buku
+ * pedoman. Hasilnya menjadi daftar isi proyek yang bisa diedit seperti biasa.
+ */
+function PanelDaftarIsiPedoman({
+  p,
+  ubah,
+  sudahAda,
+}: {
+  p: Project;
+  ubah: (patch: Partial<Project>) => void;
+  sudahAda: boolean;
+}) {
+  const [tempel, setTempel] = useState("");
+  const [pesan, setPesan] = useState("");
+  const dariPedoman = p.pedoman?.mentah ? parseOutlinePedoman(p.pedoman.mentah) : null;
+  const jumlahSub = (d: BabKustom[]) => d.reduce((n, b) => n + b.sections.length, 0);
+
+  function terapkanDari(d: BabKustom[], sumber: string) {
+    if (sudahAda && !window.confirm(`Ganti daftar isi saat ini dengan daftar isi ${sumber}? Draf yang sudah ditulis tidak ikut terhapus.`)) return;
+    ubah({ daftarIsi: d });
+    setPesan(`Daftar isi dari ${sumber} diterapkan: ${d.length} bab, ${jumlahSub(d)} sub-bab. Silakan edit lagi bila perlu.`);
+  }
+
+  return (
+    <div className="mt-3 border-t border-ink-900/10 pt-3">
+      <h4 className="text-[12.5px] font-bold text-ink-900">Daftar isi dari pedoman kampus</h4>
+      {p.pedoman ? (
+        dariPedoman ? (
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-600">
+            Pedoman terunggah ({p.pedoman.namaBerkas || "pedoman.md"}) memuat sistematika:{" "}
+            <b>{dariPedoman.length} bab, {jumlahSub(dariPedoman)} sub-bab</b>.
+          </p>
+        ) : (
+          <p className="mt-1 text-[12px] leading-relaxed text-amber-800">
+            Pedoman terunggah belum memuat bagian daftar isi/sistematika, jadi belum bisa dibaca ke
+            sini. Unggah ulang pedoman dengan prompt terbaru (di tab Rujukan → Pedoman kampus — prompt
+            kini meminta sistematika), atau tempel daftar isinya langsung di bawah ini.
+          </p>
+        )
+      ) : (
+        <p className="mt-1 text-[12px] leading-relaxed text-ink-600">
+          Belum ada pedoman terunggah di proyek ini. Unggah di tab Rujukan → Pedoman kampus, atau
+          tempel daftar isi dari buku pedoman Anda di bawah ini.
+        </p>
+      )}
+      {dariPedoman && (
+        <button type="button" className="btn-primary mt-2" onClick={() => terapkanDari(dariPedoman, "pedoman kampus")}>
+          Pakai daftar isi dari pedoman
+        </button>
+      )}
+      <textarea
+        className="input mt-3 min-h-28 w-full font-naskh text-[12.5px]"
+        dir="auto"
+        value={tempel}
+        onChange={(e) => setTempel(e.target.value)}
+        placeholder={"Tempel daftar isi dari buku pedoman di sini. Satu baris satu judul:\nBAB I PENDAHULUAN\n  Latar Belakang\n  Rumusan Masalah\nBAB II …"}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="btn-quiet"
+          disabled={tempel.trim().length < 5}
+          onClick={() => {
+            const hasil = parseOutlineTempelan(tempel);
+            if (!hasil) {
+              setPesan("Tempelan belum terbaca: pastikan ada minimal 1 bab dengan sub-bab menjorok (2 spasi) atau bernomor 1.1.");
+              return;
+            }
+            terapkanDari(hasil, "tempelan Anda");
+          }}
+        >
+          Susun daftar isi dari tempelan
+        </button>
+        <span className="text-[10.5px] text-ink-500">Penomoran 1 / 1.1 / 1.1.1 juga dipahami.</span>
+      </div>
+      {pesan && <p className="mt-2 text-[12px] text-ink-700">{pesan}</p>}
+    </div>
+  );
+}
 
 /**
  * Editor daftar isi milik proyek (pola Ma'had: bab mewakili isykaliyyat).
@@ -168,6 +252,7 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
             Jadikan struktur bawaan bisa diedit
           </button>
         </div>
+        <PanelDaftarIsiPedoman p={p} ubah={ubah} sudahAda={false} />
       </section>
     );
   }
@@ -176,7 +261,7 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
     <section className="space-y-3 rounded-2xl border border-gold-600/30 bg-gold-500/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-[13px] font-bold text-ink-900">
-          Daftar isi proyek ini <span className="font-normal text-ink-500">(dari isykaliyyat — bebas diedit)</span>
+          Daftar isi proyek ini <span className="font-normal text-ink-500">(milik proyek — bebas diedit)</span>
         </h3>
         <div className="flex gap-1.5">
           <button
@@ -299,6 +384,7 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
         diberi fasal/matlab (tombol “+ Fasal”) sesuai pedoman masing-masing. Menghapus sub-bab tidak
         menghapus draf yang sudah ditulis — drafnya tetap tersimpan di proyek ini.
       </p>
+      <PanelDaftarIsiPedoman p={p} ubah={ubah} sudahAda={true} />
     </section>
   );
 }

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## Daftar isi dari pedoman kampus (26 Okt 2026)
+- **Pedoman kini bisa mengatur daftar isi.** Prompt pembuat pedoman.md ditambah bagian "Daftar Isi (Sistematika Penulisan)" (daftar bersarang), dan tab Struktur mendapat panel "Daftar isi dari pedoman kampus": satu tombol menerapkan sistematika dari pedoman terunggah menjadi daftar isi proyek yang bisa diedit. Pedoman lama yang belum memuat sistematika diberi petunjuk jelas (unggah ulang dengan prompt baru).
+- **Tempel daftar isi manual**: mahasiswa bisa menempel daftar isi dari buku pedoman (indentasi bersarang atau penomoran desimal 1/1.1/1.1.1, Arab maupun Latin) dan web menyusunnya menjadi bab/sub-bab/fasal — tanpa perlu unggah ulang pedoman.
+
 ## Pencarian v2: kurasi kalimat kunci + pasang footnote terarah (26 Okt 2026)
 - **Alur pencarian baru (kurasi)**: judul wajib → generate kata kunci (kolam yang bisa dipilih/dihapus/ditambah) → susun TEPAT 3 kalimat kunci berperan (gambaran masalah / pendapat & dalil / analisis & jawaban), masing-masing disertai alasan penyusunannya. Kalimat bisa diedit, dikunci agar tidak tertimpa generate ulang, atau ditulis manual. Set tersimpan per bab di proyek (`kunciPencarian`) dan set itulah yang menjalankan pencarian jurnal & kitab — bukan lagi ekstrak otomatis dari paragraf. Kata terpilih yang belum terwakili di kalimat ditandai. Route `/api/kata-kunci` kini bertahap (`tahap: kata|kalimat`) dengan fallback tanpa-AI.
 - **Pasang footnote terarah**: dari hasil pencarian (panel topik, kotak temuan, pencari rujukan tab Tulis) — pilih bagian → paragraf → setelah kalimat ke berapa; pratinjau menampilkan footnote persis hasil akhir (format pedoman bila ada) lengkap dengan nomornya di naskah.

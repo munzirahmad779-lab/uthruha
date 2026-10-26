@@ -231,7 +231,7 @@ export const PROMPT_PEDOMAN = `Kamu membantu saya mengubah buku pedoman penulisa
 
 Tugasmu:
 1. Baca pedoman yang saya tempelkan di bawah (boleh berupa teks berantakan, potongan gambar yang sudah di-OCR, atau tautan).
-2. Tulis ulang HANYA aturan format dan sitasi yang benar-benar disebut. Jangan menambah aturan yang tidak ada.
+2. Tulis ulang HANYA aturan format, sitasi, dan sistematika yang benar-benar disebut. Jangan menambah aturan yang tidak ada.
 3. Gunakan struktur markdown berikut, dan kosongkan (tulis "tidak disebut") bagian yang tidak ada di pedoman:
 
 # Pedoman Penulisan <nama kampus>
@@ -246,6 +246,14 @@ Tugasmu:
 - Penomoran footnote: <per bab / kontinu>
 - Contoh footnote: <contoh persis dari pedoman>
 - Contoh daftar pustaka: <contoh persis dari pedoman>
+## Daftar Isi (Sistematika Penulisan)
+Salin sistematika/daftar isi bab dari pedoman PERSIS sebagai daftar bersarang:
+bab tanpa indentasi, sub-bab menjorok 2 spasi, fasal menjorok 4 spasi.
+- BAB I <judul bab>
+  - <sub-bab>
+    - <fasal/matlab>
+- BAB II <judul bab>
+  - <sub-bab>
 ## Aturan lain
 - <poin-poin lain yang relevan: penulisan judul, transliterasi, kutipan panjang, dll>
 
