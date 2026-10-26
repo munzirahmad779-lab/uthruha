@@ -207,7 +207,7 @@ export function LugawiPanel({ online }: { online: boolean }) {
         <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-parchment-100/80 p-2.5 text-[11px] leading-relaxed text-ink-700">{prompt}</pre>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <CopyButton teks={prompt} label="Salin prompt" />
-          <a className="btn-quiet" href="https://t.me/Utruhah_musebot" target="_blank" rel="noreferrer">Buka bot Telegram ↗</a>
+          <a className="btn-quiet" href="https://t.me/Deepmusee_bot" target="_blank" rel="noreferrer">Buka bot Telegram ↗</a>
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-ink-500">{KETERANGAN_JAM_CHAT}</p>
       </div>

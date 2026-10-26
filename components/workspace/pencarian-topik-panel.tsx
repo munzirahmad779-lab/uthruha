@@ -624,7 +624,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
             <a className="btn-quiet" href={tautanShamela} target="_blank" rel="noreferrer">Buka di Shamela ↗</a>
             <a className="btn-quiet" href={tautanGaruda} target="_blank" rel="noreferrer">Buka di Garuda ↗</a>
             <a className="btn-quiet" href={tautanMintaBot} target="_blank" rel="noreferrer">Minta bot bantu cari ↗</a>
-            <a className="btn-quiet" href="https://t.me/Utruhah_musebot" target="_blank" rel="noreferrer">Buka bot Telegram ↗</a>
+            <a className="btn-quiet" href="https://t.me/Deepmusee_bot" target="_blank" rel="noreferrer">Buka bot Telegram ↗</a>
           </div>
           {hasilKitab.map((h) => {
             const sHit = hitKeSumber(h);
