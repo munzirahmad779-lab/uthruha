@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Pencarian v2: kurasi kalimat kunci + pasang footnote terarah (26 Okt 2026)
+- **Alur pencarian baru (kurasi)**: judul wajib → generate kata kunci (kolam yang bisa dipilih/dihapus/ditambah) → susun TEPAT 3 kalimat kunci berperan (gambaran masalah / pendapat & dalil / analisis & jawaban), masing-masing disertai alasan penyusunannya. Kalimat bisa diedit, dikunci agar tidak tertimpa generate ulang, atau ditulis manual. Set tersimpan per bab di proyek (`kunciPencarian`) dan set itulah yang menjalankan pencarian jurnal & kitab — bukan lagi ekstrak otomatis dari paragraf. Kata terpilih yang belum terwakili di kalimat ditandai. Route `/api/kata-kunci` kini bertahap (`tahap: kata|kalimat`) dengan fallback tanpa-AI.
+- **Pasang footnote terarah**: dari hasil pencarian (panel topik, kotak temuan, pencari rujukan tab Tulis) — pilih bagian → paragraf → setelah kalimat ke berapa; pratinjau menampilkan footnote persis hasil akhir (format pedoman bila ada) lengkap dengan nomornya di naskah.
+- **Kotak temuan per bab** (`temuan`): hasil pencarian disimpan dulu, dipasang kapan pun.
+- **Minta bot bantu cari**: tombol mode kitab menyusun teks permintaan rapi (judul + kalimat kunci kurasi) untuk dikirim ke bot Telegram @Utruhah_musebot.
+- **Ambil metadata dari DOI** di form rujukan manual (CrossRef): jurnal Indonesia/Inggris ber-DOI terisi otomatis. Hasil kitab kini disertai catatan kecocokan.
+
 ## Rujukan siap salin sesuai pedoman + daftar isi fasal (26 Okt 2026)
 - **Daftar pustaka tab Rujukan kini mengikuti pedoman kampus** (template pustaka pedoman), bukan format bawaan. Daftar footnote baru "Footnote di naskah ini — bernomor & sesuai pedoman/gaya": footnote persis seperti di dokumen akhir, lengkap dengan nomor urut sitasinya, siap salin satu per satu atau semua — tanpa kode penanda [[ref:…]].
 - **Daftar isi**: struktur bawaan kini bisa dijadikan daftar isi milik proyek yang bisa diedit walau tanpa rumusan ("Jadikan struktur bawaan bisa diedit") — judul bab/sub-bab bebas diganti untuk semua proyek. Tingkat ketiga **fasal/matlab** (فصل/مطلب): tombol "+ Fasal" di bawah tiap sub-bab; fasal dirender sebagai sub-judul (###) di naskah dan menjorok di tab Struktur.
