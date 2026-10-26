@@ -109,7 +109,7 @@ export function simpulkanLugawi(x: {
   return {
     tingkat: "tidak-ditemukan",
     pesan:
-      "Tidak ditemukan di kitab, kamus, maupun jurnal yang bisa dijangkau web ini. Jangan menyerah — tanyakan langsung ke Muse dengan prompt siap pakai di bawah; Muse akan menelusuri asal kata, padanan, dan statusnya di kitab secara khusus.",
+      "Tidak ditemukan di kitab, kamus, maupun jurnal yang bisa dijangkau web ini. Jangan menyerah — tanyakan langsung ke Yusuf AI dengan prompt siap pakai di bawah; Yusuf AI akan menelusuri asal kata, padanan, dan statusnya di kitab secara khusus.",
   };
 }
 
@@ -127,6 +127,6 @@ export function promptMuseLugawi(kata: string): string {
   ].join("\n");
 }
 
-/** Keterangan jam dijawabnya chat Muse (jendela hub 19.00–00.00 WITA). */
+/** Keterangan jam dijawabnya chat Yusuf AI (jendela hub 19.00–00.00 WITA). */
 export const KETERANGAN_JAM_CHAT =
-  "Chat Muse di web ini (tombol “Tanya Muse” di pojok halaman) dijawab langsung pada pukul 19.00–00.00 WITA. Di luar jam itu pertanyaan tetap masuk dan dijawab saat jendela berikutnya buka.";
+  "Chat Yusuf AI di web ini (tombol “Tanya Yusuf AI” di pojok halaman) dijawab langsung pada pukul 19.00–00.00 WITA. Di luar jam itu pertanyaan tetap masuk dan dijawab saat jendela berikutnya buka.";

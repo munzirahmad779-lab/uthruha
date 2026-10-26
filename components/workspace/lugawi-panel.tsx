@@ -196,12 +196,12 @@ export function LugawiPanel({ online }: { online: boolean }) {
         </div>
       )}
 
-      {/* ── Mentok? Tanya Muse ─────────────────────────────────────────── */}
+      {/* ── Mentok? Tanya Yusuf AI ─────────────────────────────────────────── */}
       <div className="rounded-xl border border-dashed border-ink-900/20 bg-white/60 p-3">
-        <h4 className="text-[12.5px] font-bold text-ink-900">Masih mentok? Tanyakan ke Muse</h4>
+        <h4 className="text-[12.5px] font-bold text-ink-900">Masih mentok? Tanyakan ke Yusuf AI</h4>
         <p className="mt-1 text-[11.5px] leading-relaxed text-ink-600">
-          Salin prompt siap pakai ini, lalu tempel di chat Muse (tombol <strong>“Tanya Muse”</strong> di pojok
-          halaman ini, atau bot Telegram) — Muse akan langsung menelusuri lugawi, istilahi, asal kata, dan
+          Salin prompt siap pakai ini, lalu tempel di chat Yusuf AI (tombol <strong>“Tanya Yusuf AI”</strong> di pojok
+          halaman ini, atau bot Telegram) — Yusuf AI akan langsung menelusuri lugawi, istilahi, asal kata, dan
           statusnya di kitab untukmu.
         </p>
         <pre className="mt-2 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-parchment-100/80 p-2.5 text-[11px] leading-relaxed text-ink-700">{prompt}</pre>
