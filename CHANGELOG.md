@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Sisip sitasi lama dihapus — footnote langsung sesuai pedoman (26 Okt 2026)
+- **Bar "Sisip sitasi" manual di tab Tulis DIHAPUS** (dropdown rujukan + kolom hlm. + tombol "Sisipkan penanda" + peringatan soal kode [[ref:…]]). Mahasiswa tidak lagi menyisipkan/menjaga kode penanda dengan tangan.
+- **Penggantinya strip "Footnote bagian ini"** di bawah editor: footnote bagian yang sedang dibuka tampil langsung sebagai hasil jadi — terformat pedoman kampus (atau gaya proyek) dan bernomor persis seperti di naskah utuh & ekspor (penomoran dihitung dari kompilasi naskah sebenarnya), siap salin per item.
+- **Pemasangan sitasi sekarang lewat dua jalur pintar saja**: tombol "Pasang footnote" (dialog terarah: pilih bagian → paragraf → kalimat, dengan pratinjau pedoman bernomor) dan "Cari rujukan (AI)" (pencari rujukan yang mengekstrak konsep dengan AI). Kode penanda tetap menjadi mesin internal ekspor Word, bukan lagi urusan mahasiswa.
+
 ## Pedoman dwibahasa (Arab–Indonesia) + templat dari contoh (26 Okt 2026)
 - **Contoh di pedoman kini benar-benar menjadi pola.** Sebelumnya contoh footnote/daftar pustaka di pedoman.md hanya dicatat — pola yang dipakai selalu pola bawaan. Sekarang pola diturunkan dari contoh persis pedoman (penulis، judul، (kota: penerbit، tahun)، ج، ص) dan dipakai untuk footnote & daftar pustaka; bila penurunan gagal, kegagalannya dicatat terbuka di ringkasan pedoman.
 - **Pedoman berbahasa Arab terbaca penuh**: label Arab untuk ukuran/spasi (تباعد الأسطر)/margin (سم)/penomoran (لكل باب)/angka (الأرقام العربية), angka Arab-Indic (١٢٣) dinormalisasi, dan bagian daftar isi berjudul المحتويات (atau نظام الكتابة، هيكل البحث, dll) dibaca parser sistematika. Teruji pulang-pergi: footnote hasil render sama persis dengan contoh di pedoman Arab.

@@ -9,8 +9,8 @@ import { CopyButton, Note } from "@/components/ui";
 import { Manuscript } from "@/components/manuscript";
 import { RefFinder } from "@/components/workspace/ref-finder";
 import { PasangFootnote } from "@/components/workspace/pasang-footnote";
+import { FootnoteBagian } from "@/components/workspace/footnote-bagian";
 import { BatasStrip } from "@/components/workspace/batas-strip";
-import { buatMarker } from "@/lib/engine/marker";
 
 export function TulisTab({
   p,
@@ -33,8 +33,6 @@ export function TulisTab({
   const [cariRujukan, setCariRujukan] = useState(false);
   const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string } | null>(null);
   const [pesanPasang, setPesanPasang] = useState("");
-  const [sitasiId, setSitasiId] = useState("");
-  const [sitasiHalaman, setSitasiHalaman] = useState("");
   const sinkron = useRef(p.draf[bagian] ?? "");
 
   // Ganti bagian: muat draf bagian tersebut.
@@ -82,17 +80,6 @@ export function TulisTab({
     setTeks(gabung);
     sinkron.current = gabung;
     ubah({ draf: { ...p.draf, [bagian]: gabung } });
-  }
-
-  /** Sisip penanda sitasi [[ref:id]] di akhir teks — angka footnote dihitung saat ekspor. */
-  function sisipMarker() {
-    const id = sitasiId || p.sumber[0]?.id;
-    if (!id) return;
-    const gabung = `${teks}${buatMarker(id, sitasiHalaman.trim() || undefined)}`;
-    setTeks(gabung);
-    sinkron.current = gabung;
-    ubah({ draf: { ...p.draf, [bagian]: gabung } });
-    setSitasiHalaman("");
   }
 
   return (
@@ -174,37 +161,6 @@ export function TulisTab({
           <span className="font-semibold text-ink-900">Panduan: </span>
           {aktif?.panduan}
         </p>
-
-        {p.sumber.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-ink-900/10 bg-white/60 px-3 py-2">
-            <span className="text-[11.5px] font-semibold text-ink-800">Sisip sitasi:</span>
-            <select
-              className="input !w-auto max-w-56 !py-1 text-[12px]"
-              value={sitasiId || p.sumber[0]?.id}
-              onChange={(e) => setSitasiId(e.target.value)}
-              aria-label="Pilih rujukan"
-            >
-              {p.sumber.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.judul.slice(0, 42) || s.id}
-                </option>
-              ))}
-            </select>
-            <input
-              className="input !w-20 !py-1 text-[12px]"
-              value={sitasiHalaman}
-              onChange={(e) => setSitasiHalaman(e.target.value)}
-              placeholder="hlm."
-              aria-label="Halaman sitasi"
-            />
-            <button type="button" onClick={sisipMarker} className="btn-quiet !py-1">
-              Sisipkan penanda
-            </button>
-            <span className="text-[10.5px] text-ink-500">
-              Penanda [[ref:…]] menjadi footnote bernomor otomatis saat ekspor — jangan hapus manual.
-            </span>
-          </div>
-        )}
 
         {aktif?.pemicu && aktif.pemicu.length > 0 && (
           <details className="mt-3 rounded-xl border border-ink-900/10 bg-white/60 px-3 py-2">
@@ -308,6 +264,13 @@ export function TulisTab({
         {pesanPasang && (
           <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[12px] text-emerald-900">{pesanPasang}</p>
         )}
+
+        <FootnoteBagian
+          p={p}
+          bagian={bagian}
+          onCariRujukan={() => setCariRujukan(true)}
+          onPasang={(sumber) => setPasangTarget({ sumber })}
+        />
 
         <div className="mt-3">
           <BatasStrip teks={teks} pedoman={p.pedoman} />
