@@ -6,6 +6,7 @@ import {
   pecahCatatan,
   type DefinisiFootnote,
 } from "@/lib/refs/footnote-markdown";
+import { pecahBarisTabel } from "@/lib/engine/tabel-markdown";
 
 /**
  * Pratinjau naskah dengan dukungan footnote `[^n]`.
@@ -184,13 +185,7 @@ function uraikan(md: string): Blok[] {
       while (i < garis.length && garis[i].trim().startsWith("|")) {
         const b = garis[i].trim();
         if (!/^\|[\s:|-]+\|$/.test(b)) {
-          isi.push(
-            b
-              .replace(/^\|/, "")
-              .replace(/\|$/, "")
-              .split("|")
-              .map((c) => c.trim()),
-          );
+          isi.push(pecahBarisTabel(b));
         }
         i += 1;
       }

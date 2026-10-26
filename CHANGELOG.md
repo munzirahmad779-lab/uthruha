@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## Audit eksternal M1: koreksi struktur & susunan naskah (26 Okt 2026)
+Hasil audit Claude eksternal atas `struktur.ts` + `compose.ts` diverifikasi satu-satu terhadap kode produksi dan para pemanggilnya; tidak semua tambalan dipasang persis seperti usulan:
+- **Pernyataan karangan dihapus (T-01/T-04):** pendanaan, konflik kepentingan, ketersediaan data, temuan abstrak Inggris, klaim kebaruan yang “sudah terbukti”, pembahasan, ringkasan, hasil, dan kesimpulan artikel kini berupa tempat isi eksplisit — bukan lagi fakta/hasil yang ditulis generator seolah-olah sudah terjadi.
+- **Hipotesis mengikuti metode (T-02):** penyaringan bagian terbatas metode kini terpusat di `strukturProyek()` sebagai sumber struktur efektif tunggal, sehingga tab Tulis/Struktur, pemeriksa sitasi, footnote, gerbang mutu, dan ekspor konsisten. Proyek kualitatif tidak lagi memuat Hipotesis; draf substantif lama pada bagian itu tidak disembunyikan.
+- **Tujuan sejajar rumusan (T-03):** jumlah tujuan bawaan mengikuti jumlah rumusan efektif (jurnal 2, kustom 1/4, dst.).
+- **Judul mengikuti daftar isi (T-06):** judul tercetak hasil susunan dinormalisasi dari `headingAr` struktur efektif — judul yang diganti mahasiswa ikut terbawa; heading Pernyataan Etik dilengkapi dan heading Keterbatasan diseragamkan.
+- **Metodologi tidak lagi memamerkan semua desain (T-07):** `manhajNau` dan `tariqa` meminta desain yang benar-benar dipilih beserta alasannya.
+- **Bersih-bersih isi (T-08/T-09):** ekspresi mati dibuang, label “hasil yang diharapkan” tidak lagi mengambil rumusan terakhir, dan instruksi internal berbahasa Indonesia tidak masuk bagian Kata Kunci.
+- **Tabel aman untuk karakter pipa (T-10):** sel tabel di-escape dan parser tabel yang sebelumnya terduplikasi di pratinjau naskah + ekspor DOCX digabung ke `lib/engine/tabel-markdown.ts`, sehingga `|` di istilah tidak lagi memecah kolom.
+- **T-05 ditahan sebagian:** objek bagian disertasi kini disalin saat disisipkan agar tidak berbagi referensi, tetapi target kata tambahannya TIDAK diskalakan — angka absolutnya belum terbukti keliru dan menunggu keputusan desain.
+- Uji baru: `scripts/test-audit-m1.ts` 26/26; seluruh suite lama, smoke, typecheck, dan build produksi hijau.
+
 ## Naskah dokumen mengalir: kalimat susunan tidak lagi terpisah-pisah (26 Okt 2026)
 - Keluhan user: hasil susun menampilkan tiap kalimat sebagai blok terpisah — bagus saat menulis (mudah menyisipkan sumber di sela kalimat), tetapi buruk di dokumen akhir. Perbaikan `rapikanNaskah()` di compose.ts: pada keluaran tingkat DOKUMEN (composeNaskah), blok-blok prosa hasil susunan digabung menjadi paragraf mengalir tanpa celah antar-kalimat; judul, sub-judul, daftar, kutip, dan definisi footnote tidak disentuh. Draf tulisan mahasiswa sendiri TIDAK dirapikan — paragraf yang sengaja ia pisahkan dihormati. Tampilan per bagian di editor (composeSection) tidak berubah, jadi kemudahan menyisipkan sumber tetap ada.
 - Terverifikasi sampai dokumen Word: paragraf latar belakang yang tadinya 7 blok kalimat kini 1 paragraf berisi 7 kalimat di dalam .docx hasil ekspor; blok prosa naskah menyusut dari ±110 menjadi 56. Uji scripts/test-rapikan-naskah.ts 8/8.

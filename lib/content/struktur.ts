@@ -517,7 +517,7 @@ const jurnal: ChapterDef[] = [
         id: "pernyataanEtik",
         labelId: "Pernyataan Konflik Kepentingan & Ketersediaan Data",
         labelAr: "الإفصاح عن تضارب المصالح",
-        headingAr: "الإفصاح",
+        headingAr: "الإفصاح عن تضارب المصالح وتوفر البيانات",
         panduan:
           "Satu-dua kalimat baku: penulis menyatakan tidak ada konflik kepentingan; data tersedia dari penulis atas permintaan yang wajar (atau sebutkan repositorinya). Banyak jurnal Scopus menolak naskah tanpa pernyataan ini.",
         pemicu: ["Apakah ada kepentingan apa pun yang bisa memengaruhi penilaian pembaca?"],
@@ -629,8 +629,8 @@ function babJenjang(karya: Exclude<KaryaType, "jurnal">, skala: number): Chapter
     );
   }
   if (karya === "disertasi") {
-    sisipSesudah(chapters, "bab1", "hudud", SEC_KEBARUAN);
-    sisipSesudah(chapters, "bab2", "dirasat", SEC_PETA_JALAN);
+    sisipSesudah(chapters, "bab1", "hudud", { ...SEC_KEBARUAN });
+    sisipSesudah(chapters, "bab2", "dirasat", { ...SEC_PETA_JALAN });
     tambahPanduan(chapters, "khalfiya", "Untuk disertasi, latar belakang wajib ditutup dengan pernyataan celah kebaruan yang tegas: apa yang belum terjawab oleh seluruh kajian sebelumnya.");
     tambahPanduan(chapters, "ithar", "Untuk disertasi, teori tidak cukup dipinjam: tunjukkan bagaimana penelitian ini menguji, memperluas, atau membangun teori.");
   }
@@ -792,6 +792,19 @@ export function susunDaftarIsiIsykal(p: Project): BabKustom[] | null {
   return hasil;
 }
 
+/** Bagian terbatas metode hanya masuk struktur efektif bila metodenya cocok;
+ * draf substantif yang sudah ditulis mahasiswa tidak pernah disembunyikan. */
+function bagianSesuaiMetode(p: Project, s: SectionDef): boolean {
+  if (!s.metode || s.metode.includes(p.metode)) return true;
+  return (p.draf[s.id] ?? "").trim().length > 20;
+}
+
+function saringMetode(p: Project, chapters: ChapterDef[]): ChapterDef[] {
+  return chapters
+    .map((c) => ({ ...c, sections: c.sections.filter((s) => bagianSesuaiMetode(p, s)) }))
+    .filter((c) => c.sections.length > 0);
+}
+
 /**
  * Struktur efektif proyek: daftar isi kustom bila ada, bawaan jenis karya bila tidak.
  * Sub-bab yang id-nya dikenal dari templat mewarisi panduan/pemicu/target templat;
@@ -800,7 +813,7 @@ export function susunDaftarIsiIsykal(p: Project): BabKustom[] | null {
  */
 export function strukturProyek(p: Project): StrukturDef {
   const tpl = getStruktur(p.jenis);
-  if (!p.daftarIsi || p.daftarIsi.length === 0) return tpl;
+  if (!p.daftarIsi || p.daftarIsi.length === 0) return { ...tpl, chapters: saringMetode(p, tpl.chapters) };
   const dikenal = new Map<string, SectionDef>();
   for (const c of tpl.chapters) for (const s of c.sections) dikenal.set(s.id, s);
 
@@ -834,7 +847,7 @@ export function strukturProyek(p: Project): StrukturDef {
       ...(s.anak ?? []).map((a) => keSectionDef(a, 2)),
     ]),
   }));
-  return { ...tpl, chapters };
+  return { ...tpl, chapters: saringMetode(p, chapters) };
 }
 
 /**
@@ -848,7 +861,9 @@ export function susunDaftarIsiBawaan(p: Project): BabKustom[] {
     labelId: c.labelId,
     labelAr: c.labelAr,
     babAr: c.babAr,
-    sections: c.sections.map((s) => ({ id: s.id, labelId: s.labelId, labelAr: s.labelAr })),
+    sections: c.sections
+      .filter((s) => bagianSesuaiMetode(p, s))
+      .map((s) => ({ id: s.id, labelId: s.labelId, labelAr: s.labelAr })),
   }));
 }
 

@@ -6,6 +6,7 @@ import type { FrasaEntry } from "@/lib/content/types";
 import type { Project } from "@/lib/engine/project";
 import { keAngkaArab } from "@/lib/engine/cite";
 import { hasilkanKandidatFootnote, sisipkanFootnoteTerpilih, pangkasSatuHalaman } from "@/lib/engine/auto-ref";
+import { bersihSelTabel } from "@/lib/engine/tabel-markdown";
 export type { KandidatFootnote } from "@/lib/engine/auto-ref";
 
 interface Vars {
@@ -68,9 +69,9 @@ function poin(items: string[]): string {
 }
 
 function tabel(head: string[], rows: string[][]): string {
-  const garis = `| ${head.join(" | ")} |`;
+  const garis = `| ${head.map(bersihSelTabel).join(" | ")} |`;
   const pemisah = `| ${head.map(() => "---").join(" | ")} |`;
-  const isi2 = rows.map((r) => `| ${r.map((c) => c.replace(/\n/g, " ")).join(" | ")} |`);
+  const isi2 = rows.map((r) => `| ${r.map(bersihSelTabel).join(" | ")} |`);
   return [garis, pemisah, ...isi2].join("\n");
 }
 
@@ -130,11 +131,15 @@ export function rumusanDefault(p: Project): string[] {
 export function tujuanDefault(p: Project): string[] {
   if (p.tujuan.filter(Boolean).length > 0) return p.tujuan.filter(Boolean);
   const t = p.topikAr || p.judulAr || "[موضوع البحث]";
-  return [
-    `الكشف عن واقع ${t} في الميدان المدروس`,
-    `تحليل العوامل المؤثرة في ${t}`,
-    `تقديم مقترحات لتطوير ${t} في ضوء نتائج البحث`,
+  const pola: Array<(x: string) => string> = [
+    (x) => `الكشف عن واقع ${x} في الميدان المدروس`,
+    (x) => `تحليل العوامل المؤثرة في ${x}`,
+    (x) => `تقديم مقترحات لتطوير ${x} في ضوء نتائج البحث`,
   ];
+  const jumlah = rumusanDefault(p).length;
+  return Array.from({ length: jumlah }, (_, i) =>
+    i < pola.length ? pola[i]!(t) : `تحليل جانب ${keAngkaArab(i + 1)} من ${t}`,
+  );
 }
 
 type BagianFn = (p: Project, v: Vars, seed: number) => string;
@@ -167,7 +172,7 @@ const BAB: Record<string, BagianFn> = {
         "**من جهة المنهج:** يوظف البحث " + (v.metode || "المنهج المعتمد") + " بتوظيف يتيح كشف ما لا تكشفه المقاربات المعتادة.",
         "**من جهة الجواب:** يقدّم البحث إجابة أو قراءة جديدة قابلة للاختبار والمناقشة، صيغت تفاصيلها في الفصل الأخير من فصول التحليل.",
       ]),
-      "وقد أُثبتت هذه الجدة بمقارنة منهجية مع أقرب الدراسات إلى هذا البحث في فصل الدراسات السابقة وخارطة البحث، بحيث يستطيع القارئ والمناقش أن يتحققا من موضع الفراغ الذي يملؤه هذا البحث.",
+      "[بعد مقارنة منهجية مع أقرب الدراسات، اكتب هنا موضع الفراغ البحثي الذي يملؤه هذا البحث]",
     );
   },
 
@@ -186,7 +191,7 @@ const BAB: Record<string, BagianFn> = {
       "## Abstract",
       `This study examines ${topic} within the field of Islamic/Arabic studies. It aims to describe the phenomenon as it actually occurs, analyse the factors that shape it, and formulate conclusions that are accountable to the primary sources and to field data.`,
       `The study employs a documented research method appropriate to its questions, drawing on classical and contemporary references. Data were collected and analysed systematically so that every finding presented in this article can be traced back to its evidence.`,
-      "The findings show that the phenomenon cannot be understood through a single factor; textual, institutional, and contextual dimensions interact. The article closes with the study's limitations and recommendations for further research.",
+      "[Write the main findings here once the analysis is complete.]",
       "Keywords: " + (p.topikAr || "research") + "; Islamic studies; Arabic scholarship",
     );
   },
@@ -195,14 +200,14 @@ const BAB: Record<string, BagianFn> = {
     return par(
       "## الكلمات المفتاحية",
       isi("الكلمات المفتاحية: {{topik}}؛ {{bidang}}؛ الدراسات الإسلامية؛ البحث العلمي.", v),
-      "Keywords: research topic; Islamic studies; Arabic scholarship; academic research.",
-      "Kata kunci dipilih dari المصطلحات التي يستخدمها الباحثون فعلًا في قواعد البيانات، وتطابق ألفاظها ما ورد في العنوان والملخص حتى يسهل العثور على المقال واسترجاعه.",
+      "Keywords: [write 3–5 English keywords matching the title and abstract]",
+      "[اختر الكلمات المفتاحية من مصطلحات قواعد البيانات، وطابِقها مع العنوان والملخص]",
     );
   },
 
   keterbatasan: (p, v) => {
     return par(
-      "## قيود البحث",
+      "## حدود البحث",
       isi("يعترف الباحث بأن لهذا البحث قيودًا ينبغي أن تُقرأ النتائج في ضوئها؛ فمن جهة البيانات، اقتصرت المادة على ما أمكن الوصول إليه من مصادر وميدان، ومن جهة المنهج، فإن طبيعة {{metode}} تجعل بعض الأسئلة خارج نطاق الإجابة القاطعة.", v),
       "ومن جهة التعميم، لا يدّعي الباحث أن نتائجه تنسحب آليًّا على سياقات مختلفة عن سياق الدراسة في " + (p.lokasi || "مكان البحث") + "، وإنما يقدّم قراءة موثقة لهذا السياق تصلح أساسًا للمقارنة، لا بديلًا عن دراسته في سياقات أخرى.",
       "وقد بُيّنت هذه القيود هنا لا اعتذارًا عن البحث، بل لأن تحديد ما لا يستطيع البحث إثباته جزء من أمانته العلمية وقيمته للباحثين من بعده.",
@@ -212,16 +217,16 @@ const BAB: Record<string, BagianFn> = {
   pendanaan: (p, v) => {
     return par(
       "## شكر وتقدير",
-      "يتقدم الباحث بالشكر إلى كل من أسهم في إتمام هذا البحث من المؤسسات والأفراد، ويخصّ بالذكر من قدّم العون العلمي والميداني دون أن يكونوا مؤلفين لهذا العمل.",
-      "أما التمويل: لم يتلقَّ هذا البحث تمويلًا خاصًّا من أي جهة مانحة في القطاع العام أو التجاري أو غير الربحي — ما لم يبيّن الباحث خلاف ذلك هنا قبل إرسال المقال للنشر — وأُنجز بجهد الباحث وموارده الذاتية.",
+      "[اكتب هنا الجهات التي تستحق الشكر ممن أسهموا دون أن يكونوا مؤلفين]",
+      "[اكتب مصدر التمويل، أو صرّح بأنه لم يتلقَّ البحث تمويلًا خاصًّا]",
     );
   },
 
   pernyataanEtik: (p, v) => {
     return par(
       "## الإفصاح عن تضارب المصالح وتوفر البيانات",
-      "يصرّح الباحث بأنه لا يوجد أي تضارب في المصالح — ماليًّا كان أو مؤسسيًّا أو شخصيًّا — يمكن أن يؤثر في عرض نتائج هذا البحث أو تفسيرها.",
-      "وتتوفر البيانات والمواد التي قامت عليها هذه الدراسة لدى الباحث، وتُقدَّم لمن يطلبها طلبًا معقولًا لأغراض التحقق العلمي، مع مراعاة حقوق أصحاب المادة الميدانية وخصوصيتهم.",
+      "[اكتب هنا: هل يوجد تضارب مصالح؟ إن لم يوجد فصرّح بذلك]",
+      "[اكتب هنا: مكان توفر البيانات وشروط الوصول إليها، أو سبب عدم توفرها]",
     );
   },
 
@@ -340,13 +345,12 @@ const BAB: Record<string, BagianFn> = {
   },
 
   itharFikri: (p, v, seed) => {
-    const r = rumusanDefault(p);
     return par(
       "## الإطار الفكري",
       isi("يجري الباحث في هذه الدراسة وفق تسلسل منطقي، تبدأ فيه الأسباب من واقع {{topik}} ثم تنتقل إلى تحليل عناصره، ثم إلى النتائج التي نُبني عليها المقترحات. ويمكن تصوير ذلك في الكيفية الآتية:", v),
       "**المتغير المستقل / الظاهرة المدروسة:** " + (p.topikAr || "[موضوع البحث]"),
       "**العناصر الوسيطة:** " + (p.bidangId ? getBidang(p.bidangId).teori.slice(0, 2).map((t) => t.ar).join("، ") : "[المفاهيم الوسيطة]"),
-      "**النتائج المتوقعة:** " + r[r.length - 1],
+      "**النتائج المتوقعة:** [اكتب التوقع الذي ترجحه لسؤال البحث الأخير]",
       pilih("itharFikri", 1, seed).map((f) => isi(f.ar, v)).join("\n\n"),
       "وتُجسِّد هذه البنية المنطقية العلاقةَ بين أجزاء البحث، بحيث لا يُتوقع نتيجةٌ في الفصل الرابع لم يكن لها موضع في هذا الإطار.",
     );
@@ -370,14 +374,12 @@ const BAB: Record<string, BagianFn> = {
   },
 
   manhajNau: (p, v, seed) => {
-    const metode = getMetode(p.metode);
-    const desain = metode.desain;
     return par(
       "## نوع البحث ومدخله",
       isi("اعتمد الباحث في هذه الدراسة على {{metode}}، لأنه الأنسب لطبيعة المشكلة المطروحة، إذ يقتضي موضوع {{topik}} جمع بيانات يمكن تحليلها والاستدلال بها على ما يجري في الميدان.", v),
       pilih("manhajNau", 2, seed).map((f) => isi(f.ar, v)).join("\n\n"),
       "وفي ضوء ذلك اختار الباحث التصميم الآتي:",
-      poin(desain.map((d) => `**${d.ar}** — ${d.id}`)),
+      "[اذكر التصميم الذي اخترته، ثم علل اختياره]",
       ">[ملاحظة منهجية] يُختار تصميم واحد فقط، ويُبرر اختياره، ولا تُذكر تصاميم لم تُستخدم.",
     );
   },
@@ -472,7 +474,7 @@ const BAB: Record<string, BagianFn> = {
       "## مناقشة النتائج",
       isi("بعد عرض النتائج، ينتقل الباحث إلى مناقشتها في ضوء الإطار النظري الذي عرضه في الفصل الثاني، والدراسات السابقة التي استعرضها:", v),
       pilih("munazara", 2, seed).map((f) => isi(f.ar, v)).join("\n\n"),
-      isi("ويتضح من ذلك أن نتائج هذه الدراسة تتفق مع ما ذهب إليه {{teori}} في الجانب النظري، وتختلف مع بعض الدراسات السابقة في جانب التطبيق، ويعود هذا الاختلاف إلى طبيعة {{topik}} في السياق المدروس.", v),
+      isi("[اكتب هنا: هل تتفق نتائج الدراسة مع {{teori}} في الجانب النظري أم تخالفها، ولماذا؟]", v),
       ">[ملاحظة] لكل نتيجة: قارنها بنتيجة دراسة سابقة محددة، واشرح سبب الاتفاق أو الاختلاف، ثم اذكر حدود تفسيرك.",
     );
   },
@@ -499,14 +501,13 @@ const BAB: Record<string, BagianFn> = {
     );
   },
 
-  mulakhkhas: (p, v, seed) => {
+  mulakhkhas: (p, v) => {
     return par(
       "## الملخص",
       isi("يهدف هذا البحث إلى الكشف عن {{topik}} في {{lokasi}}، وقد استخدم الباحث {{metode}}، وجمع البيانات من {{populasi}} بالأدوات المناسبة لطبيعة البحث.", v),
       "[اكتب هنا الفكرة الأساسية للنتائج: ما الذي انتهى إليه البحث في سطرين؟]",
-      isi("وانتهى البحث إلى نتائج تشير إلى وجود علاقة واضحة بين عناصر {{topik}} والنتائج المتحققة، ويقترح الباحث في ضوئها جملة من المقترحات العملية.", v),
+      "[اكتب نتيجة البحث الرئيسة وما يقترحه الباحث في ضوئها]",
       "**الكلمات المفتاحية:** " + (p.bidangId ? getBidang(p.bidangId).keywords.slice(0, 4).join("، ") : "[كلمة، كلمة، كلمة]"),
-      pilih("mulakhkhas", 1, seed).length ? "" : "",
     );
   },
 
@@ -525,7 +526,7 @@ const BAB: Record<string, BagianFn> = {
     return par(
       "## الطريقة",
       isi("اعتمد هذا المقال {{metode}}، وقد اختير لملاءمته طبيعة الظاهرة وطبيعة البيانات المتاحة عنها.", v),
-      poin(metode.desain.slice(0, 2).map((d) => `**${d.ar}** — ${d.id}`)),
+      "[اذكر تصميم البحث المعتمد هنا، ثم علل اختياره]",
       isi("وجُمعت البيانات من {{populasi}} في {{lokasi}}، بالأدوات الآتية:", v),
       poin(metode.teknik.map((t) => `**${t.ar}** — ${t.id}`)),
       isi("أما تحليل البيانات فقد جرى على النحو الآتي:", v),
@@ -541,17 +542,16 @@ const BAB: Record<string, BagianFn> = {
       "[اعرض النتيجة الأولى هنا، ثم الجدول أو الشكل الدال عليها]",
       ...pilih("nataij", 2, seed).map((f) => isi(f.ar, v)),
       "[اقرن النتيجة بدراسة سابقة محددة، واشرح وجه الاتفاق أو الاختلاف]",
-      isi("وتشير النتائج إلى أن {{topik}} يتأثر بعوامل متداخلة، وهو ما يفسر تفاوت النتائج في الدراسات السابقة باختلاف السياق الذي أُجريت فيه.", v),
+      isi("[فسّر النتائج بعد اكتمال التحليل: ما الذي تدل عليه بالنسبة إلى {{topik}}؟]", v),
     );
   },
 
-  khatima: (p, v, seed) => {
+  khatima: (p, v) => {
     return par(
       "## الخاتمة",
-      isi("خلص هذا المقال إلى أن {{topik}} ظاهرة متعددة الأبعاد لا تُفسَّر بعامل واحد، وأن فهمها يقتضي جمع {{metode}} مع النظر في السياق المحلي.", v),
+      isi("[اكتب خلاصة ما انتهى إليه المقال عن {{topik}} بعد التحقق من نتائج الميدان]", v),
       "[اكتب في جملتين أهم ما يميز نتائج هذا المقال عن الدراسات السابقة]",
       "ويوصي الباحث بدراسات تالية تختبر النتائج في سياقات أخرى، وبتطبيق المقترحات العملية في المؤسسات المعنية.",
-      pilih("khatima", 1, seed).length ? "" : "",
     );
   },
 
@@ -603,6 +603,12 @@ export function composeSection(p: Project, sectionId: string, seed = 0): HasilKo
         `${found?.section.tingkat === 2 ? "###" : "##"} ${found?.section.headingAr ?? sectionId}`,
         isi("[هذا القسم لم يُحرَّر بعد — استخدم أسئلة التوجيه أعلاه ثم اكتب هنا]", v),
       );
+  // Judul tercetak mengikuti struktur efektif proyek (termasuk judul yang
+  // diganti mahasiswa di daftar isi), bukan judul bawaan generator.
+  if (found?.section.headingAr) {
+    const prefiks = found.section.tingkat === 2 ? "###" : "##";
+    markdown = markdown.replace(/^#{2,3} [^\n]*/, `${prefiks} ${found.section.headingAr}`);
+  }
 
   // Pangkas agar tidak melebihi 1 halaman DULU, baru sisipkan referensi.
   markdown = pangkasSatuHalaman(markdown);

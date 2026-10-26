@@ -5,6 +5,7 @@ import {
   nomorTampil,
   pecahCatatan,
 } from "@/lib/refs/footnote-markdown";
+import { pecahBarisTabel } from "@/lib/engine/tabel-markdown";
 
 const TEKS = new TextEncoder();
 
@@ -280,13 +281,7 @@ function dokumenDanCatatan(md: string): { body: string; footnotes: string } {
       }
       const isi = blok
         .filter((b) => !/^\|[\s:-]+\|$/.test(b))
-        .map((b) =>
-          b
-            .replace(/^\|/, "")
-            .replace(/\|$/, "")
-            .split("|")
-            .map((c) => c.trim()),
-        );
+        .map((b) => pecahBarisTabel(b));
       if (isi.length) hasil.push(tabelWord(isi));
       continue;
     }
