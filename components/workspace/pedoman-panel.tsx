@@ -5,6 +5,7 @@ import type { Project } from "@/lib/engine/project";
 import { parsePedoman, ringkasPedoman, pedomanDefault, PROMPT_PEDOMAN, type PedomanRules } from "@/lib/refs/pedoman";
 import { IconCheck, IconDoc, IconDownload, IconSparkle, IconTrash } from "@/components/icons";
 import { CopyButton, Note } from "@/components/ui";
+import { StrukturPedomanPanel } from "@/components/workspace/struktur-pedoman-panel";
 
 export function PedomanPanel({
   p,
@@ -184,6 +185,9 @@ export function PedomanPanel({
 
         {galat && <div className="mt-3"><Note jenis="warn">{galat}</Note></div>}
       </div>
+
+      {/* Fase 3 (F): panel struktur pedoman — prompt pack AI luar + tempel tervalidasi skema. */}
+      <StrukturPedomanPanel p={p} ubah={ubah} />
 
       {promptBuka && (
         <div className="rounded-xl border border-gold-500/50 bg-gold-500/5 p-4">

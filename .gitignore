@@ -40,3 +40,5 @@ scripts/uji-*.ts
 npm-debug.log*
 
 .vercel
+.data/
+backup-fase3-*/

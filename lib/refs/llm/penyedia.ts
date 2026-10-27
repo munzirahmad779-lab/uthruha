@@ -295,6 +295,29 @@ export async function panggilLLM(
   opsi: OpsiLLM & { hanya?: string[] } = {},
 ): Promise<{ hasil: HasilLLM | null; dicoba: { penyedia: string; alasan: string }[] }> {
   const dicoba: { penyedia: string; alasan: string }[] = [];
+  // Fase 3 (H): coba KOLAM KUNCI server lebih dulu (rotasi banyak kunci +
+  // failover Gemini → Groq), kecuali pemanggil membatasi penyedia tertentu
+  // atau memberi kunci sendiri. Rantai PENYEDIA lama tetap jadi cadangan.
+  if (!opsi.hanya?.length && !opsi.kunci) {
+    try {
+      const { panggilKolam } = await import("@/lib/server/kolam");
+      const hasil = await panggilKolam({
+        pengguna: prompt,
+        maksToken: opsi.maksToken ?? 220,
+      });
+      if (hasil.teks.trim()) {
+        return {
+          hasil: { teks: hasil.teks, penyedia: `kolam:${hasil.penyedia}`, model: hasil.model },
+          dicoba,
+        };
+      }
+    } catch (e) {
+      dicoba.push({
+        penyedia: "kolam",
+        alasan: e instanceof Error ? e.message.slice(0, 80) : "gagal",
+      });
+    }
+  }
   const urutan = opsi.hanya?.length
     ? opsi.hanya
         .map((id) => PENYEDIA.find((p) => p.id === id))

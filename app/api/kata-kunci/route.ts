@@ -86,6 +86,16 @@ async function panggilOpenAICompatible(opts: {
 
 /** Panggil provider LLM berurutan (Groq → Cloudflare); kembalikan teks mentah. */
 async function panggilLLMMentah(system: string, user: string, maksToken: number): Promise<{ sumber: string; isi: string } | null> {
+  // Fase 3 (H): jalur utama kini KOLAM KUNCI (Gemini → Groq → Cloudflare →
+  // slot DeepSeek/Meta) dengan rotasi + cooldown per kunci. Rantai lama di
+  // bawah dipertahankan sebagai cadangan bila kolam belum terkonfigurasi.
+  try {
+    const { panggilKolam } = await import("@/lib/server/kolam");
+    const hasil = await panggilKolam({ sistem: system, pengguna: user, maksToken, json: true });
+    if (hasil.teks) return { sumber: `kolam:${hasil.penyedia}`, isi: hasil.teks };
+  } catch {
+    /* kolam kosong/gagal — jatuh ke rantai lama */
+  }
   const penyedia: Array<{ sumber: string; baseURL: string; apiKey: string; model: string }> = [];
   if (process.env.GROQ_API_KEY) {
     penyedia.push({

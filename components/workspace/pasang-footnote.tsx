@@ -146,7 +146,33 @@ export function PasangFootnote({
     return { teksFootnote: def?.teks ?? teksCadangan, nomor: def?.nomor ?? "?" };
   }, [p, sumber, sectionId, drafBaru, halaman, jilid, modeBaru, paragrafIdx, kalimatIdx]);
 
-  function pasang() {
+  const [galatLapis, setGalatLapis] = useState("");
+  const [memasang, setMemasang] = useState(false);
+
+  async function pasang() {
+    // Fase 3: gerbang lapis di server SEBELUM footnote terpasang —
+    // di sinilah batas 3 footnote/paragraf (gratis) dan kunci ruang
+    // lingkup (footnote pertama) ditegakkan. 403 = tolak & batalkan;
+    // 401 (belum masuk Google) / jaringan gagal = lanjut seperti biasa
+    // agar alur lama mahasiswa tidak rusak.
+    setGalatLapis("");
+    setMemasang(true);
+    try {
+      const res = await fetch("/api/lapis/footnote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proyekId: p.id, paragrafId: `${sectionId}:${paragrafIdx}` }),
+      });
+      if (res.status === 403) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setGalatLapis(data?.error ?? "Pemasangan footnote ditolak oleh aturan lapis akun Anda.");
+        setMemasang(false);
+        return;
+      }
+    } catch {
+      /* lanjut lokal */
+    }
+    setMemasang(false);
     const drafMapBaru = { ...p.draf, [sectionId]: drafBaru };
     ubah({
       sumber: p.sumber.some((s) => s.id === sumber.id) ? p.sumber : [...p.sumber, sumber],
@@ -264,15 +290,21 @@ export function PasangFootnote({
           </p>
         </div>
 
+        {galatLapis && (
+          <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-700">
+            {galatLapis}
+          </p>
+        )}
+
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" onClick={onTutup} className="btn-ghost">Batal</button>
           <button
             type="button"
             onClick={pasang}
-            disabled={!modeBaru && paragraf.length === 0}
+            disabled={memasang || (!modeBaru && paragraf.length === 0)}
             className="btn-primary disabled:opacity-40"
           >
-            Pasang footnote
+            {memasang ? "Memeriksa lapis…" : "Pasang footnote"}
           </button>
         </div>
       </div>

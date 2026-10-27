@@ -227,8 +227,29 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     });
   }
 
+  const handoffKembangkan = (() => {
+    const mentah = p.jawaban["kembangkan:khalfiya"];
+    if (!mentah) return null;
+    try {
+      return JSON.parse(mentah) as { jumlahParagraf: number; jumlahRefTersimpan: number; jumlahSumber: number; pada: string };
+    } catch {
+      return null;
+    }
+  })();
+
   return (
     <div className="space-y-5">
+      {handoffKembangkan && (
+        <div className="rounded-xl border border-gold-600/30 bg-gold-500/5 px-3 py-2.5">
+          <p className="text-[12px] leading-relaxed text-ink-700">
+            <b>Panel Kembangkan:</b> {handoffKembangkan.jumlahParagraf} paragraf khalfiyah terbawa
+            dari tab Tulis ({new Date(handoffKembangkan.pada).toLocaleString("id-ID")}), beserta{" "}
+            {handoffKembangkan.jumlahRefTersimpan} rujukan tersimpan & {handoffKembangkan.jumlahSumber}{" "}
+            sumber proyek. Tambahkan rujukan sebanyak yang dibutuhkan di sini, lalu kembangkan
+            kalimatnya di tab Tulis.
+          </p>
+        </div>
+      )}
       <div>
         <h2 className="text-[15px] font-bold text-ink-900">Rujukan & sitasi</h2>
         <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-ink-600">

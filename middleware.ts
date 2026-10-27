@@ -89,7 +89,21 @@ async function nilaiSah(
   return samaWaktuKonstan(nilai, harap);
 }
 
-const JALUR_BEBAS = new Set(["/api/masuk", "/favicon.ico", "/robots.txt", "/sitemap.xml"]);
+const JALUR_BEBAS = new Set([
+  "/api/masuk",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+  // Fase 3 (keputusan pemilik E): uji coba tamu memang SEBELUM mendaftar.
+  // Keamanannya bukan gerbang ini melainkan rem berlapis di handler-nya:
+  // pembatas laju IP+global, tembolok per judul, blokir perangkat pada
+  // percobaan kedua. Jangan tambah rute berbayar/LLM lain ke daftar ini.
+  "/api/uji-coba",
+  "/api/uji-coba/kembangkan",
+  // Webhook Midtrans adalah panggilan server-ke-server tanpa cookie;
+  // keamanannya signature_key SHA512 yang diverifikasi di handler.
+  "/api/bayar/webhook",
+]);
 
 /** Tujuan setelah berhasil masuk; hanya jalur internal (anti open redirect). */
 function tujuanAman(nilai: string | null): string {

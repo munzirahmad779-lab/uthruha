@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { AgenWidget } from "@/components/agen-widget";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://uthruha.id"),
@@ -66,7 +67,13 @@ export default function RootLayout({
         <SiteHeader />
         <main id="konten">{children}</main>
         <SiteFooter />
-        <Script src="/widget-claude.js" strategy="afterInteractive" />
+        {/* Fase 3 (keputusan J): widget chat bawaan kini AgenWidget (Premium).
+            Widget estafet mailbox lama TIDAK dihapus, tetapi bukan lagi
+            bawaan — ia hanya dimuat bila WIDGET_MAILBOX_AKTIF=1 di env. */}
+        {process.env.WIDGET_MAILBOX_AKTIF === "1" && (
+          <Script src="/widget-claude.js" strategy="afterInteractive" />
+        )}
+        <AgenWidget />
       </body>
     </html>
   );

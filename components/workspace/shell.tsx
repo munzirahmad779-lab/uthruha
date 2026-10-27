@@ -24,6 +24,8 @@ import { RefTab } from "@/components/workspace/refs-tab";
 import { AuditTab } from "@/components/workspace/audit-tab";
 import { ExportTab } from "@/components/workspace/export-tab";
 import { GDriveLogin } from "@/components/workspace/gdrive-login";
+import { LoginGoogle } from "@/components/login-google";
+import { DocPremiumButton } from "@/components/doc-premium";
 import { PenyimpananStrip } from "@/components/workspace/penyimpanan-strip";
 import { migrasiProyek } from "@/lib/engine/project";
 import { projectKeTersimpan, simpanProyekKeDrive, mintaTokenDrive, simpanTokenDrive, type ProyekTersimpan } from "@/lib/engine/gdrive-storage";
@@ -255,7 +257,26 @@ export function Workspace({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* Google Drive Sync */}
+        {/* Akun Uthruha — login Google IDENTITAS SAJA (Fase 3, keputusan A).
+            Ini terpisah dari koneksi Drive di bawahnya: masuk tidak meminta
+            akses Drive sama sekali. */}
+        <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-ink-900/10 pt-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Akun Uthruha</p>
+            <div className="mt-1.5">
+              <LoginGoogle />
+            </div>
+          </div>
+          <div className="flex flex-col items-start gap-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Dokumen</p>
+            <DocPremiumButton p={proyek} />
+            <Link href="/premium" className="text-[11px] font-semibold text-gold-700 underline underline-offset-2">
+              Tentang Premium
+            </Link>
+          </div>
+        </div>
+
+        {/* Google Drive Sync — koneksi BERTAHAP untuk penyimpanan (bukan login) */}
         <div className="mt-4 pt-4 border-t border-ink-900/10">
           <GDriveLogin onLogin={setDriveToken} onProyekDimuat={muatDariDrive} />
           {driveToken && (
@@ -297,6 +318,7 @@ export function Workspace({ id }: { id: string }) {
               bagian={bagianTerpilih}
               setBagian={setBagian}
               onSusun={susun}
+              onKembangkan={() => setTab("rujukan")}
             />
           )}
           {tab === "istilah" && <IstilahTab p={proyek} ubah={ubah} />}

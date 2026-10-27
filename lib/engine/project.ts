@@ -45,6 +45,12 @@ export interface Project {
   /** Aturan pedoman kampus yang diunggah pengguna (null = belum ada). */
   pedoman?: PedomanRules | null;
   /**
+   * Struktur pedoman tervalidasi skema (Fase 3): hasil ulikan pedoman via
+   * AI luar yang lolos SkemaStrukturPedoman. daftarIsi adalah proyeksinya;
+   * bidang ini menyimpan data sumbernya (bab → aturan) sebagai jejak audit.
+   */
+  strukturPedoman?: import("@/lib/pedoman/skema-struktur").StrukturPedoman | null;
+  /**
    * Daftar isi milik proyek (pola Ma'had: bab mewakili isykaliyyat).
    * Bila terisi, daftar inilah struktur naskahnya — menggantikan struktur
    * bawaan jenis karya. Disusun dari rumusan masalah, lalu bebas diedit

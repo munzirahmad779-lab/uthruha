@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { BIDANG } from "@/lib/content/bidang";
 import { METODE } from "@/lib/content/metode";
 import { KARYA_LABEL, type KaryaType, type Metode } from "@/lib/content/types";
-import { newProject, simpanProyek } from "@/lib/engine/project";
+import { hapusProyek, newProject, simpanProyek } from "@/lib/engine/project";
 import {
   IconArrowRight,
   IconBook,
@@ -51,7 +51,7 @@ export default function MulaiPage() {
   const bisaLanjut = langkah !== 3 || topikAr.trim().length > 2;
   const terakhir = langkah === LANGKAH.length - 1;
 
-  function selesai() {
+  async function selesai() {
     setMembuat(true);
     const p = newProject({
       jenis,
@@ -68,6 +68,32 @@ export default function MulaiPage() {
         .filter(Boolean),
     });
     simpanProyek(p);
+    // Fase 3: daftarkan ke server agar aturan lapis berlaku (gratis maks 1
+    // proyek; ruang lingkup = bidang yang dipilih di sini, terkunci setelah
+    // footnote pertama). Bila server menolak (403), proyek lokal dibatalkan.
+    // Bila belum masuk Google (401) atau jaringan gagal, proyek lokal tetap
+    // jalan seperti sebelumnya — pendaftaran dicoba lagi saat footnote
+    // pertama dipasang.
+    try {
+      const res = await fetch("/api/lapis/proyek", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: p.id,
+          judul: p.judulAr || p.topikAr || "Tanpa judul",
+          kategoriId: bidangId,
+        }),
+      });
+      if (res.status === 403) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        hapusProyek(p.id);
+        window.alert(data?.error ?? "Proyek baru ditolak oleh aturan lapis akun Anda.");
+        router.push("/proyek");
+        return;
+      }
+    } catch {
+      /* jaringan gagal: lanjut lokal */
+    }
     router.push(`/proyek/${p.id}`);
   }
 

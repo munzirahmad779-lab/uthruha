@@ -13,6 +13,7 @@ import {
 } from "@/components/landing";
 import { FRASA } from "@/lib/content/frasa";
 import { JURNAL } from "@/lib/content/jurnal";
+import { UjiCobaTamu } from "@/components/uji-coba";
 
 const FAQ = [
   {
@@ -53,6 +54,7 @@ export default function HomePage() {
   return (
     <>
       <Hero />
+      <UjiCobaTamu />
       <Masalah />
       <CaraKerja />
       <Fitur />

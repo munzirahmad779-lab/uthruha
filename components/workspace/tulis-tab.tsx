@@ -18,12 +18,15 @@ export function TulisTab({
   bagian,
   setBagian,
   onSusun,
+  onKembangkan,
 }: {
   p: Project;
   ubah: (patch: Partial<Project>) => void;
   bagian: string;
   setBagian: (id: string) => void;
   onSusun: (id: string) => void;
+  /** Fase 3 (G): pindah ke panel Kembangkan (tab Rujukan) membawa paragraf + rujukan. */
+  onKembangkan?: () => void;
 }) {
   const st = strukturProyek(p);
   const semua = st.chapters.flatMap((c) => c.sections.map((s) => ({ ...s, bab: c.labelAr })));
@@ -161,6 +164,50 @@ export function TulisTab({
           <span className="font-semibold text-ink-900">Panduan: </span>
           {aktif?.panduan}
         </p>
+
+        {bagian === "khalfiya" && (
+          <div className="mt-3 rounded-xl border border-gold-600/30 bg-gold-500/5 px-3 py-2.5">
+            {(() => {
+              const jumlahParagraf = teks.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean).length;
+              const refsBab = (p.temuan ?? []).length;
+              return (
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-[12px] leading-relaxed text-ink-700">
+                    <span className="font-semibold text-ink-900">Khalfiyah: {jumlahParagraf}/3 paragraf.</span>{" "}
+                    {jumlahParagraf > 3
+                      ? "Melebihi batas 3 paragraf — gabung/padatkan sebelum mengembangkan."
+                      : "Panel khalfiyah menampung maksimal 3 paragraf; pengembangan lanjutan dilakukan di panel Kembangkan."}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={jumlahParagraf === 0 || jumlahParagraf > 3}
+                    onClick={() => {
+                      ubah({
+                        jawaban: {
+                          ...p.jawaban,
+                          "kembangkan:khalfiya": JSON.stringify({
+                            teks,
+                            jumlahParagraf,
+                            jumlahRefTersimpan: refsBab,
+                            jumlahSumber: p.sumber.length,
+                            pada: new Date().toISOString(),
+                          }),
+                        },
+                      });
+                      onKembangkan?.();
+                    }}
+                    className="btn-quiet shrink-0 disabled:opacity-40"
+                  >
+                    Kembangkan → <IconArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="text-[11px] text-ink-500">
+                    Paragraf + {refsBab} rujukan tersimpan terbawa otomatis ke panel Kembangkan (tab Rujukan).
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         {aktif?.pemicu && aktif.pemicu.length > 0 && (
           <details className="mt-3 rounded-xl border border-ink-900/10 bg-white/60 px-3 py-2">
