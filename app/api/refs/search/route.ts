@@ -2,6 +2,7 @@
 import { cariRujukan, kemampuanSumber } from "@/lib/refs";
 import { statusPenyedia } from "@/lib/refs/llm/penyedia";
 import { BATAS, type SearchRequest, type SourceId } from "@/lib/refs/types";
+import { tolakTanpaSesi } from "@/lib/security/akses";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -29,6 +30,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  // Pertahanan lapis kedua (N-01): verifikasi cookie sesi di handler sendiri.
+  const tolak = tolakTanpaSesi(req);
+  if (tolak) return tolak;
+
   if (!asalSah(req)) {
     return NextResponse.json(
       { error: "Asal permintaan tidak dikenal." },

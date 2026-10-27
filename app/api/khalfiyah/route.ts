@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { susunKhalfiyah } from "@/lib/engine/khalfiyah-workflow";
+import { tolakTanpaSesi } from "@/lib/security/akses";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -43,6 +44,10 @@ export async function GET() {
  * POST: susun khalfiyah dari judul.
  */
 export async function POST(req: Request) {
+  // Pertahanan lapis kedua (N-01): verifikasi cookie sesi di handler sendiri.
+  const tolak = tolakTanpaSesi(req);
+  if (tolak) return tolak;
+
   // Tolak permintaan tulis dari situs lain (CSRF sederhana).
   if (!asalSah(req)) {
     return NextResponse.json(

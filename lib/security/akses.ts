@@ -6,7 +6,9 @@
  * orang yang menemukan URL-nya lalu memakai GPU/LLM Anda.
  *
  * Prinsip:
- *  - Kunci asli TIDAK pernah disimpan di cookie. Yang dikirim hanya HMAC-nya.
+ *  - Kunci asli TIDAK pernah disimpan di cookie. Yang dikirim adalah cap
+ *    waktu terbit + HMAC-nya (format N-03: server menolak token kedaluwarsa
+ *    walau cookie disalin utuh).
  *  - Perbandingan memakai waktu konstan agar tidak bisa ditebak lewat timing.
  *  - Bila env `UTH_ACCESS_KEY` kosong, gerbang MATI (mode pengembangan lokal).
  *
@@ -60,14 +62,58 @@ export function cookieSecure(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
-/** Hitung tanda HMAC-SHA256 untuk sesi. */
-export function tandaAkses(kunci: string): string {
-  return createHmac("sha256", kunci).update(PESAN).digest("hex");
+/** HMAC-SHA256 mentah (hex) dari sebuah pesan dengan kunci tertentu. */
+function hmac(kunci: string, pesan: string): string {
+  return createHmac("sha256", kunci).update(pesan).digest("hex");
 }
 
-/** Hitung tanda HMAC-SHA256 untuk perangkat tepercaya. */
-export function tandaPerangkat(kunci: string): string {
-  return createHmac("sha256", kunci).update(PESAN_PERANGKAT).digest("hex");
+/**
+ * Sidik kunci untuk membandingkan kunci yang diketik pengguna dengan kunci
+ * server tanpa membandingkan teks mentah (dipakai /api/masuk).
+ */
+export function sidikKunci(kunci: string): string {
+  return hmac(kunci, PESAN);
+}
+
+/**
+ * Nilai cookie sesi — format N-03 (audit menyeluruh 27 Okt):
+ * `<detik-terbit>.<HMAC(PESAN + "." + detik-terbit)>`.
+ * Cap waktu DI DALAM nilai membuat server bisa menolak token curian yang
+ * umurnya melewati batas, walau cookie-nya sendiri disalin utuh ke
+ * peramban lain. Format lama (HMAC polos tanpa cap waktu) TIDAK lagi
+ * diterima — sesi lama cukup masuk ulang sekali di /masuk.
+ */
+export function tandaAkses(
+  kunci: string,
+  sekarangDetik = Math.floor(Date.now() / 1000),
+): string {
+  return `${sekarangDetik}.${hmac(kunci, `${PESAN}.${sekarangDetik}`)}`;
+}
+
+/** Nilai cookie perangkat tepercaya — format cap waktu sama seperti sesi. */
+export function tandaPerangkat(
+  kunci: string,
+  sekarangDetik = Math.floor(Date.now() / 1000),
+): string {
+  return `${sekarangDetik}.${hmac(kunci, `${PESAN_PERANGKAT}.${sekarangDetik}`)}`;
+}
+
+/** Periksa nilai cookie bercap waktu: format benar, belum kedaluwarsa, tanda cocok. */
+function nilaiSah(
+  nilai: string | undefined,
+  kunci: string,
+  pesan: string,
+  maksUmurDetik: number,
+): boolean {
+  if (!nilai) return false;
+  const titik = nilai.indexOf(".");
+  if (titik <= 0) return false;
+  const ts = Number(nilai.slice(0, titik));
+  if (!Number.isFinite(ts) || ts <= 0) return false;
+  const sekarang = Math.floor(Date.now() / 1000);
+  if (ts > sekarang + 300) return false; // toleransi jam miring 5 menit
+  if (sekarang - ts > maksUmurDetik) return false;
+  return tandaSama(nilai, `${ts}.${hmac(kunci, `${pesan}.${ts}`)}`);
 }
 
 /** Bandingkan dua tanda dengan waktu konstan. */
@@ -82,15 +128,13 @@ export function tandaSama(a: string, b: string): boolean {
 /** Apakah nilai cookie sesi sah untuk kunci saat ini? */
 export function cookieSah(nilai: string | undefined): boolean {
   if (!gerbangAktif()) return true;
-  if (!nilai) return false;
-  return tandaSama(nilai, tandaAkses(kunciAkses()));
+  return nilaiSah(nilai, kunciAkses(), PESAN, UMUR_SESI_DETIK);
 }
 
 /** Apakah nilai cookie perangkat sah untuk kunci saat ini? */
 export function perangkatSah(nilai: string | undefined): boolean {
   if (!gerbangAktif()) return false;
-  if (!nilai) return false;
-  return tandaSama(nilai, tandaPerangkat(kunciAkses()));
+  return nilaiSah(nilai, kunciAkses(), PESAN_PERANGKAT, UMUR_PERANGKAT_DETIK);
 }
 
 /**
@@ -104,4 +148,54 @@ export function bolehMasuk(
 ): boolean {
   if (!gerbangAktif()) return true;
   return cookieSah(sesi) || perangkatSah(perangkat);
+}
+
+/**
+ * Pertahanan lapis kedua (N-01, audit menyeluruh 27 Okt): route handler
+ * sensitif memverifikasi cookie sesi/perangkat DENGAN SENDIRI memakai
+ * pemeriksaan yang sama persis seperti middleware — jadi bila middleware
+ * suatu saat terlewat (matcher berubah, berkas hilang), rute yang membakar
+ * kunci LLM tidak ikut terbuka diam-diam.
+ *
+ * Bila gerbang tidak aktif, fungsi ini meloloskan (perilaku pengembangan
+ * lokal tidak berubah) TETAPI di produksi meninggalkan jejak console.error
+ * yang keras di log server — gerbang mati di produksi tidak lagi senyap.
+ * Keberadaan UTH_ACCESS_KEY di dashboard Vercel tetap hanya bisa
+ * dipastikan pemilik.
+ */
+export function sesiSahDariRequest(req: Request): boolean {
+  if (!gerbangAktif()) {
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[akses] PERINGATAN N-01: gerbang akses TIDAK AKTIF di produksi " +
+          "(UTH_ACCESS_KEY kosong/<16 karakter). Rute sensitif berjalan " +
+          "tanpa gerbang sampai env itu diisi di dashboard Vercel.",
+      );
+    }
+    return true;
+  }
+  const header = req.headers.get("cookie") ?? "";
+  const peta = new Map<string, string>();
+  for (const bagian of header.split(";")) {
+    const i = bagian.indexOf("=");
+    if (i > 0) peta.set(bagian.slice(0, i).trim(), bagian.slice(i + 1).trim());
+  }
+  return bolehMasuk(peta.get(COOKIE_AKSES), peta.get(COOKIE_PERANGKAT));
+}
+
+/** Balasan 401 baku bila lapis kedua menolak; null bila lolos. */
+export function tolakTanpaSesi(req: Request): Response | null {
+  if (sesiSahDariRequest(req)) return null;
+  return new Response(
+    JSON.stringify({
+      error: "Akses ditolak. Buka /masuk lalu masukkan kunci akses.",
+    }),
+    {
+      status: 401,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    },
+  );
 }

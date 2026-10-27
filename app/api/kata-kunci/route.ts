@@ -23,6 +23,8 @@ import {
   parseKalimat,
   parseKata,
 } from "@/lib/engine/kata-kunci-server";
+import { tolakTanpaSesi } from "@/lib/security/akses";
+import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
 
@@ -129,24 +131,36 @@ async function panggilLLMMentah(system: string, user: string, maksToken: number)
   return null;
 }
 
-// Rate limit sederhana per IP (memori proses — cukup untuk skala awal;
-// di serverless ini per-instance, naikkan ke KV/Upstash bila trafik tumbuh).
-const jendela = new Map<string, { n: number; sejak: number }>();
-function kenaLimit(ip: string): boolean {
-  const now = Date.now();
-  const entri = jendela.get(ip);
-  if (!entri || now - entri.sejak > 60_000) {
-    jendela.set(ip, { n: 1, sejak: now });
-    return false;
-  }
-  entri.n += 1;
-  return entri.n > 10; // maks 10 request / menit / IP
-}
+// Rate limit memakai pola aman bersama lib/security/laju.ts (N-02, audit
+// menyeluruh 27 Okt): IP dari ipKlien() — BUKAN x-forwarded-for elemen
+// pertama yang bisa ditulis bebas oleh klien — plus pemeriksaan Origin
+// dan batas global, sama seperti /api/masuk, /api/khalfiyah, /api/refs.
+// (Memori proses: di serverless ini per-instance; cukup untuk skala awal.)
+const JENDELA_MS = 60_000;
+const MAKS_PER_IP = 10; // maks 10 request / menit / IP (sama seperti sebelumnya)
+const MAKS_GLOBAL = 300; // batas lidah global per menit
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon";
-  if (kenaLimit(ip)) {
-    return NextResponse.json({ error: "Terlalu banyak permintaan. Coba lagi sebentar." }, { status: 429 });
+  // Pertahanan lapis kedua (N-01): verifikasi cookie sesi di handler
+  // sendiri, tidak hanya mengandalkan middleware.
+  const tolak = tolakTanpaSesi(req);
+  if (tolak) return tolak;
+
+  if (!asalSah(req)) {
+    return NextResponse.json({ error: "Asal permintaan tidak dikenal." }, { status: 403 });
+  }
+
+  const ip = ipKlien(req);
+  const perIp = bolehLaju(`kata-kunci:ip:${ip}`, MAKS_PER_IP, JENDELA_MS);
+  if (!perIp.boleh) {
+    return balasanLaju(
+      perIp.ulangDetik,
+      `Terlalu banyak permintaan. Coba lagi dalam ${perIp.ulangDetik} detik.`,
+    );
+  }
+  const global = bolehLaju("kata-kunci:global", MAKS_GLOBAL, JENDELA_MS);
+  if (!global.boleh) {
+    return balasanLaju(global.ulangDetik, "Server sedang sibuk. Coba lagi sebentar.");
   }
 
   const body = await req.json().catch(() => null);

@@ -7,6 +7,7 @@ import {
   cookieSecure,
   gerbangAktif,
   kunciAkses,
+  sidikKunci,
   tandaAkses,
   tandaPerangkat,
   tandaSama,
@@ -62,9 +63,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Kunci akses wajib diisi." }, { status: 400 });
   }
 
-  // Bandingkan tanda, bukan kunci mentah, agar panjang kunci tidak bocor
-  // lewat waktu perbandingan.
-  const cocok = tandaSama(tandaAkses(dikirim), tandaAkses(kunciAkses()));
+  // Bandingkan sidik, bukan kunci mentah, agar panjang kunci tidak bocor
+  // lewat waktu perbandingan. (Cookie yang diterbitkan memakai tandaAkses/
+  // tandaPerangkat bercap waktu — format N-03.)
+  const cocok = tandaSama(sidikKunci(dikirim), sidikKunci(kunciAkses()));
   if (!cocok) {
     return NextResponse.json({ error: "Kunci akses salah." }, { status: 401 });
   }

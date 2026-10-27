@@ -25,6 +25,7 @@ const COOKIE_AKSES = "uthruha_akses";
 const COOKIE_PERANGKAT = "uthruha_perangkat";
 const PESAN = "uthruha-akses-v1";
 const PESAN_PERANGKAT = "uthruha-perangkat-v1";
+const UMUR_SESI_DETIK = 7 * 24 * 60 * 60;
 const UMUR_PERANGKAT_DETIK = 365 * 24 * 60 * 60;
 
 function kunciAkses(): string {
@@ -65,6 +66,29 @@ function samaWaktuKonstan(a: string, b: string): boolean {
   return beda === 0;
 }
 
+/**
+ * Verifikasi nilai cookie format N-03: `<detik-terbit>.<HMAC(pesan + "." +
+ * detik-terbit)>` — HARUS identik dengan nilaiSah() di lib/security/akses.ts.
+ * Token lama tanpa cap waktu ditolak; pengguna cukup masuk ulang sekali.
+ */
+async function nilaiSah(
+  nilai: string | undefined,
+  kunci: string,
+  pesan: string,
+  maksUmurDetik: number,
+): Promise<boolean> {
+  if (!nilai) return false;
+  const titik = nilai.indexOf(".");
+  if (titik <= 0) return false;
+  const ts = Number(nilai.slice(0, titik));
+  if (!Number.isFinite(ts) || ts <= 0) return false;
+  const sekarang = Math.floor(Date.now() / 1000);
+  if (ts > sekarang + 300) return false;
+  if (sekarang - ts > maksUmurDetik) return false;
+  const harap = `${ts}.${await tanda(kunci, `${pesan}.${ts}`)}`;
+  return samaWaktuKonstan(nilai, harap);
+}
+
 const JALUR_BEBAS = new Set(["/api/masuk", "/favicon.ico", "/robots.txt", "/sitemap.xml"]);
 
 /** Tujuan setelah berhasil masuk; hanya jalur internal (anti open redirect). */
@@ -84,10 +108,13 @@ export async function middleware(req: NextRequest) {
   const sesi = req.cookies.get(COOKIE_AKSES)?.value;
   const perangkat = req.cookies.get(COOKIE_PERANGKAT)?.value;
 
-  const sesiSah = sesi ? samaWaktuKonstan(sesi, await tanda(kunci, PESAN)) : false;
-  const perangkatSah = perangkat
-    ? samaWaktuKonstan(perangkat, await tanda(kunci, PESAN_PERANGKAT))
-    : false;
+  const sesiSah = await nilaiSah(sesi, kunci, PESAN, UMUR_SESI_DETIK);
+  const perangkatSah = await nilaiSah(
+    perangkat,
+    kunci,
+    PESAN_PERANGKAT,
+    UMUR_PERANGKAT_DETIK,
+  );
   const masuk = sesiSah || perangkatSah;
 
   // Sudah pernah masuk lalu membuka /masuk → langsung antar ke tujuan.
@@ -120,10 +147,14 @@ export async function middleware(req: NextRequest) {
 
   // Perpanjang masa berlaku perangkat tepercaya setiap kali dipakai (sliding),
   // supaya laptop sehari-hari tidak pernah tiba-tiba diminta kunci lagi.
+  // Nilai diterbitkan ULANG dengan cap waktu segar (N-03): token yang
+  // beredar selalu berumur muda, token curian lama tetap kedaluwarsa
+  // pada jadwalnya sendiri.
   if (perangkatSah) {
+    const ts = Math.floor(Date.now() / 1000);
     res.cookies.set({
       name: COOKIE_PERANGKAT,
-      value: perangkat as string,
+      value: `${ts}.${await tanda(kunci, `${PESAN_PERANGKAT}.${ts}`)}`,
       httpOnly: true,
       sameSite: "lax",
       secure: cookieSecure(),
