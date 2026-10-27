@@ -27,14 +27,29 @@ export interface Pengguna {
   premiumSampai: string | null;
   dibuat: string;
   namaUji?: string;
+  /** Order pembayaran yang SUDAH diterapkan sebagai perpanjangan premium
+   *  (idempotensi aktivasi per order — audit keamanan bayar 28 Okt 2026). */
+  orderPremiumDiterapkan?: string[];
 }
 
+let sudahPeringatkanRahasia = false;
 function rahasiaSesi(): string {
-  return (
-    process.env.UTH_SESI_SECRET?.trim() ||
-    process.env.UTH_ACCESS_KEY?.trim() ||
-    "rahasia-dev-lokal-uthruha"
-  );
+  const khusus = process.env.UTH_SESI_SECRET?.trim();
+  if (khusus) return khusus;
+  if (!sudahPeringatkanRahasia) {
+    sudahPeringatkanRahasia = true;
+    if (process.env.UTH_ACCESS_KEY?.trim()) {
+      console.error(
+        "[identitas] UTH_SESI_SECRET belum diisi — rahasia sesi memakai kunci akses bersama. " +
+          "Isi UTH_SESI_SECRET acak khusus di env produksi agar cookie sesi tidak bisa ditempa pemegang kunci akses.",
+      );
+    } else {
+      console.error(
+        "[identitas] PERINGATAN: rahasia sesi memakai nilai bawaan pengembang — JANGAN dipakai di produksi.",
+      );
+    }
+  }
+  return process.env.UTH_ACCESS_KEY?.trim() || "rahasia-dev-lokal-uthruha";
 }
 
 function tanda(isi: string): string {

@@ -177,13 +177,28 @@ export async function profilKategoriKustom(
   return { profil: { nama: bersih, profilKata: kataDasar.length ? kataDasar : [bersih] }, dariAI: false };
 }
 
-/** Aktifkan/perpanjang premium pengguna selama N hari. */
-export async function aktifkanPremium(u: Pengguna, hari = 30): Promise<Pengguna> {
+/**
+ * Aktifkan/perpanjang premium pengguna selama N hari.
+ *
+ * Bila `orderId` diberikan, perpanjangan bersifat IDEMPOTEN per order
+ * (audit keamanan bayar 28 Okt 2026): order yang sama tidak pernah
+ * memperpanjang dua kali, walau webhook-nya diterima berulang atau
+ * bersamaan. Daftar order terapan disimpan pada catatan pengguna.
+ */
+export async function aktifkanPremium(u: Pengguna, hari = 30, orderId?: string): Promise<Pengguna> {
+  if (orderId && (u.orderPremiumDiterapkan ?? []).includes(orderId)) return u;
   const dasar = u.premiumSampai && new Date(u.premiumSampai).getTime() > Date.now()
     ? new Date(u.premiumSampai)
     : new Date();
   dasar.setDate(dasar.getDate() + hari);
-  const baru: Pengguna = { ...u, tier: "premium", premiumSampai: dasar.toISOString() };
+  const baru: Pengguna = {
+    ...u,
+    tier: "premium",
+    premiumSampai: dasar.toISOString(),
+    ...(orderId
+      ? { orderPremiumDiterapkan: [...(u.orderPremiumDiterapkan ?? []), orderId] }
+      : {}),
+  };
   await simpan("pengguna", baru as unknown as Record<string, unknown> & { id: string });
   return baru;
 }

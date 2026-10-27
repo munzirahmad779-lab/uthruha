@@ -28,6 +28,10 @@ export async function POST(req: Request) {
 
   const u = await penggunaDariRequest(req);
   if (!u) return NextResponse.json({ error: "Masuk dengan Google dulu sebelum membayar." }, { status: 401 });
+  // Audit keamanan bayar (28 Okt 2026): batas PER PENGGUNA di samping batas
+  // per IP — memutar alamat IP tidak lagi memberi jatah order tanpa batas.
+  const lajuUser = bolehLaju(`bayar-buat-user:${u.id}`, 5, 60_000);
+  if (!lajuUser.boleh) return balasanLaju(lajuUser.ulangDetik, "Terlalu banyak permintaan.");
   if (tierEfektif(u) === "premium") {
     return NextResponse.json({ error: "Akun Anda sudah Premium dan masih berlaku." }, { status: 409 });
   }

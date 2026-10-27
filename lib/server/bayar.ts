@@ -83,6 +83,16 @@ export function verifikasiSignature(body: {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/**
+ * Format gross_amount persis seperti yang dikirim Midtrans pada notifikasi
+ * (string desimal dua angka di belakang koma, mis. "10000.00"). Webhook
+ * mencocokkan string ini PERSIS dengan nominal order yang tersimpan di
+ * server — selisih format pun dianggap tidak cocok (fail-closed).
+ */
+export function formatGrossAmount(jumlah: number): string {
+  return jumlah.toFixed(2);
+}
+
 /** Petakan status gateway ke status internal mesin pembayaran. */
 export function petakanStatus(
   transactionStatus: string,
@@ -92,7 +102,14 @@ export function petakanStatus(
     case "settlement":
       return "lunas";
     case "capture":
-      return fraudStatus === "challenge" ? "menunggu" : "lunas";
+      // Audit keamanan bayar (28 Okt 2026): capture HANYA lunas bila sistem
+      // fraud Midtrans menyatakan "accept". "challenge" menunggu peninjauan,
+      // "deny" berarti ditolak fraud — versi lama memperlakukan deny (dan
+      // fraud_status kosong) sebagai lunas, itu celah aktivasi premium.
+      if (fraudStatus === "accept") return "lunas";
+      if (fraudStatus === "challenge") return "menunggu";
+      if (fraudStatus === "deny") return "gagal";
+      return "menunggu"; // fraud_status tak dikenal/kosong → jangan aktifkan
     case "pending":
       return "menunggu";
     case "refund":

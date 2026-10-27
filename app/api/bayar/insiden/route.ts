@@ -22,6 +22,10 @@ export async function POST(req: Request) {
 
   const u = await penggunaDariRequest(req);
   if (!u) return NextResponse.json({ error: "Masuk dengan Google dulu." }, { status: 401 });
+  // Audit keamanan bayar (28 Okt 2026): batas PER PENGGUNA di samping batas
+  // per IP — satu akun tidak bisa membanjiri antrean admin dengan memutar IP.
+  const lajuUser = bolehLaju(`insiden-user:${u.id}`, 5, 3_600_000);
+  if (!lajuUser.boleh) return balasanLaju(lajuUser.ulangDetik, "Terlalu banyak laporan. Coba lagi nanti.");
 
   const body = (await req.json().catch(() => null)) as { pesan?: string; konteks?: string } | null;
   const pesan = body?.pesan?.trim().slice(0, 2000) ?? "";
