@@ -103,7 +103,12 @@ export async function POST(req: Request) {
       const percobaan = (e as { percobaan?: unknown }).percobaan;
       console.error("[uji-coba] kolam gagal", percobaan);
       return NextResponse.json(
-        { error: "Mesin AI sedang tidak tersedia. Coba lagi beberapa saat lagi." },
+        {
+          error: "Mesin AI sedang tidak tersedia. Coba lagi beberapa saat lagi.",
+          // Diagnostik aman: hanya label penyedia + alasan singkat
+          // (mis. "tidak ada kunci", "HTTP 401") — tidak ada nilai kunci.
+          diagnostik: percobaan ?? [],
+        },
         { status: 503 },
       );
     }
