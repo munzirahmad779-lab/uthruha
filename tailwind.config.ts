@@ -9,31 +9,37 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Palet Kitabah (dari galeri logo): jangkar ink-900 = Coklat Tinta
+        // #4A3A22 (tombol utama + teks utama), gold-500 = Emas #D9A441
+        // (aksen saja, bukan teks biasa), parchment-50 = Kertas Gading
+        // #FAF6EB (latar halaman). Seluruh tangga diturunkan dari jangkar itu.
         ink: {
-          50: "#f2f5f4",
-          100: "#dde5e2",
-          200: "#b9c9c3",
-          400: "#4d6f66",
-          600: "#245045",
-          700: "#143c33",
-          800: "#0e2c26",
-          900: "#0a211c",
-          950: "#061713",
+          50: "#f8f4ea",
+          100: "#efe6cf",
+          200: "#dfcda6",
+          300: "#bfa26b",
+          400: "#9c8148",
+          500: "#8a6f3b",
+          600: "#71592d",
+          700: "#5d4a26",
+          800: "#544324",
+          900: "#4a3a22",
+          950: "#2f2312",
         },
         gold: {
-          100: "#f8eecb",
-          200: "#f0dda0",
-          300: "#e5c877",
-          400: "#d6b052",
-          500: "#c39b32",
-          600: "#a17c22",
+          100: "#faefce",
+          200: "#f4e0a4",
+          300: "#ecc978",
+          400: "#e3b356",
+          500: "#d9a441",
+          600: "#b4832c",
         },
         parchment: {
-          50: "#fdfbf5",
-          100: "#faf5e8",
-          200: "#f3ebd7",
-          300: "#e8dcbf",
-          400: "#d8c69c",
+          50: "#faf6eb",
+          100: "#f6efdc",
+          200: "#f0e4c6",
+          300: "#e5d3a4",
+          400: "#d6bc7c",
         },
       },
       fontFamily: {
@@ -43,12 +49,12 @@ const config: Config = {
         display: ["var(--font-display)", "Georgia", "serif"],
       },
       boxShadow: {
-        card: "0 1px 0 rgba(10,33,28,0.04), 0 10px 30px -18px rgba(10,33,28,0.35)",
-        lift: "0 24px 60px -32px rgba(10,33,28,0.55)",
+        card: "0 1px 0 rgba(74,58,34,0.05), 0 10px 30px -18px rgba(74,58,34,0.35)",
+        lift: "0 24px 60px -32px rgba(74,58,34,0.55)",
       },
       backgroundImage: {
         "grain":
-          "radial-gradient(circle at 1px 1px, rgba(14,44,38,0.09) 1px, transparent 0)",
+          "radial-gradient(circle at 1px 1px, rgba(74,58,34,0.09) 1px, transparent 0)",
       },
       keyframes: {
         rise: {
