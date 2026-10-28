@@ -92,9 +92,17 @@ async function panggilGemini(kunci: string, model: string, sistem: string, pengg
     err.status = res.status;
     throw err;
   }
-  const j = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+  const j = (await res.json()) as {
+    candidates?: { finishReason?: string; content?: { parts?: { text?: string }[] } }[];
+  };
   const isi = j.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
   if (!isi) throw new Error("balasan kosong");
+  // Balasan terpotong BUKAN sukses: teks setengah akan gagal dibaca pemanggil
+  // dan tidak memicu failover bila dianggap berhasil. Lempar agar kolam
+  // mencoba kunci/penyedia berikutnya.
+  if (j.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+    throw new Error("balasan terpotong (MAX_TOKENS)");
+  }
   return isi;
 }
 
@@ -172,6 +180,24 @@ export interface PercobaanGagal {
 }
 
 /**
+ * Uji kesahan JSON dengan irisan yang PERSIS dipakai semua pemanggil mode
+ * json (objek dari "{" pertama sampai "}" terakhir). Teks yang lolos uji ini
+ * dijamin terbaca JSON.parse di sisi pemanggil; bentuk isinya tetap urusan
+ * pemanggil masing-masing.
+ */
+function jsonSah(teks: string): boolean {
+  const mulai = teks.indexOf("{");
+  const akhir = teks.lastIndexOf("}");
+  if (mulai < 0 || akhir <= mulai) return false;
+  try {
+    JSON.parse(teks.slice(mulai, akhir + 1));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Panggil LLM lewat kolam: kunci sehat dalam penyedia → kunci berikutnya →
  * penyedia berikutnya. Melempar hanya bila semua habis; daftar percobaan
  * disertakan untuk diagnosis.
@@ -201,6 +227,11 @@ export async function panggilKolam(opsi: {
     for (const k of kandidat) {
       try {
         const teks = await p.panggil(k.kunci, p.model, opsi.sistem ?? "", opsi.pengguna, opsi.maksToken ?? 1200, opsi.json ?? false);
+        // Mode json: balasan yang tidak terbaca sebagai JSON adalah kegagalan
+        // percobaan, bukan sukses — lempar agar failover berjalan ke
+        // kunci/penyedia berikutnya (dulu teks rusak dianggap sukses dan
+        // pemanggil yang menanggung 502-nya).
+        if (opsi.json && !jsonSah(teks)) throw new Error("balasan bukan JSON sah");
         await simpan("kolam", {
           ...k.st,
           status: "sehat",
