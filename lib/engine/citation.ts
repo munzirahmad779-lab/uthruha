@@ -17,7 +17,7 @@ export const GAYA_LABEL: Record<GayaSitasi, string> = {
   turabian9: "Turabian 9 (footnote)",
   chicago17: "Chicago 17 (footnote)",
   apa7: "APA 7 (penulis–tahun)",
-  "arab-klasik": "Arab klasik (gaya bawaan Uthruha)",
+  "arab-klasik": "Arab klasik (gaya bawaan Kitabah)",
 };
 
 export const GAYA_DEFAULT: GayaSitasi = "turabian9";

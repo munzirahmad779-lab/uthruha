@@ -36,11 +36,11 @@ export async function POST(req: Request) {
   } | null;
   if (!body?.driveToken) {
     return NextResponse.json(
-      { error: "Token Drive belum ada. Setujui akses Drive (hanya berkas buatan Uthruha) pada langkah persetujuan yang muncul.", kode: "PERLU_DRIVE" },
+      { error: "Token Drive belum ada. Setujui akses Drive (hanya berkas buatan Kitabah) pada langkah persetujuan yang muncul.", kode: "PERLU_DRIVE" },
       { status: 400 },
     );
   }
-  const judul = body.judulProyek?.trim().slice(0, 200) || "Proyek Uthruha";
+  const judul = body.judulProyek?.trim().slice(0, 200) || "Proyek Kitabah";
   const bagian = (body.bagian ?? [])
     .filter((b) => typeof b?.judul === "string" && typeof b?.teks === "string")
     .slice(0, 40)

@@ -52,7 +52,7 @@ export function Hero() {
             Skripsi, tesis, disertasi, dan artikel jurnal berbahasa Arab punya aturan
             mainnya sendiri: struktur <span className="font-arabic">الباب الأول</span>…,
             istilah yang harus konsisten, ortografi yang tidak ditangkap pemeriksa ejaan,
-            dan sitasi gaya <span className="font-arabic">الحواشي</span>. Uthruha
+            dan sitasi gaya <span className="font-arabic">الحواشي</span>. Kitabah
             menyiapkan kerangkanya — Anda yang mengisi datanya.
           </p>
 
@@ -136,7 +136,7 @@ export function Hero() {
                 <IconShield className="h-3.5 w-3.5 text-gold-300" />
                 Setiap klaim perlu sumber asli
               </span>
-              <span className="font-arabic text-parchment-100">أُطروحة</span>
+              <span className="font-arabic text-parchment-100">كِتَابَة</span>
             </div>
           </div>
         </div>
@@ -608,7 +608,7 @@ export function Integritas() {
             Alat bantu, bukan jasa pembuatan karya.
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-ink-700">
-            Naskah yang baik lahir dari data dan penalaran Anda. Uthruha mengambil beban
+            Naskah yang baik lahir dari data dan penalaran Anda. Kitabah mengambil beban
             teknis penulisan — bukan beban berpikirnya.
           </p>
           <div className="mt-6 flex items-start gap-3 rounded-2xl border border-gold-500/30 bg-gold-100/50 p-4">

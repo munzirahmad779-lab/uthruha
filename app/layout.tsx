@@ -6,10 +6,10 @@ import { SiteFooter } from "@/components/site-footer";
 import { AgenWidget } from "@/components/agen-widget";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://uthruha.id"),
+  metadataBase: new URL("https://kitabah.web.id"),
   title: {
-    default: "أُطروحة Uthruha — Ruang Kerja Karya Ilmiah Berbahasa Arab",
-    template: "%s · Uthruha",
+    default: "كتابة Kitabah — Ruang Kerja Karya Ilmiah Berbahasa Arab",
+    template: "%s · Kitabah",
   },
   description:
     "Ruang kerja penulisan skripsi, tesis, disertasi, dan artikel jurnal berbahasa Arab: struktur bab Arab, bank frasa akademik, pemeriksa ortografi, transliterasi, sitasi, dan pemadu jurnal.",
@@ -23,14 +23,14 @@ export const metadata: Metadata = {
     "أطروحة",
     "رسالة علمية",
   ],
-  authors: [{ name: "Uthruha" }],
+  authors: [{ name: "Kitabah" }],
   openGraph: {
-    title: "أُطروحة Uthruha — Ruang Kerja Karya Ilmiah Berbahasa Arab",
+    title: "كتابة Kitabah — Ruang Kerja Karya Ilmiah Berbahasa Arab",
     description:
       "Dari topik yang masih kabur menjadi naskah skripsi, tesis, disertasi, atau artikel jurnal berbahasa Arab yang tertata.",
     type: "website",
     locale: "id_ID",
-    siteName: "Uthruha",
+    siteName: "Kitabah",
   },
   robots: { index: true, follow: true },
   icons: {

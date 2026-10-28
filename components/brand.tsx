@@ -3,7 +3,7 @@ export function BrandMark({ className = "" }: { className?: string }) {
     <svg
       viewBox="0 0 48 48"
       role="img"
-      aria-label="Uthruha"
+      aria-label="Kitabah"
       className={className}
       fill="none"
     >
@@ -55,11 +55,11 @@ export function BrandLockup({ compact = false }: { compact?: boolean }) {
       <BrandMark className="h-9 w-9 shrink-0" />
       <span className="flex flex-col leading-none">
         <span className="font-arabic text-[17px] font-bold tracking-tight text-ink-900">
-          أُطروحة
+          كِتَابَة
         </span>
         {!compact && (
           <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-ink-400">
-            Uthruha
+            Kitabah
           </span>
         )}
       </span>

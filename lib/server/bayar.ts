@@ -50,9 +50,9 @@ export async function buatTransaksiSnap(opsi: {
     },
     body: JSON.stringify({
       transaction_details: { order_id: opsi.orderId, gross_amount: opsi.jumlah },
-      customer_details: { email: opsi.email, first_name: opsi.nama || "Pengguna Uthruha" },
+      customer_details: { email: opsi.email, first_name: opsi.nama || "Pengguna Kitabah" },
       item_details: [
-        { id: "premium-30", price: opsi.jumlah, quantity: 1, name: "Uthruha Premium 30 hari" },
+        { id: "premium-30", price: opsi.jumlah, quantity: 1, name: "Kitabah Premium 30 hari" },
       ],
       enabled_payments: ["qris", "gopay", "shopeepay", "other_qris"],
     }),

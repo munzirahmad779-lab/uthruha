@@ -73,7 +73,7 @@ export function StrukturPedomanPanel({
       <h3 className="text-[13px] font-bold text-ink-900">Struktur pedoman → daftar isi otomatis</h3>
       <p className="mt-1 text-[12px] leading-relaxed text-ink-600">
         Ulik buku pedoman kampus Anda (PDF) dengan bantuan AI luar, lalu tempel hasilnya di sini.
-        Uthruha memvalidasinya dengan skema tetap dan menyusun daftar isi proyek mengikuti logika
+        Kitabah memvalidasinya dengan skema tetap dan menyusun daftar isi proyek mengikuti logika
         pedoman itu — bab demi bab, lengkap dengan aturan wajibnya.
       </p>
 
@@ -97,7 +97,7 @@ export function StrukturPedomanPanel({
 
       <details className="mt-3 rounded-lg border border-ink-900/10 p-3">
         <summary className="cursor-pointer text-[12px] font-semibold text-ink-800">
-          Paket prompt resmi Uthruha
+          Paket prompt resmi Kitabah
         </summary>
         <div className="mt-2 flex justify-end">
           <CopyButton teks={PROMPT_PAKET_STRUKTUR} />

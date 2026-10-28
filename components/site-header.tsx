@@ -41,7 +41,7 @@ export function SiteHeader() {
       }`}
     >
       <div className="wrap flex h-16 items-center justify-between gap-4">
-        <Link href="/" className="rounded-lg" aria-label="Uthruha — beranda">
+        <Link href="/" className="rounded-lg" aria-label="Kitabah — beranda">
           <BrandLockup />
         </Link>
 

@@ -22,7 +22,7 @@ const FAQ = [
   },
   {
     q: "Apakah ini bisa menuliskan skripsi saya dari nol?",
-    a: "Tidak, dan memang tidak dirancang untuk itu. Yang Uthruha lakukan adalah menyusun kerangka tiap bagian dari konteks penelitian Anda, lalu menandai tempat yang harus Anda isi dengan data, temuan, dan analisis sendiri. Bagian yang belum Anda isi tetap terlihat sebagai penanda, bukan kalimat palsu.",
+    a: "Tidak, dan memang tidak dirancang untuk itu. Yang Kitabah lakukan adalah menyusun kerangka tiap bagian dari konteks penelitian Anda, lalu menandai tempat yang harus Anda isi dengan data, temuan, dan analisis sendiri. Bagian yang belum Anda isi tetap terlihat sebagai penanda, bukan kalimat palsu.",
   },
   {
     q: "Dari mana pola kalimat Arab-nya berasal?",
@@ -89,7 +89,7 @@ export default function HomePage() {
       <CtaBand />
 
       <p className="wrap -mt-8 pb-8 text-center text-[11px] leading-relaxed text-ink-500">
-        Uthruha adalah proyek alat bantu penulisan independen. Tidak berafiliasi dengan
+        Kitabah adalah proyek alat bantu penulisan independen. Tidak berafiliasi dengan
         perguruan tinggi mana pun, dan tidak menggantikan pedoman penulisan yang
         dikeluarkan program studi Anda.
       </p>

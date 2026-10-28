@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { MasukForm } from "@/components/masuk-form";
 
 export const metadata: Metadata = {
-  title: "Masuk — Uthruha",
+  title: "Masuk — Kitabah",
   robots: { index: false, follow: false },
 };
 
@@ -12,7 +12,7 @@ export default function MasukPage() {
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-ink-900/10 bg-white p-8 shadow-sm">
           <p className="font-arabic text-2xl text-gold-600" dir="rtl">
-            عُثْرُهَ
+            كِتَابَة
           </p>
           <h1 className="mt-3 text-xl font-bold text-ink-900">Ruang kerja terkunci</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-ink-700">

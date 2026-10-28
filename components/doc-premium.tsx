@@ -42,7 +42,7 @@ export function DocPremiumButton({ p }: { p: Project }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           proyekId: p.id,
-          judulProyek: p.judulAr || p.topikAr || "Proyek Uthruha",
+          judulProyek: p.judulAr || p.topikAr || "Proyek Kitabah",
           driveToken: token,
           bagian: bagian.length ? bagian : [{ judul: "Draf", teks: "(Belum ada draf tertulis.)" }],
         }),

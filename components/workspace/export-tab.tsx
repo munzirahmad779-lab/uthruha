@@ -55,7 +55,7 @@ export function ExportTab({ p, onBuka }: { p: Project; onBuka?: (sectionId: stri
     try {
       const ped = p.pedoman ?? null;
       const blob = buatDocx(
-        p.judulAr || p.topikAr || "Naskah Uthruha",
+        p.judulAr || p.topikAr || "Naskah Kitabah",
         markdown,
         ped
           ? {

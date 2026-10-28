@@ -262,7 +262,7 @@ export function Workspace({ id }: { id: string }) {
             akses Drive sama sekali. */}
         <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-ink-900/10 pt-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Akun Uthruha</p>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Akun Kitabah</p>
             <div className="mt-1.5">
               <LoginGoogle />
             </div>

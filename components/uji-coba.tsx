@@ -129,7 +129,7 @@ export function UjiCobaTamu() {
           Coba dari judul Anda — satu kali, gratis.
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-600">
-          Masukkan judul penelitian. Uthruha menyusun kalimat kunci, khalfiyah tiga paragraf,
+          Masukkan judul penelitian. Kitabah menyusun kalimat kunci, khalfiyah tiga paragraf,
           isykaliyat, dan ahdaf — lalu mencarikan rujukan asli yang bisa diverifikasi.
           Hasil uji coba <strong>terkunci</strong> (tidak bisa disalin): untuk menyusun,
           mengedit, dan memasang footnote, masuk gratis.

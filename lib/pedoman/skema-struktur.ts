@@ -97,7 +97,7 @@ export function validasiTempelanStruktur(teks: string): {
 export function buatPromptPerbaikan(teksAsli: string, galat: GalatBidang[]): string {
   const daftar = galat.map((g, i) => `${i + 1}. Bidang "${g.jalur}": ${g.pesan}`).join("\n");
   return [
-    "Hasil JSON yang kamu keluarkan sebelumnya belum sesuai skema Uthruha. Perbaiki HANYA bagian yang salah di bawah ini, pertahankan isi lain yang sudah benar, lalu keluarkan ulang SELURUH dokumen sebagai satu blok ```json tanpa penjelasan apa pun.",
+    "Hasil JSON yang kamu keluarkan sebelumnya belum sesuai skema Kitabah. Perbaiki HANYA bagian yang salah di bawah ini, pertahankan isi lain yang sudah benar, lalu keluarkan ulang SELURUH dokumen sebagai satu blok ```json tanpa penjelasan apa pun.",
     "",
     "Kesalahan yang harus diperbaiki:",
     daftar,

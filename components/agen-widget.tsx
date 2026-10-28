@@ -76,7 +76,7 @@ export function AgenWidget() {
       {buka && (
         <div className="fixed bottom-20 right-5 z-50 flex h-[480px] w-[min(92vw,380px)] flex-col overflow-hidden rounded-3xl border border-ink-100 bg-white shadow-2xl">
           <div className="bg-ink-900 px-4 py-3">
-            <p className="text-sm font-bold text-parchment-100">Agen Uthruha</p>
+            <p className="text-sm font-bold text-parchment-100">Agen Kitabah</p>
             <p className="text-[11px] text-parchment-100/70">
               {tier === "premium" ? "Premium — jawaban AI instan" : "Fitur Premium"}
             </p>

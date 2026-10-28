@@ -75,7 +75,7 @@ export function PedomanPanel({
         <h3 className="text-[12px] font-bold uppercase tracking-[0.14em] text-ink-600">Pedoman kampus</h3>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-700">
           Unggah berkas <span className="font-semibold">.md</span> hasil olahan AI (DeepSeek, Meta AI, dll.) dari buku
-          pedoman kampus Anda. Uthruha membaca aturan format dan sitasi, lalu memakainya untuk footnote, daftar pustaka,
+          pedoman kampus Anda. Kitabah membaca aturan format dan sitasi, lalu memakainya untuk footnote, daftar pustaka,
           dan berkas Word.
         </p>
 
@@ -196,7 +196,7 @@ export function PedomanPanel({
               <h4 className="text-[12px] font-bold uppercase tracking-[0.14em] text-ink-600">Prompt untuk AI</h4>
               <p className="mt-1 text-[11.5px] leading-relaxed text-ink-700">
                 Salin prompt ini ke DeepSeek atau Meta AI bersama teks pedoman kampus Anda. AI akan mengubahnya menjadi
-                berkas <span className="font-semibold">.md</span> yang bisa diunggah di atas. Uthruha sendiri tidak
+                berkas <span className="font-semibold">.md</span> yang bisa diunggah di atas. Kitabah sendiri tidak
                 memanggil AI.
               </p>
             </div>
@@ -210,7 +210,7 @@ export function PedomanPanel({
 
       {!pedoman && (
         <Note jenis="info">
-          Tanpa pedoman, Uthruha memakai bawaan: {pedomanDefault().fontArab} {pedomanDefault().ukuranNaskah} pt, footnote{" "}
+          Tanpa pedoman, Kitabah memakai bawaan: {pedomanDefault().fontArab} {pedomanDefault().ukuranNaskah} pt, footnote{" "}
           {pedomanDefault().ukuranFootnote} pt, spasi 1,5. Footnote tidak diklaim sesuai pedoman kampus Anda.
         </Note>
       )}

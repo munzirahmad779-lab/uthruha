@@ -14,7 +14,7 @@
 const DRIVE = () => (process.env.DRIVE_API_BASE?.trim() || "https://www.googleapis.com").replace(/\/$/, "");
 
 export const KEPALA_RULES = `ATURAN DOKUMEN INI (boleh dihapus sebelum mengumpulkan):
-1. Dokumen ini dibuat otomatis dari proyek Anda di Uthruha. Sunting di sini bebas; perubahan di sini TIDAK mengubah proyek di Uthruha.
+1. Dokumen ini dibuat otomatis dari proyek Anda di Kitabah. Sunting di sini bebas; perubahan di sini TIDAK mengubah proyek di Kitabah.
 2. Rujukan pada footnote harus tetap bisa diverifikasi (DOI/ISBN). Jangan mengubah judul/tahun rujukan tanpa mengecek sumbernya.
 3. Unduh sebagai Word lewat File → Download → Microsoft Word (.docx) bila pembimbing meminta berkas Word.
 4. Hapus blok aturan ini sebelum menyerahkan naskah.
@@ -52,7 +52,7 @@ export async function buatDocProyek(opsi: {
   bagian: { judul: string; teks: string }[];
 }): Promise<{ folderId: string; docId: string; webViewLink: string }> {
   const base = DRIVE();
-  const namaFolder = `Uthruha — ${opsi.judulProyek}`.slice(0, 120);
+  const namaFolder = `Kitabah — ${opsi.judulProyek}`.slice(0, 120);
 
   // 1) Cari folder (hanya berkas buatan aplikasi yang terlihat di drive.file).
   const q = encodeURIComponent(

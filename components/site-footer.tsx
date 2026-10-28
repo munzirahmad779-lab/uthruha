@@ -43,6 +43,9 @@ export function SiteFooter() {
               dan peneliti yang menulis dalam bahasa Arab — bukan terjemahan mesin dari
               bahasa lain.
             </p>
+            <p className="mt-3 text-sm font-semibold italic text-gold-300">
+              &ldquo;Menulis dengan Adab, Merujuk dengan Benar.&rdquo;
+            </p>
             <p className="mt-5 font-arabic text-lg text-gold-300" dir="rtl">
               وَقُل رَّبِّ زِدْنِي عِلْمًا
             </p>
@@ -69,7 +72,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col gap-4 border-t border-parchment-200/10 pt-6 text-xs text-parchment-200/50 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} Uthruha. Draf tetap milik penulisnya.</p>
+          <p>© {new Date().getFullYear()} Kitabah. Draf tetap milik penulisnya.</p>
           <p className="max-w-lg sm:text-right">
             Alat bantu penulisan — bukan pengganti pembimbing, dan bukan jasa pembuatan
             karya ilmiah. Setiap sitasi wajib diperiksa pada sumber aslinya.

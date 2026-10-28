@@ -131,7 +131,7 @@ export function PremiumPanel() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="rounded-3xl border border-gold-300/60 bg-white/70 p-6 shadow-sm sm:p-8">
-        <span className="eyebrow">Uthruha Premium</span>
+        <span className="eyebrow">Kitabah Premium</span>
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-ink-900">
           Rp10.000 / bulan <span className="text-base font-semibold text-ink-500">(harga promo pembuka)</span>
         </h1>
