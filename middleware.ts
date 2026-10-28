@@ -127,6 +127,14 @@ async function nilaiSah(
 }
 
 const JALUR_BEBAS = new Set([
+  // Halaman publik (Langkah 0 publikasi OAuth, 28 Okt 2026): beranda
+  // menjelaskan fungsi aplikasi dan memuat tautan kebijakan privasi —
+  // syarat verifikasi merek Google TIDAK BOLEH hanya halaman login.
+  // Ketiganya halaman statis tanpa data pengguna; semua rute ruang
+  // kerja & API lain tetap tergerbang persis seperti sebelumnya.
+  "/",
+  "/privasi",
+  "/ketentuan",
   "/api/masuk",
   "/favicon.ico",
   "/robots.txt",

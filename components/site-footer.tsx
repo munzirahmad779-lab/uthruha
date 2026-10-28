@@ -72,7 +72,16 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col gap-4 border-t border-parchment-200/10 pt-6 text-xs text-parchment-200/50 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} Kitabah. Draf tetap milik penulisnya.</p>
+          <p>
+            © {new Date().getFullYear()} Kitabah. Draf tetap milik penulisnya.{" "}
+            <Link href="/privasi" className="underline decoration-parchment-200/30 underline-offset-2 transition hover:text-gold-200">
+              Privasi
+            </Link>{" "}
+            ·{" "}
+            <Link href="/ketentuan" className="underline decoration-parchment-200/30 underline-offset-2 transition hover:text-gold-200">
+              Ketentuan
+            </Link>
+          </p>
           <p className="max-w-lg sm:text-right">
             Alat bantu penulisan — bukan pengganti pembimbing, dan bukan jasa pembuatan
             karya ilmiah. Setiap sitasi wajib diperiksa pada sumber aslinya.

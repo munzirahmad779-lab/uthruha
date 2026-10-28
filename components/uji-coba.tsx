@@ -146,7 +146,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
   }
 
   return (
-    <section className="wrap pb-4 pt-2 sm:pb-8">
+    <section id="uji-coba" className="wrap scroll-mt-24 pb-4 pt-2 sm:pb-8">
       <div className="mx-auto max-w-3xl rounded-3xl border border-gold-300/60 bg-white/70 p-6 shadow-sm sm:p-8">
         <span className="eyebrow">Uji coba tanpa daftar</span>
         <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">

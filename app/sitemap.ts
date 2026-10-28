@@ -10,5 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/alat`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
     { url: `${BASE}/jurnal`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
     { url: `${BASE}/mulai`, lastModified: now, changeFrequency: "yearly", priority: 0.6 },
+    { url: `${BASE}/privasi`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE}/ketentuan`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ];
 }

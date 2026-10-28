@@ -56,21 +56,32 @@ export function Hero() {
             menyiapkan kerangkanya — Anda yang mengisi datanya.
           </p>
 
+          <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-700 sm:text-base">
+            Alurnya mengikuti cara penelitian disusun: dari judul menjadi kalimat kunci,
+            lalu khalfiyah al-bahts; pencarian rujukan kitab dan jurnal yang terverifikasi
+            DOI/ISBN; footnote mengikuti pedoman kampus; dan ekspor ke Word — pengguna
+            Premium juga dapat membuat Google Doc per proyek.
+          </p>
+
+          <p className="mt-5 font-display text-lg italic text-gold-700">
+            &ldquo;Menulis dengan Adab, Merujuk dengan Benar.&rdquo;
+          </p>
+
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/mulai" className="btn-gold">
-              Mulai proyek pertama
+            <Link href="/masuk" className="btn-gold">
+              Masuk
               <IconArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/alat" className="btn-ghost">
-              Coba alat gratis
+            <Link href="/#uji-coba" className="btn-ghost">
+              Coba sebagai tamu
               <IconArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
 
           <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs text-ink-600">
             {[
-              "Tanpa akun, tanpa langganan",
-              "Data tersimpan di peramban Anda",
+              "Uji coba tamu tanpa akun",
+              "Draf tersimpan di peramban Anda",
               "Ekspor .docx siap RTL",
             ].map((t) => (
               <li key={t} className="inline-flex items-center gap-1.5">
@@ -595,7 +606,7 @@ const YA = [
   "Menyediakan kerangka, panduan, dan pola kalimat untuk Anda kembangkan.",
   "Menandai bagian yang masih butuh data lapangan Anda sendiri.",
   "Membantu merapikan ortografi, istilah, dan sitasi yang sudah Anda masukkan.",
-  "Menyimpan draf di peramban Anda — bukan di server kami.",
+  "Menyimpan draf naskah di peramban Anda sendiri.",
 ];
 
 export function Integritas() {
@@ -669,18 +680,19 @@ export function CtaBand() {
         </h2>
         <p className="relative mx-auto mt-4 max-w-xl text-sm leading-relaxed text-parchment-200/75">
           Buat proyek, pilih jenjang dan metode, lalu susun draf bagian pertama dalam
-          beberapa menit. Tidak perlu mendaftar.
+          beberapa menit. Ruang kerja dibuka dengan kunci akses — atau coba dulu sebagai
+          tamu, tanpa akun.
         </p>
         <div className="relative mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/mulai" className="btn-gold">
-            Mulai proyek
+          <Link href="/masuk" className="btn-gold">
+            Masuk
             <IconArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/panduan"
+            href="/#uji-coba"
             className="btn border border-parchment-200/25 text-parchment-100 hover:border-gold-300/60"
           >
-            Baca panduan dulu
+            Coba sebagai tamu
           </Link>
         </div>
       </div>

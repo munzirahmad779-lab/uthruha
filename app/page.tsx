@@ -11,6 +11,7 @@ import {
   Masalah,
   StrukturSection,
 } from "@/components/landing";
+import { LapisSection } from "@/components/landing/lapis";
 import { FRASA } from "@/lib/content/frasa";
 import { JURNAL } from "@/lib/content/jurnal";
 import { UjiCobaTamu } from "@/components/uji-coba";
@@ -19,7 +20,7 @@ import { loginGoogleAktif } from "@/lib/security/akses";
 const FAQ = [
   {
     q: "Apakah naskah saya dikirim ke server?",
-    a: "Tidak. Proyek, draf, istilah, dan daftar rujukan disimpan di penyimpanan lokal peramban Anda (localStorage). Semuanya tetap ada meski Anda menutup tab, dan tidak dikirim ke mana pun. Konsekuensinya: bila Anda membersihkan data peramban atau berganti perangkat, draf tidak ikut pindah — karena itu sediakan waktu untuk mengekspor .docx.",
+    a: "Isi draf naskah Anda disimpan di penyimpanan lokal peramban Anda sendiri (localStorage) — tetap ada meski Anda menutup tab, dan konsekuensinya tidak ikut pindah bila Anda membersihkan data peramban atau berganti perangkat; karena itu biasakan mengekspor .docx. Yang disimpan di server hanya akun Anda (nama, email, foto dari Google) dan catatan proyek seperti judul, kategori, dan pemakaian fitur, agar aturan lapis dan proyek Anda dikenali. Teks yang Anda minta diproses fitur AI dikirim ke penyedia AI (Google Gemini/Groq) sebatas permintaan itu. Rinciannya ada di Kebijakan Privasi (/privasi).",
   },
   {
     q: "Apakah ini bisa menuliskan skripsi saya dari nol?",
@@ -43,7 +44,7 @@ const FAQ = [
   },
   {
     q: "Apakah aplikasi ini gratis?",
-    a: "Ya, semua alat bisa dipakai tanpa akun dan tanpa biaya. Tidak ada kunci fitur, tidak ada kuota, tidak ada langganan. Bila nanti ada biaya operasional, itu akan diberitahukan terbuka — bukan dengan membatasi fitur yang sudah Anda pakai.",
+    a: "Ada lapis gratis dan lapis Premium. Gratis (dengan kunci akses gratis): satu proyek, pencarian rujukan tanpa batas, dan maksimal tiga footnote dalam satu paragraf. Premium (Rp10.000/bulan, harga promo pembuka) membuka proyek dan footnote tanpa batas, Google Doc per proyek, dan chat agen AI. Uji coba tamu di halaman ini tidak memerlukan akun sama sekali. Aturan lengkapnya ada di Ketentuan Layanan (/ketentuan).",
   },
   {
     q: "Apakah tersedia pilihan bahasa selain Arab?",
@@ -60,6 +61,7 @@ export default function HomePage() {
       <Masalah />
       <CaraKerja />
       <Fitur />
+      <LapisSection />
       <StrukturSection />
       <FrasaPreview />
       <JurnalPreview />
