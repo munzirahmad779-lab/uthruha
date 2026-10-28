@@ -18,7 +18,12 @@ const produksi = process.env.NODE_ENV === "production";
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://accounts.google.com",
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+  // frame-src WAJIB ada: tanpa direktif ini browser jatuh ke default-src
+  // 'self' sehingga iframe tombol Google Sign-In (accounts.google.com)
+  // diblokir dan pengunjung hanya melihat kotak kosong. style-src juga
+  // harus mengizinkan accounts.google.com untuk lembar gaya GIS.
+  "frame-src https://accounts.google.com",
   "img-src 'self' data: blob: https://*.googleusercontent.com",
   "font-src 'self' data:",
   "connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://api.crossref.org https://doaj.org https://shamela.ws https://api.openalex.org https://api.semanticscholar.org https://kotak-surat-muse.munzirahmad779.workers.dev",
