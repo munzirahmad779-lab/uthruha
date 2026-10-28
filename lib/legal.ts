@@ -1,13 +1,11 @@
 /**
  * Konstanta halaman legal (/privasi & /ketentuan) — SATU tempat sunting.
  *
- * EMAIL_KONTAK masih placeholder persis "[EMAIL-KONTAK]": pemilik
- * menggantinya sekali di berkas ini dengan alamat email layanan yang
- * aktif, dan kedua halaman legal langsung memakainya. Selama placeholder
- * ini belum diganti, halaman legal TIDAK boleh diajukan ke formulir
- * verifikasi Google (kontak harus nyata dan bisa dihubungi).
+ * EMAIL_KONTAK adalah alamat email layanan yang aktif (ditetapkan
+ * pemilik), dipakai bersama oleh kedua halaman legal. Ganti sekali di
+ * berkas ini bila alamat layanan berubah.
  */
-export const EMAIL_KONTAK = "[EMAIL-KONTAK]";
+export const EMAIL_KONTAK = "munzirahmad779@gmail.com";
 
 /** Tanggal berlaku versi kebijakan privasi & ketentuan saat ini. */
 export const TANGGAL_BERLAKU_LEGAL = "28 Oktober 2026";
