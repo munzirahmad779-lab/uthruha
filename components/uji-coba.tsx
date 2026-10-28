@@ -50,7 +50,7 @@ function kunciSalin(e: React.SyntheticEvent) {
   e.preventDefault();
 }
 
-export function UjiCobaTamu() {
+export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
   const [judul, setJudul] = useState("");
   const [memuat, setMemuat] = useState(false);
   const [mengembangkan, setMengembangkan] = useState(false);
@@ -125,10 +125,12 @@ export function UjiCobaTamu() {
   const tampilParagraf = paragrafKembang ?? hasil?.khalfiyah ?? [];
 
   /**
-   * CTA login dari uji coba: judul yang sedang dicoba disimpan dulu,
-   * lalu pengguna diantar ke layar masuk (Google + kunci). Sesudah
-   * masuk, halaman daftar proyek meneruskan judul ini menjadi draf
-   * proyek pertama secara otomatis (satu kali).
+   * CTA masuk dari uji coba: judul yang sedang dicoba disimpan dulu,
+   * lalu pengguna diantar ke layar masuk. Sesudah masuk, halaman daftar
+   * proyek meneruskan judul ini menjadi draf proyek pertama secara
+   * otomatis (satu kali). Label tombol mengikuti keadaan login Google:
+   * selama login Google ditahan pemilik (googleAktif=false), ajakannya
+   * adalah masuk dengan kunci akses — tombol Google tidak dirender.
    */
   function loginDariUjiCoba() {
     try {
@@ -186,10 +188,12 @@ export function UjiCobaTamu() {
         {wajibLogin && (
           <div className="mt-3">
             <button type="button" onClick={loginDariUjiCoba} className="btn-primary">
-              Login gratis dengan Google
+              {googleAktif ? "Login gratis dengan Google" : "Masuk dengan kunci akses"}
             </button>
             <p className="mt-2 text-xs text-ink-500">
-              Judul yang Anda coba akan diteruskan menjadi proyek pertama Anda.
+              {googleAktif
+                ? "Judul yang Anda coba akan diteruskan menjadi proyek pertama Anda."
+                : "Percobaan berikutnya masuk dengan kunci akses yang dibagikan pemilik lewat salurannya. Judul yang Anda coba akan diteruskan menjadi proyek pertama Anda."}
             </p>
           </div>
         )}
@@ -299,10 +303,12 @@ export function UjiCobaTamu() {
 
             <div className="mt-6 rounded-2xl bg-ink-900 p-4 text-center">
               <p className="text-sm font-semibold text-parchment-100">
-                Ingin lebih lanjut? Silakan login gratis.
+                {googleAktif
+                  ? "Ingin lebih lanjut? Silakan login gratis."
+                  : "Ingin lebih lanjut? Masuk dengan kunci akses yang dibagikan pemilik lewat salurannya."}
               </p>
               <button type="button" onClick={loginDariUjiCoba} className="btn-primary mt-3 inline-block">
-                Login gratis dengan Google
+                {googleAktif ? "Login gratis dengan Google" : "Masuk dengan kunci akses"}
               </button>
               <p className="mt-2 text-xs text-parchment-100/70">
                 Judul yang Anda coba di atas akan diteruskan menjadi proyek pertama Anda.

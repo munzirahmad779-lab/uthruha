@@ -13,16 +13,20 @@ interface StatusIdentitas {
 }
 
 /**
- * Layar masuk gabungan (keputusan pemilik, 28 Okt 2026):
+ * Layar masuk (keputusan pemilik, 28 Okt 2026):
  *   Langkah 1 — Masuk dengan Google (identitas saja: nama/foto/email,
- *               tanpa scope Drive).
+ *               tanpa scope Drive). HANYA tampil bila login Google
+ *               diaktifkan pemilik (UTH_LOGIN_GOOGLE_AKTIF=1); selama
+ *               ditahan, layar ini kembali ke gerbang satu kolom kunci
+ *               seperti semula dan bagian Google tidak dirender sama
+ *               sekali (bukan tombol nonaktif).
  *   Langkah 2 — Satu kolom "Kunci akses". Server yang memilah jenis
  *               kunci; tidak ada label jenis kunci yang ditampilkan.
  * Identitas yang premiumnya masih aktif atau yang sidik kunci gratisnya
  * cocok dapat memulihkan sesi lewat mode identitas tanpa mengetik kunci.
  * Kunci saja (tanpa Google) tetap bisa, seperti perilaku lama.
  */
-export function MasukForm() {
+export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState<StatusIdentitas | null>(null);
   const [kunci, setKunci] = useState("");
@@ -40,8 +44,9 @@ export function MasukForm() {
   }, []);
 
   useEffect(() => {
+    if (!googleAktif) return; // status identitas hanya perlu bila Google tampil
     void segarkanStatus();
-  }, [segarkanStatus]);
+  }, [segarkanStatus, googleAktif]);
 
   const antarKeTujuan = useCallback(() => {
     const lanjut = new URLSearchParams(window.location.search).get("lanjut");
@@ -53,7 +58,9 @@ export function MasukForm() {
 
   // Tombol Google (GIS) — pola yang sama dengan components/login-google,
   // tetapi status dibaca dari /api/auth/status karena gerbang belum terbuka.
+  // Saat login Google ditahan pemilik, efek ini tidak berjalan sama sekali.
   useEffect(() => {
+    if (!googleAktif) return;
     if (status?.pengguna || !wadahGoogle.current) return;
     let batal = false;
     void muatGIS()
@@ -108,7 +115,7 @@ export function MasukForm() {
     return () => {
       batal = true;
     };
-  }, [status?.pengguna, segarkanStatus]);
+  }, [status?.pengguna, segarkanStatus, googleAktif]);
 
   async function masukViaIdentitas() {
     if (loading) return;
@@ -161,7 +168,10 @@ export function MasukForm() {
 
   return (
     <div className="mt-6">
-      {/* Langkah 1 — Google */}
+      {/* Langkah 1 — Google: TIDAK dirender sama sekali selama login
+          Google ditahan pemilik (googleAktif=false). */}
+      {googleAktif && (
+        <>
       <p className="text-[12px] font-semibold text-ink-800">
         Langkah 1 — Masuk dengan Google
       </p>
@@ -213,12 +223,14 @@ export function MasukForm() {
           </p>
         </div>
       )}
+        </>
+      )}
 
       {/* Langkah 2 — kunci akses (satu kolom) */}
       <form onSubmit={kirimKunci} className="mt-6 space-y-4">
         <div>
           <label htmlFor="kunci" className="block text-[12px] font-semibold text-ink-800">
-            Langkah 2 — Kunci akses
+            {googleAktif ? "Langkah 2 — Kunci akses" : "Kunci akses"}
           </label>
           <input
             id="kunci"

@@ -14,6 +14,7 @@ import {
 import { FRASA } from "@/lib/content/frasa";
 import { JURNAL } from "@/lib/content/jurnal";
 import { UjiCobaTamu } from "@/components/uji-coba";
+import { loginGoogleAktif } from "@/lib/security/akses";
 
 const FAQ = [
   {
@@ -54,7 +55,8 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <UjiCobaTamu />
+      {/* googleAktif meneruskan flag TAHAN LOGIN GOOGLE ke CTA uji coba. */}
+      <UjiCobaTamu googleAktif={loginGoogleAktif()} />
       <Masalah />
       <CaraKerja />
       <Fitur />

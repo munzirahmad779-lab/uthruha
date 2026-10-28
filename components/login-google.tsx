@@ -7,6 +7,7 @@ interface StatusLapis {
   pengguna: { id: string; email: string; nama: string; foto: string } | null;
   tier?: string;
   premiumSampai?: string | null;
+  loginGoogleAktif?: boolean;
 }
 
 /**
@@ -33,7 +34,11 @@ export function LoginGoogle({ ringkas = false }: { ringkas?: boolean }) {
   }, []);
 
   useEffect(() => {
-    if (status?.pengguna || !wadah.current) return;
+    // TAHAN LOGIN GOOGLE: jangan memuat GIS sama sekali sebelum status
+    // diketahui, dan jangan pernah memuatnya saat fitur ditahan pemilik
+    // (UTH_LOGIN_GOOGLE_AKTIF belum "1") — tidak ada tombol hantu.
+    if (!status || status.loginGoogleAktif === false) return;
+    if (status.pengguna || !wadah.current) return;
     let batal = false;
     void muatGIS()
       .then(() => {
@@ -87,7 +92,11 @@ export function LoginGoogle({ ringkas = false }: { ringkas?: boolean }) {
     return () => {
       batal = true;
     };
-  }, [status?.pengguna]);
+  }, [status]);
+
+  // TAHAN LOGIN GOOGLE: saat fitur ditahan, komponen ini tidak tampil
+  // sama sekali (bukan tombol nonaktif) — termasuk cip identitasnya.
+  if (status?.loginGoogleAktif === false) return null;
 
   if (status?.pengguna) {
     return (

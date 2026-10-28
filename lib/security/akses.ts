@@ -51,6 +51,22 @@ export function gerbangAktif(): boolean {
 }
 
 /**
+ * TAHAN LOGIN GOOGLE (perintah pemilik, 28 Okt 2026): tampilan dan
+ * endpoint login Google hanya aktif bila pemilik menyalakannya secara
+ * eksplisit lewat UTH_LOGIN_GOOGLE_AKTIF=1. Bawaan (env tidak diset /
+ * bukan "1") = MATI: bagian Google tidak dirender di /masuk maupun
+ * halaman uji coba, dan /api/auth/google menolak dengan
+ * FITUR_BELUM_AKTIF. Kode Google TIDAK dihapus — menyalakan kembali
+ * cukup mengeset env ini + redeploy, setelah syarat matang terpenuhi
+ * (asal OAuth kitabah.web.id terdaftar di Google Cloud Console,
+ * UTH_KUNCI_GRATIS tertempel, dan uji login end-to-end sebagai test
+ * user berhasil).
+ */
+export function loginGoogleAktif(): boolean {
+  return process.env.UTH_LOGIN_GOOGLE_AKTIF === "1";
+}
+
+/**
  * KUNCI KEDUA (keputusan pemilik, 28 Okt 2026): sejak login Google pindah
  * ke halaman awal, gerbang menerima DUA kunci bersama yang berbeda makna:
  *

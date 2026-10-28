@@ -45,6 +45,7 @@ di port 3312 (stub 3999 tetap dinyalakan seperti di atas):
 # FASE A — kedua kunci terisi
 UTH_DATA_FILE=/tmp/uthruha-uji-kunci/db.json npx tsx scripts/seed-uji-kunci.ts
 UTH_MODE_UJI=1 UTH_DATA_FILE=/tmp/uthruha-uji-kunci/db.json \
+UTH_LOGIN_GOOGLE_AKTIF=1 \
 UTH_ACCESS_KEY=premium-uji-kunci-123456 UTH_KUNCI_GRATIS=gratis-uji-kunci-123456 \
 UTH_SESI_SECRET=sesi-uji-dua-kunci-abcdef \
 MIDTRANS_SERVER_KEY=kunci-uji-lokal MIDTRANS_CLIENT_KEY=klien-uji \
@@ -71,3 +72,13 @@ npx tsx scripts/test-dua-kunci.ts
 Catatan: UTH_SESI_SECRET wajib diisi pada rangkaian ini — persis seperti
 anjuran produksi — agar cookie identitas selamat dari rotasi kunci akses
 (rahasia sesi tidak lagi meminjam UTH_ACCESS_KEY).
+
+Catatan TAHAN LOGIN GOOGLE (28 Okt 2026): suite ini menguji mode login
+Google AKTIF, jadi server uji dinyalakan dengan UTH_LOGIN_GOOGLE_AKTIF=1
+(Fase A di atas; Fase B & C mengikuti env yang sama selain perubahan
+yang memang menjadi subjek fasenya). Produksi berjalan dengan flag
+MATI (bawaan) sampai pemilik menyalakannya. Perilaku flag mati cukup
+dicek titik (server tanpa env itu): POST /api/auth/google →
+403 FITUR_BELUM_AKTIF; GET /api/auth/status → loginGoogleAktif:false
+dan bisaMasukTanpaKunci:false; GET /masuk → 200 tanpa bagian Google;
+POST /api/masuk dengan kunci yang benar → 200 seperti biasa.

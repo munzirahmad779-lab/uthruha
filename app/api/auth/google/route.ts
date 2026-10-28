@@ -6,7 +6,7 @@ import {
   tierEfektif,
   verifikasiGoogle,
 } from "@/lib/server/identitas";
-import { cookieSecure } from "@/lib/security/akses";
+import { cookieSecure, loginGoogleAktif } from "@/lib/security/akses";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -31,6 +31,16 @@ const MAKS_GLOBAL = 200;
  * DAN keadaan kunci lewat /api/masuk.
  */
 export async function POST(req: Request) {
+  // TAHAN LOGIN GOOGLE (perintah pemilik, 28 Okt 2026): selama flag
+  // UTH_LOGIN_GOOGLE_AKTIF belum "1", pintu ini tertutup JUJUR untuk
+  // semua asal — fitur belum aktif, bukan token/asal yang salah.
+  if (!loginGoogleAktif()) {
+    return NextResponse.json(
+      { error: "Login Google belum aktif.", kode: "FITUR_BELUM_AKTIF" },
+      { status: 403 },
+    );
+  }
+
   if (!asalSah(req)) return NextResponse.json({ error: "Asal tidak dikenal." }, { status: 403 });
 
   const ip = ipKlien(req);
