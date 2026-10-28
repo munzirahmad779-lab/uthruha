@@ -36,6 +36,43 @@ function gerbangAktif(): boolean {
   return kunciAkses().length >= 16;
 }
 
+/**
+ * Kunci kedua: UTH_KUNCI_GRATIS (lapis gratis). Cookie yang diterbitkan
+ * lewat kunci gratis ditandatangani dengan kunci itu; validasi menerima
+ * tanda dari kunci aktif mana pun. Logika ini HARUS mencerminkan
+ * lib/security/akses.ts (jenisDariKunci & kunciValidasi di sana).
+ */
+function kunciGratis(): string {
+  return process.env.UTH_KUNCI_GRATIS?.trim() ?? "";
+}
+
+function gerbangGratisAktif(): boolean {
+  return kunciGratis().length >= 16;
+}
+
+/** Kunci aktif untuk validasi: premium selalu; gratis ditambahkan bila aktif. */
+function daftarKunci(): string[] {
+  const daftar = [kunciAkses()];
+  if (gerbangGratisAktif()) daftar.push(kunciGratis());
+  return daftar;
+}
+
+/**
+ * Seperti nilaiSah, tetapi mengembalikan KUNCI yang cocok (atau null) —
+ * dibutuhkan agar perpanjangan cookie perangkat ditandatangani ulang
+ * dengan kunci yang sama seperti yang memvalidasinya.
+ */
+async function kunciYangCocok(
+  nilai: string | undefined,
+  pesan: string,
+  maksUmurDetik: number,
+): Promise<string | null> {
+  for (const kunci of daftarKunci()) {
+    if (await nilaiSah(nilai, kunci, pesan, maksUmurDetik)) return kunci;
+  }
+  return null;
+}
+
 function cookieSecure(): boolean {
   const paksa = process.env.UTH_COOKIE_SECURE?.trim();
   if (paksa === "0") return false;
@@ -94,6 +131,15 @@ const JALUR_BEBAS = new Set([
   "/favicon.ico",
   "/robots.txt",
   "/sitemap.xml",
+  // Login Google kini terjadi DI halaman awal, SEBELUM kunci akses —
+  // endpoint penukar id_token dan pembaca status identitas harus bisa
+  // dicapai tanpa cookie gerbang. Keamanan keduanya BUKAN gerbang ini:
+  // /api/auth/google memverifikasi id_token ke Google di server +
+  // batas laju; /api/auth/status hanya membaca cookie identitas milik
+  // pemanggil sendiri. Identitas saja TIDAK membuka apa pun: semua API
+  // lain tetap memeriksa cookie gerbang (lapis kedua tolakTanpaSesi).
+  "/api/auth/google",
+  "/api/auth/status",
   // Fase 3 (keputusan pemilik E): uji coba tamu memang SEBELUM mendaftar.
   // Keamanannya bukan gerbang ini melainkan rem berlapis di handler-nya:
   // pembatas laju IP+global, tembolok per judul, blokir perangkat pada
@@ -118,17 +164,17 @@ export async function middleware(req: NextRequest) {
   if (!gerbangAktif()) return NextResponse.next();
   if (JALUR_BEBAS.has(pathname)) return NextResponse.next();
 
-  const kunci = kunciAkses();
   const sesi = req.cookies.get(COOKIE_AKSES)?.value;
   const perangkat = req.cookies.get(COOKIE_PERANGKAT)?.value;
 
-  const sesiSah = await nilaiSah(sesi, kunci, PESAN, UMUR_SESI_DETIK);
-  const perangkatSah = await nilaiSah(
+  const sesiSah =
+    (await kunciYangCocok(sesi, PESAN, UMUR_SESI_DETIK)) !== null;
+  const kunciPerangkat = await kunciYangCocok(
     perangkat,
-    kunci,
     PESAN_PERANGKAT,
     UMUR_PERANGKAT_DETIK,
   );
+  const perangkatSah = kunciPerangkat !== null;
   const masuk = sesiSah || perangkatSah;
 
   // Sudah pernah masuk lalu membuka /masuk → langsung antar ke tujuan.
@@ -164,11 +210,11 @@ export async function middleware(req: NextRequest) {
   // Nilai diterbitkan ULANG dengan cap waktu segar (N-03): token yang
   // beredar selalu berumur muda, token curian lama tetap kedaluwarsa
   // pada jadwalnya sendiri.
-  if (perangkatSah) {
+  if (perangkatSah && kunciPerangkat) {
     const ts = Math.floor(Date.now() / 1000);
     res.cookies.set({
       name: COOKIE_PERANGKAT,
-      value: `${ts}.${await tanda(kunci, `${PESAN_PERANGKAT}.${ts}`)}`,
+      value: `${ts}.${await tanda(kunciPerangkat, `${PESAN_PERANGKAT}.${ts}`)}`,
       httpOnly: true,
       sameSite: "lax",
       secure: cookieSecure(),

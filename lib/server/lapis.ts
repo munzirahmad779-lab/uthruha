@@ -195,9 +195,41 @@ export async function aktifkanPremium(u: Pengguna, hari = 30, orderId?: string):
     ...u,
     tier: "premium",
     premiumSampai: dasar.toISOString(),
+    premiumDiaktifkanPada: new Date().toISOString(),
     ...(orderId
-      ? { orderPremiumDiterapkan: [...(u.orderPremiumDiterapkan ?? []), orderId] }
+      ? {
+          premiumSumber: "midtrans",
+          orderPremiumDiterapkan: [...(u.orderPremiumDiterapkan ?? []), orderId],
+        }
       : {}),
+  };
+  await simpan("pengguna", baru as unknown as Record<string, unknown> & { id: string });
+  return baru;
+}
+
+/**
+ * Tempelkan premium 30 hari ke identitas lewat KUNCI PREMIUM bersama
+ * (keputusan pemilik, 28 Okt 2026 — sumber aktivasi "kunci-premium").
+ *
+ * Perilaku yang dipilih, konsisten dengan semangat idempotensi webhook
+ * (satu peristiwa pembayaran tidak pernah memanen perpanjangan berulang):
+ * kunci bersama BUKAN order baru. Jadi:
+ *  - Premium masih aktif → TIDAK berubah sama sekali (tidak menumpuk,
+ *    tidak memperpanjang). Mengulang kunci yang sama bukan perpanjangan.
+ *  - Premium belum aktif / sudah kedaluwarsa → aktif 30 hari dari sekarang.
+ * Premium menempel di catatan identitas (store), BUKAN pada nilai env —
+ * merotasi UTH_ACCESS_KEY tidak mencabutnya; pemilik memulihkan akses
+ * pembeli lewat mode identitas di /api/masuk.
+ */
+export async function aktifkanPremiumDariKunci(u: Pengguna): Promise<Pengguna> {
+  if (tierEfektif(u) === "premium") return u;
+  const sampai = new Date(Date.now() + 30 * 24 * 3_600_000);
+  const baru: Pengguna = {
+    ...u,
+    tier: "premium",
+    premiumSampai: sampai.toISOString(),
+    premiumSumber: "kunci-premium",
+    premiumDiaktifkanPada: new Date().toISOString(),
   };
   await simpan("pengguna", baru as unknown as Record<string, unknown> & { id: string });
   return baru;

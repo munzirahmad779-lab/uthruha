@@ -30,6 +30,18 @@ export interface Pengguna {
   /** Order pembayaran yang SUDAH diterapkan sebagai perpanjangan premium
    *  (idempotensi aktivasi per order — audit keamanan bayar 28 Okt 2026). */
   orderPremiumDiterapkan?: string[];
+  /** Sidik (HMAC) kunci gratis yang terakhir berhasil dimasukkan identitas
+   *  ini. Bukan kunci mentah. Dipakai mode identitas di /api/masuk:
+   *  selama sidik ini sama dengan sidik UTH_KUNCI_GRATIS yang aktif,
+   *  identitas boleh memulihkan sesi tanpa mengetik kunci lagi; pemilik
+   *  mengganti env itu → sidik tidak cocok → kunci baru wajib dimasukkan. */
+  sidikKunciGratis?: string;
+  /** Sumber aktivasi premium terakhir: "kunci-premium" bila ditempel
+   *  lewat kunci bersama premium (dibedakan dari aktivasi Midtrans yang
+   *  tercatat lewat orderPremiumDiterapkan + koleksi pembayaran). */
+  premiumSumber?: string;
+  /** Kapan aktivasi premium terakhir diterapkan (ISO). */
+  premiumDiaktifkanPada?: string;
 }
 
 let sudahPeringatkanRahasia = false;

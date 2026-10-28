@@ -10,7 +10,9 @@ import {
   daftarProyek,
   hapusProyek,
   duplikatProyek,
+  newProject,
   progresProyek,
+  simpanProyek,
   kataProyek,
   type Project,
 } from "@/lib/engine/project";
@@ -18,12 +20,66 @@ import { IconArrowRight, IconBook, IconCopy, IconPlus, IconTrash } from "@/compo
 import { Progress } from "@/components/ui";
 import { GDriveLogin } from "@/components/workspace/gdrive-login";
 
+/** Kunci localStorage serah-terima dari uji coba tamu (components/uji-coba). */
+const KUNCI_JUDUL_UJI = "uthruha.judulUjiCoba";
+
 export default function DaftarProyekPage() {
   const [proyek, setProyek] = useState<Project[] | null>(null);
   const [konfirmasi, setKonfirmasi] = useState<string | null>(null);
+  const [catatanUji, setCatatanUji] = useState<string | null>(null);
 
   useEffect(() => {
-    setProyek(daftarProyek());
+    let batal = false;
+    (async () => {
+      // Serah-terima judul uji coba: sesudah login dari halaman uji
+      // coba, judul yang dicoba tamu diteruskan menjadi draf proyek
+      // pertama — dibaca SATU kali lalu kuncinya dibuang.
+      try {
+        const mentah = localStorage.getItem(KUNCI_JUDUL_UJI);
+        if (mentah) {
+          localStorage.removeItem(KUNCI_JUDUL_UJI);
+          const judul = (JSON.parse(mentah) as { judul?: unknown }).judul;
+          if (typeof judul === "string" && judul.trim().length >= 10) {
+            const sudahAda = daftarProyek().some(
+              (p) => p.judulAr === judul.trim() || p.topikAr === judul.trim(),
+            );
+            if (!sudahAda) {
+              const p = newProject({ judulAr: judul.trim(), topikAr: judul.trim() });
+              simpanProyek(p);
+              // Daftarkan ke server seperti alur /mulai: 403 (batas
+              // proyek lapis) membatalkan draf lokal; 401/jaringan
+              // gagal membiarkan draf lokal (dicoba lagi oleh sistem
+              // saat footnote pertama, seperti proyek lama).
+              try {
+                const res = await fetch("/api/lapis/proyek", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: p.id, judul: judul.trim(), kategoriId: "umum" }),
+                });
+                if (res.status === 403) {
+                  const data = (await res.json().catch(() => null)) as { error?: string } | null;
+                  hapusProyek(p.id);
+                  if (!batal) {
+                    setCatatanUji(
+                      data?.error ??
+                        "Judul uji coba tidak diteruskan karena batas proyek lapis akun Anda.",
+                    );
+                  }
+                } else if (res.ok && !batal) {
+                  setCatatanUji(
+                    "Judul uji coba Anda sudah diteruskan menjadi draf proyek pertama di bawah ini.",
+                  );
+                }
+              } catch { /* jaringan gagal: draf lokal tetap ada */ }
+            }
+          }
+        }
+      } catch { /* abaikan — daftar proyek tetap dimuat */ }
+      if (!batal) setProyek(daftarProyek());
+    })();
+    return () => {
+      batal = true;
+    };
   }, []);
 
   function hapus(id: string) {
@@ -59,6 +115,12 @@ export default function DaftarProyekPage() {
       <div className="mt-6">
         <GDriveLogin />
       </div>
+
+      {catatanUji && (
+        <p className="mt-4 rounded-lg bg-gold-100/60 px-3 py-2 text-[13px] text-ink-800">
+          {catatanUji}
+        </p>
+      )}
 
       {proyek === null && (
         <div className="mt-10 grid gap-3">

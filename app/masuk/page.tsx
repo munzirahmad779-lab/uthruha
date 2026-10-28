@@ -18,14 +18,17 @@ export default function MasukPage() {
           </p>
           <h1 className="mt-3 text-xl font-bold text-ink-900">Ruang kerja terkunci</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-ink-700">
-            Masukkan kunci akses yang diberikan pemilik server. Kunci ini hanya dikirim
-            sekali; setelah itu peramban Anda menyimpan tanda sesinya, bukan kuncinya.
+            Dua langkah singkat: masuk dengan Google, lalu masukkan kunci akses yang
+            diberikan pemilik server. Kunci hanya dikirim sekali; setelah itu peramban
+            Anda menyimpan tanda sesinya, bukan kuncinya.
           </p>
           <MasukForm />
           <p className="mt-6 text-[11px] leading-relaxed text-ink-500">
             Lupa kunci? Kunci tidak bisa dipulihkan dari sini — hubungi pemilik server.
             Pemilik server dapat menggantinya dengan mengubah nilai{" "}
-            <code className="rounded bg-ink-900/5 px-1 py-0.5">UTH_ACCESS_KEY</code>.
+            <code className="rounded bg-ink-900/5 px-1 py-0.5">UTH_ACCESS_KEY</code>{" "}
+            atau{" "}
+            <code className="rounded bg-ink-900/5 px-1 py-0.5">UTH_KUNCI_GRATIS</code>.
           </p>
         </div>
       </div>

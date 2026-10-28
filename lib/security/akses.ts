@@ -51,6 +51,68 @@ export function gerbangAktif(): boolean {
 }
 
 /**
+ * KUNCI KEDUA (keputusan pemilik, 28 Okt 2026): sejak login Google pindah
+ * ke halaman awal, gerbang menerima DUA kunci bersama yang berbeda makna:
+ *
+ *  - `UTH_ACCESS_KEY`   = kunci PREMIUM. Nilainya tidak berubah; pemilik
+ *    tidak perlu menyentuhnya. Bila dimasukkan oleh identitas Google yang
+ *    sudah login, premium MENEMPEL ke identitas itu selama 30 hari
+ *    (lihat aktifkanPremiumDariKunci di lib/server/lapis.ts) — jadi
+ *    merotasi nilai env ini mencabut sesi & kunci lama, tetapi TIDAK
+ *    mencabut premium yang sudah menempel.
+ *  - `UTH_KUNCI_GRATIS` = kunci lapis GRATIS, dibuat pemilik khusus untuk
+ *    login gratis. Selama env ini kosong/<16 karakter, jalur kunci gratis
+ *    TERTUTUP: tidak ada kunci selain kunci premium yang diterima.
+ *
+ * Mahasiswa hanya melihat SATU kolom "Kunci akses"; server yang memilah
+ * jenisnya lewat jenisDariKunci(). Cookie sesi/perangkat ditandatangani
+ * dengan kunci yang dipakai saat masuk, dan validasi menerima tanda dari
+ * kunci aktif mana pun — konsekuensinya mengganti UTH_KUNCI_GRATIS
+ * mencabut semua sesi gratis (setara perilaku lama untuk satu kunci),
+ * dan mengganti UTH_ACCESS_KEY mencabut sesi yang berasal dari kunci
+ * premium (pemilik premium pulih lewat mode identitas di /api/masuk).
+ */
+export type JenisKunci = "premium" | "gratis";
+
+/** Kunci lapis gratis dari environment. Kosong = jalur gratis tertutup. */
+export function kunciGratis(): string {
+  return process.env.UTH_KUNCI_GRATIS?.trim() ?? "";
+}
+
+/** Apakah jalur kunci gratis aktif? (Syarat panjang sama seperti gerbang.) */
+export function gerbangGratisAktif(): boolean {
+  return kunciGratis().length >= 16;
+}
+
+/** Nilai kunci untuk satu jenis; string kosong bila jenis itu tidak aktif. */
+export function kunciUntukJenis(jenis: JenisKunci): string {
+  return jenis === "premium" ? kunciAkses() : kunciGratis();
+}
+
+/**
+ * Pilah jenis kunci yang diketik pengguna. Kedua perbandingan SELALU
+ * dijalankan (sidik HMAC + waktu konstan) agar waktu respons tidak
+ * membocorkan kunci mana yang ada/cocok. Bila pemilik tanpa sengaja
+ * mengisi kedua env dengan nilai yang sama, jenis premium didahulukan.
+ */
+export function jenisDariKunci(dikirim: string): JenisKunci | null {
+  if (!dikirim) return null;
+  const sidik = sidikKunci(dikirim);
+  const cocokPremium = gerbangAktif() && tandaSama(sidik, sidikKunci(kunciAkses()));
+  const cocokGratis =
+    gerbangGratisAktif() && tandaSama(sidik, sidikKunci(kunciGratis()));
+  if (cocokPremium) return "premium";
+  if (cocokGratis) return "gratis";
+  return null;
+}
+
+/** Sidik kunci gratis yang sedang aktif (untuk penanda identitas). */
+export function sidikKunciGratisAktif(): string | null {
+  if (!gerbangGratisAktif()) return null;
+  return sidikKunci(kunciGratis());
+}
+
+/**
  * Apakah cookie boleh ditandai Secure.
  * Default: ya, di produksi. Bisa dimatikan lewat UTH_COOKIE_SECURE=0 bila
  * aplikasi diuji lewat http biasa di jaringan lokal.
@@ -125,16 +187,25 @@ export function tandaSama(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
-/** Apakah nilai cookie sesi sah untuk kunci saat ini? */
-export function cookieSah(nilai: string | undefined): boolean {
-  if (!gerbangAktif()) return true;
-  return nilaiSah(nilai, kunciAkses(), PESAN, UMUR_SESI_DETIK);
+/** Daftar kunci aktif untuk validasi cookie: premium selalu, gratis bila aktif. */
+function kunciValidasi(): string[] {
+  const daftar = [kunciAkses()];
+  if (gerbangGratisAktif()) daftar.push(kunciGratis());
+  return daftar;
 }
 
-/** Apakah nilai cookie perangkat sah untuk kunci saat ini? */
+/** Apakah nilai cookie sesi sah untuk salah satu kunci aktif saat ini? */
+export function cookieSah(nilai: string | undefined): boolean {
+  if (!gerbangAktif()) return true;
+  return kunciValidasi().some((k) => nilaiSah(nilai, k, PESAN, UMUR_SESI_DETIK));
+}
+
+/** Apakah nilai cookie perangkat sah untuk salah satu kunci aktif saat ini? */
 export function perangkatSah(nilai: string | undefined): boolean {
   if (!gerbangAktif()) return false;
-  return nilaiSah(nilai, kunciAkses(), PESAN_PERANGKAT, UMUR_PERANGKAT_DETIK);
+  return kunciValidasi().some((k) =>
+    nilaiSah(nilai, k, PESAN_PERANGKAT, UMUR_PERANGKAT_DETIK),
+  );
 }
 
 /**

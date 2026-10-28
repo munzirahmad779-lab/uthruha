@@ -28,6 +28,9 @@ interface HasilUji {
 
 const KUNCI_PERANGKAT = "uthruha.perangkatId";
 const KUNCI_SUDAH = "uthruha.ujiCobaSudah";
+/** Judul uji coba yang menunggu diteruskan menjadi proyek pertama
+ *  sesudah login (dibaca sekali oleh halaman daftar proyek). */
+const KUNCI_JUDUL_UJI = "uthruha.judulUjiCoba";
 
 function perangkatId(): string {
   try {
@@ -121,6 +124,25 @@ export function UjiCobaTamu() {
 
   const tampilParagraf = paragrafKembang ?? hasil?.khalfiyah ?? [];
 
+  /**
+   * CTA login dari uji coba: judul yang sedang dicoba disimpan dulu,
+   * lalu pengguna diantar ke layar masuk (Google + kunci). Sesudah
+   * masuk, halaman daftar proyek meneruskan judul ini menjadi draf
+   * proyek pertama secara otomatis (satu kali).
+   */
+  function loginDariUjiCoba() {
+    try {
+      const j = judul.trim();
+      if (j.length >= 10) {
+        localStorage.setItem(
+          KUNCI_JUDUL_UJI,
+          JSON.stringify({ judul: j, sesiId: hasil?.sesiId ?? null, pada: new Date().toISOString() }),
+        );
+      }
+    } catch { /* penyimpanan tidak tersedia: tetap antar ke halaman masuk */ }
+    window.location.href = "/masuk?lanjut=/proyek";
+  }
+
   return (
     <section className="wrap pb-4 pt-2 sm:pb-8">
       <div className="mx-auto max-w-3xl rounded-3xl border border-gold-300/60 bg-white/70 p-6 shadow-sm sm:p-8">
@@ -162,11 +184,14 @@ export function UjiCobaTamu() {
           <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{galat}</p>
         )}
         {wajibLogin && (
-          <p className="mt-3 text-sm">
-            <a href="/proyek" className="font-semibold text-gold-700 underline underline-offset-2">
-              Masuk gratis untuk melanjutkan →
-            </a>
-          </p>
+          <div className="mt-3">
+            <button type="button" onClick={loginDariUjiCoba} className="btn-primary">
+              Login gratis dengan Google
+            </button>
+            <p className="mt-2 text-xs text-ink-500">
+              Judul yang Anda coba akan diteruskan menjadi proyek pertama Anda.
+            </p>
+          </div>
         )}
 
         {hasil && (
@@ -276,9 +301,12 @@ export function UjiCobaTamu() {
               <p className="text-sm font-semibold text-parchment-100">
                 Ingin lebih lanjut? Silakan login gratis.
               </p>
-              <a href="/proyek" className="btn-primary mt-3 inline-block">
-                Masuk gratis & mulai proyek
-              </a>
+              <button type="button" onClick={loginDariUjiCoba} className="btn-primary mt-3 inline-block">
+                Login gratis dengan Google
+              </button>
+              <p className="mt-2 text-xs text-parchment-100/70">
+                Judul yang Anda coba di atas akan diteruskan menjadi proyek pertama Anda.
+              </p>
             </div>
           </div>
         )}
