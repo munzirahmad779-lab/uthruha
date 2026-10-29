@@ -29,6 +29,12 @@ interface StatusIdentitas {
 export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState<StatusIdentitas | null>(null);
+  // Status identitas sudah selesai dibaca? Selama belum, bagian Google
+  // menampilkan penahan netral — BUKAN tombol. Tanpa ini, pengunjung yang
+  // sesinya masih ada melihat tombol Google lebih dulu (dan tombol itu
+  // sempat tergambar di samping identitas sesudah masuk) sebelum panel
+  // identitas menggantikannya: kedipan "flash" yang dilaporkan pemilik.
+  const [statusDimuat, setStatusDimuat] = useState(false);
   const [kunci, setKunci] = useState("");
   const [ingat, setIngat] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -41,6 +47,7 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
       const res = await fetch("/api/auth/status", { cache: "no-store" });
       setStatus((await res.json()) as StatusIdentitas);
     } catch { /* abaikan — formulir kunci tetap bisa dipakai */ }
+    finally { setStatusDimuat(true); }
   }, []);
 
   useEffect(() => {
@@ -61,7 +68,10 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
   // Saat login Google ditahan pemilik, efek ini tidak berjalan sama sekali.
   useEffect(() => {
     if (!googleAktif) return;
-    if (status?.pengguna || !wadahGoogle.current) return;
+    // Tombol hanya dipasang sesudah status identitas PASTI terbaca dan
+    // menyatakan belum ada pengguna — memasangnya lebih awal membuat
+    // tombol tampil sesaat lalu tertukar panel identitas (flash).
+    if (!statusDimuat || status?.pengguna || !wadahGoogle.current) return;
     let batal = false;
     void muatGIS()
       .then(() => {
@@ -115,7 +125,7 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
     return () => {
       batal = true;
     };
-  }, [status?.pengguna, segarkanStatus, googleAktif]);
+  }, [status?.pengguna, segarkanStatus, googleAktif, statusDimuat]);
 
   async function masukViaIdentitas() {
     if (loading) return;
@@ -175,7 +185,11 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
       <p className="text-[12px] font-semibold text-ink-800">
         Langkah 1 — Masuk dengan Google
       </p>
-      {pengguna ? (
+      {!statusDimuat ? (
+        <div className="mt-2 rounded-lg bg-parchment-50 p-3">
+          <p className="text-[12px] text-ink-500">Memeriksa sesi…</p>
+        </div>
+      ) : pengguna ? (
         <div className="mt-2 rounded-lg bg-parchment-50 p-3">
           <div className="flex items-center gap-3">
             {pengguna.foto && (
@@ -213,10 +227,10 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
           )}
         </div>
       ) : (
-        <div className="mt-2">
+        <div className="mt-2 rounded-lg bg-parchment-50 p-3">
           <div ref={wadahGoogle} className="min-h-[44px]" />
           {memuatGoogle && <p className="mt-1 text-xs text-ink-500">Memproses masuk…</p>}
-          <p className="mt-1 text-[11px] leading-relaxed text-ink-400">
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
             Masuk hanya membaca nama, foto, dan email Anda. Folder Drive Anda tidak
             diminta di sini — akses Drive hanya diminta saat Anda memakai fitur
             penyimpanan/ekspor yang membutuhkannya.
