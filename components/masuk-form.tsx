@@ -150,6 +150,23 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
     }
   }
 
+  async function gantiAkun() {
+    // Ganti akun: bersihkan HANYA cookie identitas di server, lalu muat
+    // ulang halaman agar langkah 1 kembali ke tombol Google dan akun lain
+    // bisa dipilih SEBELUM kunci dimasukkan (ikatan kunci mengikuti
+    // identitas yang sedang masuk).
+    if (loading) return;
+    setLoading(true);
+    try {
+      await fetch("/api/auth/keluar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "identitas" }),
+      });
+    } catch { /* abaikan — muat ulang tetap dicoba */ }
+    window.location.reload();
+  }
+
   async function kirimKunci(e: React.FormEvent) {
     e.preventDefault();
     if (!kunci.trim() || loading) return;
@@ -225,6 +242,17 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
               masukkan kunci akses di bawah ini.
             </p>
           )}
+          <p className="mt-3 border-t border-ink-900/10 pt-2.5 text-[12px] text-ink-500">
+            Bukan akun Anda?{" "}
+            <button
+              type="button"
+              onClick={gantiAkun}
+              disabled={loading}
+              className="font-semibold text-gold-700 underline underline-offset-2 disabled:opacity-50"
+            >
+              Ganti akun
+            </button>
+          </p>
         </div>
       ) : (
         <div className="mt-2 rounded-lg bg-parchment-50 p-3">

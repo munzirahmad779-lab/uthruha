@@ -148,6 +148,12 @@ const JALUR_BEBAS = new Set([
   // lain tetap memeriksa cookie gerbang (lapis kedua tolakTanpaSesi).
   "/api/auth/google",
   "/api/auth/status",
+  // Keluar/ganti akun juga harus tercapai SEBELUM gerbang (tombol
+  // "Ganti akun" di /masuk dipakai pengunjung yang belum punya sesi
+  // gerbang) dan dari dalam ruang kerja. Endpoint ini tidak memberi
+  // akses apa pun — ia hanya MEMBERSIHKAN cookie milik pemanggil
+  // sendiri, dan handler-nya memeriksa asal (asalSah) seperti POST lain.
+  "/api/auth/keluar",
   // Fase 3 (keputusan pemilik E): uji coba tamu memang SEBELUM mendaftar.
   // Keamanannya bukan gerbang ini melainkan rem berlapis di handler-nya:
   // pembatas laju IP+global, tembolok per judul, blokir perangkat pada

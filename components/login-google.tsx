@@ -22,6 +22,23 @@ export function LoginGoogle({ ringkas = false }: { ringkas?: boolean }) {
   const [memuat, setMemuat] = useState(false);
   const wadah = useRef<HTMLDivElement>(null);
 
+  async function keluar() {
+    // Keluar penuh: server membersihkan cookie identitas + sesi gerbang +
+    // perangkat tepercaya sekaligus, lalu kembali ke halaman masuk.
+    // Tanpa pembersihan cookie perangkat, perangkat akan masuk sendiri
+    // lagi dan keluar menjadi bohong (risiko komputer bersama).
+    if (memuat) return;
+    setMemuat(true);
+    try {
+      await fetch("/api/auth/keluar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "penuh" }),
+      });
+    } catch { /* abaikan — tetap arahkan ke halaman masuk */ }
+    window.location.assign("/masuk");
+  }
+
   async function segarkan() {
     try {
       const res = await fetch("/api/lapis/status", { cache: "no-store" });
@@ -114,6 +131,14 @@ export function LoginGoogle({ ringkas = false }: { ringkas?: boolean }) {
               : ""}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={keluar}
+          disabled={memuat}
+          className="shrink-0 text-xs font-semibold text-ink-500 underline underline-offset-2 transition-colors hover:text-ink-800 disabled:opacity-50"
+        >
+          Keluar
+        </button>
       </div>
     );
   }
