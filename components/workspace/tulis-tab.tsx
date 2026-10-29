@@ -8,7 +8,7 @@ import { IconArrowRight, IconCheck, IconDownload, IconPen, IconSearch, IconSpark
 import { CopyButton, Note } from "@/components/ui";
 import { Manuscript } from "@/components/manuscript";
 import { RefFinder } from "@/components/workspace/ref-finder";
-import { PasangFootnote } from "@/components/workspace/pasang-footnote";
+import { PasangFootnote, targetDariKursor } from "@/components/workspace/pasang-footnote";
 import { FootnoteBagian } from "@/components/workspace/footnote-bagian";
 import { BatasStrip } from "@/components/workspace/batas-strip";
 
@@ -34,7 +34,8 @@ export function TulisTab({
   const [teks, setTeks] = useState(p.draf[bagian] ?? "");
   const [pratinjau, setPratinjau] = useState(false);
   const [cariRujukan, setCariRujukan] = useState(false);
-  const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string } | null>(null);
+  const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string; paragrafIdx?: number; kalimatIdx?: number } | null>(null);
+  const [kursor, setKursor] = useState<number | null>(null);
   const [pesanPasang, setPesanPasang] = useState("");
   const sinkron = useRef(p.draf[bagian] ?? "");
 
@@ -265,6 +266,9 @@ export function TulisTab({
             <textarea
               value={teks}
               onChange={(e) => setTeks(e.target.value)}
+              onSelect={(e) => setKursor(e.currentTarget.selectionStart)}
+              onClick={(e) => setKursor(e.currentTarget.selectionStart)}
+              onKeyUp={(e) => setKursor(e.currentTarget.selectionStart)}
               dir="rtl"
               spellCheck={false}
               className="doc-scroll min-h-[26rem] w-full rounded-xl border border-ink-900/15 bg-white p-4 text-right font-naskh text-[15.5px] leading-[2.1] text-ink-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
@@ -298,6 +302,8 @@ export function TulisTab({
             sumber={pasangTarget.sumber}
             kutipan={pasangTarget.kutipan}
             babAwalId={bagian}
+            paragrafAwal={pasangTarget.paragrafIdx}
+            kalimatAwal={pasangTarget.kalimatIdx}
             onTutup={() => setPasangTarget(null)}
             onTerpasang={(m, drafMapBaru) => {
               setPesanPasang(m);
@@ -319,6 +325,14 @@ export function TulisTab({
           bagian={bagian}
           onCariRujukan={() => setCariRujukan(true)}
           onPasang={(sumber) => setPasangTarget({ sumber })}
+          onPasangKursor={(sumber) => {
+            // Samakan dulu draf proyek dengan isi editor, lalu hitung paragraf
+            // & kalimat dari posisi kursor terakhir yang tercatat.
+            sinkron.current = teks;
+            ubah({ draf: { ...p.draf, [bagian]: teks } });
+            const t = kursor != null ? targetDariKursor(teks, kursor) : null;
+            setPasangTarget({ sumber, paragrafIdx: t?.paragrafIdx, kalimatIdx: t?.kalimatIdx });
+          }}
         />
 
         <div className="mt-3">

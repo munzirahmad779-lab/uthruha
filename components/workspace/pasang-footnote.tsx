@@ -15,13 +15,58 @@ import { footnoteGaya, footnotePedoman, gayaSah } from "@/lib/engine/citation";
  * kampus bila ada) lengkap dengan nomor yang akan didapatnya di naskah.
  */
 
-function pecahKalimatLokal(paragraf: string): string[] {
+export function pecahKalimatLokal(paragraf: string): string[] {
   // Koma Arab (،) ikut menjadi titik pecah sekunder: paragraf panjang yang
   // hanya dipisahkan koma tetap punya pilihan posisi selain akhir paragraf.
   return paragraf
     .split(/(?<=[.؟!؛،])\s+/u)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** Koordinat dialog (paragraf & kalimat, 0-based) dari posisi kursor di teks
+ *  draf satu bagian. Memakai pemecahan blok & kalimat yang persis sama dengan
+ *  dialog agar hasilnya selalu cocok dengan yang dialog tawarkan. Null bila
+ *  kursor tidak berada di paragraf isi (mis. di judul atau teks kosong). */
+export function targetDariKursor(
+  teks: string,
+  kursor: number,
+): { paragrafIdx: number; kalimatIdx: number } | null {
+  const sep = /\n\s*\n/g;
+  const segmen: { isi: string; mulai: number }[] = [];
+  let terakhir = 0;
+  for (const m of teks.matchAll(sep)) {
+    segmen.push({ isi: teks.slice(terakhir, m.index), mulai: terakhir });
+    terakhir = (m.index ?? 0) + m[0].length;
+  }
+  segmen.push({ isi: teks.slice(terakhir), mulai: terakhir });
+  let idx = -1;
+  for (const seg of segmen) {
+    const rapih = seg.isi.trim();
+    if (!rapih || rapih.startsWith("#")) {
+      if (kursor >= seg.mulai && kursor <= seg.mulai + seg.isi.length && rapih) return null;
+      continue;
+    }
+    idx += 1;
+    const akhir = seg.mulai + seg.isi.length;
+    if (kursor < seg.mulai) {
+      // kursor di sela sebelum paragraf ini: tempel di awal paragraf ini
+      return { paragrafIdx: idx, kalimatIdx: 0 };
+    }
+    if (kursor <= akhir) {
+      const awalSpasi = seg.isi.length - seg.isi.trimStart().length;
+      const lokal = Math.min(Math.max(kursor - seg.mulai - awalSpasi, 0), rapih.length);
+      const kalimat = pecahKalimatLokal(rapih);
+      let akum = 0;
+      for (let j = 0; j < kalimat.length; j++) {
+        const ujung = akum + (kalimat[j]?.length ?? 0);
+        if (lokal <= ujung || j === kalimat.length - 1) return { paragrafIdx: idx, kalimatIdx: j };
+        akum = ujung + 1;
+      }
+      return { paragrafIdx: idx, kalimatIdx: 0 };
+    }
+  }
+  return null;
 }
 
 function sisipSetelahKalimat(paragraf: string, idx: number, sisipan: string): string {
@@ -38,6 +83,8 @@ export function PasangFootnote({
   sumber,
   kutipan,
   babAwalId,
+  paragrafAwal,
+  kalimatAwal,
   onTutup,
   onTerpasang,
 }: {
@@ -46,6 +93,9 @@ export function PasangFootnote({
   sumber: Sumber;
   kutipan?: string;
   babAwalId?: string;
+  /** Pra-pilih dari posisi kursor (fitur Premium): paragraf & kalimat tujuan. */
+  paragrafAwal?: number;
+  kalimatAwal?: number;
   onTutup: () => void;
   onTerpasang: (pesan: string, drafBaru?: Record<string, string>) => void;
 }) {
@@ -60,8 +110,8 @@ export function PasangFootnote({
   const bagianAwal =
     semuaBagian.find((b) => b.id === babAwalId) ?? semuaBagian[0];
   const [sectionId, setSectionId] = useState(bagianAwal?.id ?? "");
-  const [paragrafIdx, setParagrafIdx] = useState(0);
-  const [kalimatIdx, setKalimatIdx] = useState(0);
+  const [paragrafIdx, setParagrafIdx] = useState(paragrafAwal ?? 0);
+  const [kalimatIdx, setKalimatIdx] = useState(kalimatAwal ?? 0);
   const [halaman, setHalaman] = useState(sumber.halaman ?? "");
   const [jilid, setJilid] = useState(sumber.jilid ?? "");
 
