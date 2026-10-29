@@ -108,8 +108,8 @@ async function panggilGemini(kunci: string, model: string, sistem: string, pengg
 
 function penyediaSemua(): PenyediaKolam[] {
   const daftar: PenyediaKolam[] = [];
-  // Penyedia UJI — hanya aktif pada mode uji eksplisit (UTH_MODE_UJI=1),
-  // menunjuk stub lokal OpenAI-compatible milik rangkaian pengujian.
+  // Penyedia UJI — hanya aktif pada mode uji, menunjuk stub lokal
+  // OpenAI-compatible milik rangkaian pengujian (KOLAM_UJI_BASE terisi).
   if (process.env.UTH_MODE_UJI === "1" && process.env.KOLAM_UJI_BASE?.trim()) {
     daftar.push({
       id: "uji",

@@ -155,12 +155,20 @@ export async function penggunaDariCookie(cookieHeader: string | null): Promise<P
  * → cookie sesi. Mengembalikan null untuk tamu.
  */
 export async function penggunaDariRequest(req: Request): Promise<Pengguna | null> {
-  if (process.env.UTH_MODE_UJI === "1") {
+  const { modeUjiAktif } = await import("./mode-uji");
+  if (modeUjiAktif()) {
     const uji = req.headers.get("x-uji-user")?.trim();
-    if (uji === "UJI-GRATIS" || uji === "UJI-PREMIUM") {
-      const semuaPengguna = await import("./store").then((m) => m.semua("pengguna"));
-      const f = semuaPengguna.find((p) => p.namaUji === uji);
-      if (f) return f as unknown as Pengguna;
+    if (uji) {
+      // Persona audit (cabang uji-persona): dibuat otomatis saat pertama
+      // diminta, tanpa seed manual.
+      const { personaDariNamaUji, pastikanPersonaUji } = await import("./fixture-persona");
+      const persona = personaDariNamaUji(uji);
+      if (persona) return pastikanPersonaUji(persona);
+      if (uji === "UJI-GRATIS" || uji === "UJI-PREMIUM") {
+        const semuaPengguna = await import("./store").then((m) => m.semua("pengguna"));
+        const f = semuaPengguna.find((p) => p.namaUji === uji);
+        if (f) return f as unknown as Pengguna;
+      }
     }
   }
   return penggunaDariCookie(req.headers.get("cookie"));

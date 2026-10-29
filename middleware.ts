@@ -159,6 +159,10 @@ const JALUR_BEBAS = new Set([
   // pembatas laju IP+global, tembolok per judul, blokir perangkat pada
   // percobaan kedua. Jangan tambah rute berbayar/LLM lain ke daftar ini.
   "/api/uji-coba",
+  // Masuk persona uji (cabang uji-persona): handler-nya sendiri membalas
+  // 404 di luar mode uji, jadi jalur ini aman walau kode ini terbawa.
+  "/api/uji/status",
+  "/api/uji/masuk",
   "/api/uji-coba/kembangkan",
   // Webhook Midtrans adalah panggilan server-ke-server tanpa cookie;
   // keamanannya signature_key SHA512 yang diverifikasi di handler.

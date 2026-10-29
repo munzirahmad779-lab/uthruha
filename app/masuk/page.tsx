@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { MasukForm } from "@/components/masuk-form";
+import { UjiMasukPanel } from "@/components/uji-masuk";
 import { loginGoogleAktif } from "@/lib/security/akses";
 import { EMAIL_KONTAK } from "@/lib/legal";
 
@@ -54,6 +55,7 @@ export default function MasukPage() {
             terkunci permanen sesudah footnote pertama terpasang.
           </p>
         </div>
+        <UjiMasukPanel />
       </div>
     </div>
   );

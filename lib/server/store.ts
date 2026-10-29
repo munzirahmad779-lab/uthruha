@@ -15,6 +15,7 @@
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { modeUjiAktif } from "./mode-uji";
 
 export type Koleksi =
   | "pengguna"
@@ -36,6 +37,10 @@ let cache: DB | null = null;
 let jalurBerkas = "";
 
 function supabaseSiap(): boolean {
+  // Mode uji (cabang uji-persona): paksa backend berkas lokal agar
+  // lingkungan staging TIDAK pernah membaca/menulis basis data produksi,
+  // walau env Supabase ikut terbawa ke deployment preview.
+  if (modeUjiAktif()) return false;
   return Boolean(process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
 }
 
