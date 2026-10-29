@@ -175,8 +175,8 @@ export function TulisTab({
                   <p className="text-[12px] leading-relaxed text-ink-700">
                     <span className="font-semibold text-ink-900">Khalfiyah: {jumlahParagraf}/3 paragraf.</span>{" "}
                     {jumlahParagraf > 3
-                      ? "Melebihi batas 3 paragraf — gabung/padatkan sebelum mengembangkan."
-                      : "Panel khalfiyah menampung maksimal 3 paragraf; pengembangan lanjutan dilakukan di panel Kembangkan."}
+                      ? "Melebihi 3 paragraf — latar belakang di panel ini maksimal 3 paragraf; gabung atau padatkan dulu."
+                      : "Isi latar belakang: (1) pengantar & konteks topik, (2) masalah/fenomena yang Anda amati, (3) kesenjangan dari penelitian terdahulu & urgensi penelitian Anda. Tulis atau tempel per paragraf, pisahkan dengan satu baris kosong. Footnote dipasang sesudahnya per kalimat lewat strip Footnote bagian ini di bawah editor."}
                   </p>
                   <button
                     type="button"

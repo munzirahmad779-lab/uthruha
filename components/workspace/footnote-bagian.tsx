@@ -111,9 +111,12 @@ export function FootnoteBagian({
 
       {daftar.length === 0 ? (
         <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">
-          Belum ada sitasi di bagian ini. Pasang dari referensi di atas atau cari rujukan — footnote
-          hasil jadinya langsung tampil di sini, sudah terformat pedoman dan bernomor. Tidak ada kode
-          penanda yang perlu Anda sisipkan atau jaga manual.
+          Belum ada sitasi di bagian ini. Caranya: (1) tulis atau tempel teks bagian ini dulu,
+          boleh seluruhnya sekaligus; (2) pilih sumber di atas lalu klik <em>Pasang footnote</em>;
+          (3) di dialog yang terbuka, tentukan paragraf dan kalimat tempat catatan ini menempel,
+          isi halamannya, lalu pasang. Footnote jadinya langsung tampil di sini, terformat pedoman
+          dan bernomor. Belum punya sumbernya? Klik <em>Cari rujukan (AI)</em>, atau tambah manual
+          di tab Rujukan.
         </p>
       ) : (
         <ol className="mt-2 space-y-1.5">

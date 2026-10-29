@@ -346,6 +346,9 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
           Alurnya: <b>judul → kata kunci → 3 kalimat kunci kurasi Anda → pencarian</b>. Yang menjalankan
           pencarian adalah kalimat kunci yang sudah Anda periksa — bukan ekstrak otomatis. Hasil masuk
           sebagai draf berlabel sumber; tidak ada yang ditambahkan tanpa Anda menekan tombolnya.
+          Panel ini mencari dari <b>topik untuk satu bab</b> (bahan bacaan dan rujukan bab). Bila Anda
+          sudah menulis paragraf dan ingin rujukan untuk kalimat tertentu, pakai tombol{" "}
+          <b>Cari Rujukan</b> di tab Tulis — panel itu bekerja per paragraf.
         </p>
       </div>
 

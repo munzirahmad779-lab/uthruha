@@ -23,6 +23,13 @@ export default function KhalfiyahPage() {
             kunci, agregasi jurnal ilmiah per klaster, penelusuran maraji' turats, hingga narasi
             khalfiyah lengkap dengan research gap.
           </p>
+          <p className="mt-4 rounded-xl border border-gold-600/30 bg-gold-500/5 px-4 py-3 text-left text-[13px] leading-relaxed text-ink-700">
+            <strong className="text-ink-900">Alat ini berdiri sendiri, dari judul saja.</strong>{" "}
+            Hasilnya Anda salin ke proyek (tab Tulis, bagian Latar Belakang). Di dalam proyek,
+            latar belakang juga bisa disusun dengan tombol <em>Susun draf</em>, dan referensi untuk
+            kalimat tertentu dicari lewat tombol <em>Cari Rujukan</em> di tab Tulis atau sub-tab{" "}
+            <em>Cari online &amp; lokal</em> di tab Rujukan.
+          </p>
         </header>
 
         <KhalfiyahComposer />
@@ -31,7 +38,7 @@ export default function KhalfiyahPage() {
           <h2 className="text-lg font-bold text-ink-900">Cara Kerja Fitur Ini</h2>
           <div className="mt-4 space-y-3 text-[13.5px] text-ink-700">
             <div className="flex gap-3">
-              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-gold-100 text-gold-600 font-bold text-xs">
                 1
               </span>
               <div>
@@ -40,7 +47,7 @@ export default function KhalfiyahPage() {
               </div>
             </div>
             <div className="flex gap-3">
-              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-gold-100 text-gold-600 font-bold text-xs">
                 2
               </span>
               <div>
@@ -50,7 +57,7 @@ export default function KhalfiyahPage() {
               </div>
             </div>
             <div className="flex gap-3">
-              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-gold-100 text-gold-600 font-bold text-xs">
                 3
               </span>
               <div>
@@ -59,7 +66,7 @@ export default function KhalfiyahPage() {
               </div>
             </div>
             <div className="flex gap-3">
-              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-gold-100 text-gold-600 font-bold text-xs">
                 4
               </span>
               <div>
@@ -69,7 +76,7 @@ export default function KhalfiyahPage() {
               </div>
             </div>
             <div className="flex gap-3">
-              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-gold-100 text-gold-600 font-bold text-xs">
                 5
               </span>
               <div>
@@ -80,19 +87,19 @@ export default function KhalfiyahPage() {
             </div>
           </div>
 
-          <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-            <p className="text-sm text-yellow-800">
+          <div className="mt-6 p-4 bg-amber-50 border-l-4 border-amber-400 rounded">
+            <p className="text-sm text-amber-800">
               <strong>Catatan:</strong> Proses ini memakan waktu 30-60 detik karena mencari data
               dari beberapa API eksternal (Crossref, OpenAlex, Turath, Shamela). Hasil bersifat
               deterministik: judul yang sama akan menghasilkan output yang sama.
             </p>
           </div>
 
-          <div className="mt-4 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
-            <p className="text-sm text-blue-800">
+          <div className="mt-4 p-4 bg-gold-500/5 border-l-4 border-gold-500 rounded">
+            <p className="text-sm text-ink-800">
               <strong>Tentang Abstrak Jurnal:</strong> Tidak semua artikel di Crossref/OpenAlex
               menyertakan abstrak dalam metadata API mereka (coverage ~40-60%). Artikel tanpa
-              abstrak akan ditandai dengan label <span className="font-mono bg-yellow-100 px-1">⚠ NO ABSTRACT</span>
+              abstrak akan ditandai dengan label <span className="font-mono bg-amber-100 px-1">⚠ NO ABSTRACT</span>
               {" "}dan Anda perlu membuka DOI untuk membaca artikel asli guna mengekstrak masalah
               penelitiannya secara manual.
             </p>

@@ -143,8 +143,44 @@ Aturan keras:
 - Jangan menulis ulang seluruh isi pedoman — hanya struktur dan aturannya.`;
 
 /** Proyeksi struktur tervalidasi → daftar isi proyek. */
+/**
+ * Peta peran sub-bab pedoman -> id bagian baku Kitabah. Bagian baku membawa
+ * panduan menulis, pertanyaan pemicu, dan target kata yang kaya (mis.
+ * "khalfiya" untuk latar belakang); tanpa pemetaan ini proyek pedoman
+ * hanya menerima panduan generik dan panel khusus (strip khalfiyah,
+ * Kembangkan) tidak pernah tampil — temuan lapangan 29 Okt 2026 dari
+ * mahasiswa yang memakai template. Pencocokan dari nama Indonesia/Arab;
+ * sub-bab yang tidak dikenal mempertahankan id posisinya.
+ */
+const PERAN_SUBBAB: { pola: RegExp; id: string }[] = [
+  { pola: /latar belakang|khalfiy|خلفية/i, id: "khalfiya" },
+  { pola: /rumusan|مشكلات|أسئلة البحث/i, id: "masalah" },
+  { pola: /tujuan|أهداف/i, id: "ahdaf" },
+  { pola: /manfaat|kegunaan|urgensi|أهمية|فوائد/i, id: "fawaid" },
+  { pola: /batasan|حدود البحث/i, id: "hudud" },
+  { pola: /definisi|تعريف|مصطلحات/i, id: "mustalahat" },
+  { pola: /penelitian terdahulu|kajian terdahulu|دراسات سابقة|الدراسات السابقة/i, id: "dirasat" },
+  { pola: /kerangka berpikir|kerangka pemikiran|إطار فكري/i, id: "itharFikri" },
+  { pola: /kerangka teori|إطار نظري/i, id: "ithar" },
+  { pola: /hipotesis|فرضي/i, id: "farudhiyat" },
+  { pola: /kesimpulan|خلاصة|استنتاج/i, id: "khulasah" },
+  { pola: /saran|توصيات|مقترحات/i, id: "iqtirahat" },
+];
+
+function idSubBabPedoman(nama: string, namaAr: string, fallback: string, terpakai: Set<string>): string {
+  const teks = `${nama} ${namaAr}`;
+  for (const { pola, id } of PERAN_SUBBAB) {
+    if (pola.test(teks) && !terpakai.has(id)) {
+      terpakai.add(id);
+      return id;
+    }
+  }
+  return fallback;
+}
+
 export function strukturKeDaftarIsi(s: StrukturPedoman): BabKustom[] {
   const BAB_AR = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر", "الحادي عشر", "الثاني عشر"];
+  const terpakai = new Set<string>();
   return [...s.bab]
     .sort((a, b) => a.nomor - b.nomor)
     .map((b, i) => ({
@@ -153,7 +189,7 @@ export function strukturKeDaftarIsi(s: StrukturPedoman): BabKustom[] {
       labelAr: b.namaAr || "",
       babAr: BAB_AR[i] ?? String(b.nomor),
       sections: b.subBab.map((sub, j) => ({
-        id: `bab-pedoman-${b.nomor}-sub-${j + 1}`,
+        id: idSubBabPedoman(sub.nama, sub.namaAr || "", `bab-pedoman-${b.nomor}-sub-${j + 1}`, terpakai),
         labelId: sub.nama,
         labelAr: sub.namaAr || "",
       })) as SubBabKustom[],

@@ -195,6 +195,14 @@ export function RefFinder({
         </header>
 
         <div className="space-y-3 p-4">
+          <div className="rounded-xl border border-gold-600/30 bg-gold-500/5 px-3 py-2.5 text-[12px] leading-relaxed text-ink-700">
+            <strong className="text-ink-900">Cara pakai panel ini:</strong> (1) tempel{" "}
+            <strong>satu paragraf</strong> yang sedang Anda tulis; (2) pilih cara mencari dan
+            sumbernya; (3) klik <em>Cari Rujukan</em>; (4) pada hasil, klik <em>Pasang footnote</em>{" "}
+            untuk menempelkannya ke kalimat paragraf itu, atau <em>Sisip</em> untuk memasukkan
+            kutipannya ke naskah. Bagian yang panjang dikerjakan paragraf demi paragraf di sini,
+            bukan ditempel seluruhnya.
+          </div>
           <div>
             <label className="label">Paragraf Arab (satu paragraf)</label>
             <textarea
