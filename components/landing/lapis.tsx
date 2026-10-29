@@ -41,7 +41,6 @@ export function LapisSection() {
           </p>
           <ul className="mt-4 space-y-2 text-sm leading-relaxed text-ink-700">
             <li>✓ Proyek dan footnote tanpa batas</li>
-            <li>✓ Google Doc per proyek di Drive Anda sendiri</li>
             <li>✓ Chat agen AI di dalam web</li>
             <li>✓ Proyek gratis lama Anda ikut terbuka fitur premiumnya</li>
             <li>✓ Jaminan admin: laporan kendala distandarkan beres ≤ 6 jam; kegagalan sistem yang terbukti berarti dana kembali penuh secara manual</li>

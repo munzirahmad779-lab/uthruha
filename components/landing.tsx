@@ -60,8 +60,7 @@ export function Hero() {
           <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-700 sm:text-base">
             Alurnya mengikuti cara penelitian disusun: dari judul menjadi kalimat kunci,
             lalu khalfiyah al-bahts; pencarian rujukan kitab dan jurnal yang terverifikasi
-            DOI/ISBN; footnote mengikuti pedoman kampus; dan ekspor ke Word — pengguna
-            Premium juga dapat membuat Google Doc per proyek.
+            DOI/ISBN; footnote mengikuti pedoman kampus; dan ekspor ke Word (.docx).
           </p>
 
           <p className="mt-5 font-display text-lg italic text-gold-700">

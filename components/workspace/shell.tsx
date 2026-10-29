@@ -23,12 +23,8 @@ import { IstilahTab } from "@/components/workspace/istilah-tab";
 import { RefTab } from "@/components/workspace/refs-tab";
 import { AuditTab } from "@/components/workspace/audit-tab";
 import { ExportTab } from "@/components/workspace/export-tab";
-import { GDriveLogin } from "@/components/workspace/gdrive-login";
 import { LoginGoogle } from "@/components/login-google";
-import { DocPremiumButton } from "@/components/doc-premium";
 import { PenyimpananStrip } from "@/components/workspace/penyimpanan-strip";
-import { migrasiProyek } from "@/lib/engine/project";
-import { projectKeTersimpan, simpanProyekKeDrive, mintaTokenDrive, simpanTokenDrive, type ProyekTersimpan } from "@/lib/engine/gdrive-storage";
 
 const TAB = [
   { id: "ringkas", label: "Ringkasan", ar: "نظرة" },
@@ -44,8 +40,6 @@ export function Workspace({ id }: { id: string }) {
   const [proyek, setProyek] = useState<Project | null>(null);
   const [hilang, setHilang] = useState(false);
   const [galatSimpan, setGalatSimpan] = useState("");
-  const [driveToken, setDriveToken] = useState<string | null>(null);
-  const [pesanDrive, setPesanDrive] = useState("");
   const [tab, setTab] = useState("ringkas");
   const [bagian, setBagian] = useState<string>("khalfiya");
   const [tersimpan, setTersimpan] = useState(true);
@@ -104,52 +98,6 @@ export function Workspace({ id }: { id: string }) {
     },
     [],
   );
-
-  /** Muat proyek dari Drive: bentuk Drive lama → gerbang migrasi → simpan lokal → tampilkan. */
-  function muatDariDrive(pt: ProyekTersimpan) {
-    try {
-      const p = migrasiProyek(pt);
-      simpanProyek(p);
-      setProyek(p);
-      const pertama = strukturProyek(p).chapters[0]?.sections[0]?.id;
-      if (pertama) setBagian(pertama);
-      setPesanDrive(`Proyek dari Drive dimuat: ${p.judulAr || p.topikAr || p.id}`);
-    } catch (e) {
-      setPesanDrive(e instanceof Error ? e.message : "Gagal memuat proyek dari Drive.");
-    }
-  }
-
-  /** Sinkronkan proyek aktif ke Drive (folder /Utruha, file {id}.json). */
-  async function sinkronKeDrive() {
-    if (!driveToken || !proyek) return;
-    setPesanDrive("Menyinkronkan ke Google Drive…");
-    try {
-      await simpanProyekKeDrive(driveToken, projectKeTersimpan(proyek));
-      setPesanDrive("Tersinkron ke Google Drive (folder Utruha).");
-    } catch (e) {
-      const pesan = e instanceof Error ? e.message : "";
-      if (!/\b401\b/.test(pesan)) {
-        setPesanDrive(`Gagal sinkron: ${pesan || "kesalahan tidak dikenal"}`);
-        return;
-      }
-      // Token kedaluwarsa di tengah sesi: segarkan sekali secara diam-diam, lalu ulangi.
-      try {
-        setPesanDrive("Sesi Google berakhir — menyegarkan sesi lalu mencoba lagi…");
-        const segar = await mintaTokenDrive();
-        setDriveToken(segar);
-        simpanTokenDrive(segar);
-        await simpanProyekKeDrive(segar, projectKeTersimpan(proyek));
-        setPesanDrive("Tersinkron ke Google Drive (folder Utruha).");
-      } catch (e2) {
-        const pesan2 = e2 instanceof Error ? e2.message : "";
-        setPesanDrive(
-          /\b401\b/.test(pesan2)
-            ? "Sesi Google sudah berakhir (token berlaku ±1 jam). Masuk lagi lewat panel Google Drive di atas, lalu sinkronkan ulang."
-            : `Gagal sinkron: ${pesan2 || "kesalahan tidak dikenal"}`,
-        );
-      }
-    }
-  }
 
   const stat = useMemo(() => {
     if (!proyek) return null;
@@ -266,9 +214,8 @@ export function Workspace({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* Akun Uthruha — login Google IDENTITAS SAJA (Fase 3, keputusan A).
-            Ini terpisah dari koneksi Drive di bawahnya: masuk tidak meminta
-            akses Drive sama sekali. */}
+        {/* Akun Kitabah — login Google IDENTITAS SAJA (Fase 3, keputusan A):
+            masuk tidak meminta akses Drive sama sekali. */}
         <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-ink-900/10 pt-4">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Akun Kitabah</p>
@@ -277,26 +224,13 @@ export function Workspace({ id }: { id: string }) {
             </div>
           </div>
           <div className="flex flex-col items-start gap-1.5">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Dokumen</p>
-            <DocPremiumButton p={proyek} />
+            <p className="text-[11px] font-bold uppercase tracking-wide text-ink-500">Lapis</p>
             <Link href="/premium" className="text-[11px] font-semibold text-gold-700 underline underline-offset-2">
               Tentang Premium
             </Link>
           </div>
         </div>
 
-        {/* Google Drive Sync — koneksi BERTAHAP untuk penyimpanan (bukan login) */}
-        <div className="mt-4 pt-4 border-t border-ink-900/10">
-          <GDriveLogin onLogin={setDriveToken} onProyekDimuat={muatDariDrive} />
-          {driveToken && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={sinkronKeDrive} className="btn-quiet !py-1.5">
-                Sinkronkan proyek ini ke Drive
-              </button>
-              {pesanDrive && <span className="text-[11px] text-ink-600">{pesanDrive}</span>}
-            </div>
-          )}
-        </div>
       </header>
 
       <PenyimpananStrip />

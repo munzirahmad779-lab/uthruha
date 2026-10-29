@@ -44,7 +44,7 @@ const FAQ = [
   },
   {
     q: "Apakah aplikasi ini gratis?",
-    a: "Ada lapis gratis dan lapis Premium. Gratis memakai kunci akses gratis (diminta lewat email, lihat halaman /masuk; masuknya dengan Google lalu kunci itu): satu proyek, pencarian rujukan tanpa batas, dan maksimal tiga footnote dalam satu paragraf. Premium (Rp10.000/bulan, harga promo pembuka) membuka proyek dan footnote tanpa batas, Google Doc per proyek, dan chat agen AI. Uji coba tamu di halaman ini tidak memerlukan akun sama sekali. Aturan lengkapnya ada di Ketentuan Layanan (/ketentuan).",
+    a: "Ada lapis gratis dan lapis Premium. Gratis memakai kunci akses gratis (diminta lewat email, lihat halaman /masuk; masuknya dengan Google lalu kunci itu): satu proyek, pencarian rujukan tanpa batas, dan maksimal tiga footnote dalam satu paragraf. Premium (Rp10.000/bulan, harga promo pembuka) membuka proyek dan footnote tanpa batas dan chat agen AI. Uji coba tamu di halaman ini tidak memerlukan akun sama sekali. Aturan lengkapnya ada di Ketentuan Layanan (/ketentuan).",
   },
   {
     q: "Apakah tersedia pilihan bahasa selain Arab?",

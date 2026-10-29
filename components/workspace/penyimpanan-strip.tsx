@@ -6,7 +6,7 @@ import { ukurPenyimpanan } from "@/lib/engine/project";
 /**
  * Strip kuota penyimpanan peramban (C.7). Ambang: peringatan 70%, kritis 85%.
  * Pada 95% simpan akan ditolak dengan pesan (SimpanPenuhError) — strip ini
- * memberi tahu SEBELUM itu terjadi dan mengarahkan ke ekspor/GDrive.
+ * memberi tahu SEBELUM itu terjadi dan mengarahkan ke ekspor cadangan.
  */
 export function PenyimpananStrip() {
   const [info, setInfo] = useState<{ terpakai: number; persen: number } | null>(null);
@@ -39,8 +39,8 @@ export function PenyimpananStrip() {
     >
       <span>
         Penyimpanan peramban: <b>{info.persen}%</b> (±{mb} MB dari perkiraan 5 MB)
-        {level === "waspada" && " — mulai rapikan: ekspor proyek lama atau sinkronkan ke Google Drive."}
-        {level === "kritis" && " — hampir penuh! Ekspor/GDrive sekarang; penyimpanan bisa ditolak peramban pada 95%."}
+        {level === "waspada" && " — mulai rapikan: ekspor cadangan proyek lama atau hapus yang tidak dipakai."}
+        {level === "kritis" && " — hampir penuh! Ekspor cadangan sekarang; penyimpanan bisa ditolak peramban pada 95%."}
       </span>
       <button type="button" className="btn-quiet !py-0.5" onClick={ukur}>
         Ukur ulang

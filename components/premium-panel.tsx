@@ -140,7 +140,6 @@ export function PremiumPanel() {
           <li>✓ Footnote tanpa batas dalam satu paragraf (gratis: maks 3)</li>
           <li>✓ Ganti ruang lingkup lewat proyek baru tanpa kehilangan proyek lama</li>
           <li>✓ Chat agen AI instan di dalam web</li>
-          <li>✓ Google Doc per proyek di Drive Anda sendiri</li>
           <li>✓ Proyek gratis lama Anda ikut terbuka fitur premiumnya</li>
         </ul>
 

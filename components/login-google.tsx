@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { muatGIS } from "@/lib/engine/gdrive-storage";
+import { muatGIS } from "@/lib/engine/gis";
 
 interface StatusLapis {
   pengguna: { id: string; email: string; nama: string; foto: string } | null;
@@ -13,8 +13,8 @@ interface StatusLapis {
 /**
  * Tombol masuk Google IDENTITAS SAJA (keputusan A): memakai alur kredensial
  * GIS (id_token) — scope yang diminta Google hanyalah openid/email/profile.
- * Scope Drive TIDAK diminta di sini; ia diminta bertahap oleh fitur yang
- * membutuhkannya (penyimpanan Drive / Google Doc premium).
+ * Kitabah tidak meminta akses Google Drive sama sekali (fitur Drive
+ * dihapus 29 Okt 2026).
  */
 export function LoginGoogle({ ringkas = false }: { ringkas?: boolean }) {
   const [status, setStatus] = useState<StatusLapis | null>(null);
@@ -150,9 +150,8 @@ export function LoginGoogle({ ringkas = false }: { ringkas?: boolean }) {
       {galat && <p className="mt-1 text-xs text-red-600">{galat}</p>}
       {!ringkas && (
         <p className="mt-1 max-w-xs text-[11px] leading-relaxed text-ink-400">
-          Masuk hanya membaca nama, foto, dan email Anda. Folder Drive Anda tidak
-          diminta di sini — akses Drive hanya diminta saat Anda memakai fitur
-          penyimpanan/ekspor yang membutuhkannya.
+          Masuk hanya membaca nama, foto, dan email Anda. Kitabah tidak meminta
+          akses ke Google Drive Anda sama sekali.
         </p>
       )}
     </div>

@@ -226,7 +226,7 @@ export const VERSI_SKEMA_SAAT_INI = 2;
 /** Dilempar saat localStorage penuh — UI wajib menampilkannya, jangan ditelan. */
 export class SimpanPenuhError extends Error {
   constructor() {
-    super("Penyimpanan peramban penuh. Ekspor proyek atau sinkronkan ke Google Drive, lalu coba lagi.");
+    super("Penyimpanan peramban penuh. Ekspor cadangan proyek, lalu coba lagi.");
     this.name = "SimpanPenuhError";
   }
 }

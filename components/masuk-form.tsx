@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { muatGIS } from "@/lib/engine/gdrive-storage";
+import { muatGIS } from "@/lib/engine/gis";
 
 interface StatusIdentitas {
   pengguna: { id: string; email: string; nama: string; foto: string } | null;
@@ -259,9 +259,8 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
           <div ref={wadahGoogle} className="min-h-[44px]" />
           {memuatGoogle && <p className="mt-1 text-xs text-ink-500">Memproses masuk…</p>}
           <p className="mt-2 text-[11px] leading-relaxed text-ink-400">
-            Masuk hanya membaca nama, foto, dan email Anda. Folder Drive Anda tidak
-            diminta di sini — akses Drive hanya diminta saat Anda memakai fitur
-            penyimpanan/ekspor yang membutuhkannya.
+            Masuk hanya membaca nama, foto, dan email Anda. Kitabah tidak meminta
+            akses ke Google Drive Anda sama sekali.
           </p>
         </div>
       )}

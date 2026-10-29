@@ -36,7 +36,7 @@ export default function KetentuanPage() {
           disertasi, dan artikel jurnal). Layanan membantu menyusun kerangka dan draf awal —
           mulai dari judul, kalimat kunci, dan khalfiyah (latar belakang), pencarian rujukan
           kitab dan jurnal yang dapat diverifikasi, pemasangan footnote mengikuti pedoman
-          kampus, sampai ekspor naskah ke Word dan Google Doc. Kitabah adalah alat bantu,
+          kampus, sampai ekspor naskah ke Word. Kitabah adalah alat bantu,
           bukan penulis pengganti: hasil akhirnya tetap karya dan tanggung jawab Anda.
         </p>
       </Bagian>
@@ -64,7 +64,7 @@ export default function KetentuanPage() {
         </p>
         <p>
           <strong className="text-ink-900">Premium:</strong> proyek dan footnote tanpa batas
-          di atas, Google Doc per proyek di Drive Anda sendiri, dan chat agen AI di dalam web.
+          di atas dan chat agen AI di dalam web.
           Premium berlaku 30 hari per aktivasi dan dapat diaktifkan melalui kunci premium atau
           pembayaran pada gerbang resmi bila sudah tersedia. Proyek yang dibuat pada lapis
           gratis tidak hilang saat Anda naik ke Premium.

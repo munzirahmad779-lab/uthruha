@@ -18,7 +18,6 @@ import {
 } from "@/lib/engine/project";
 import { IconArrowRight, IconBook, IconCopy, IconPlus, IconTrash } from "@/components/icons";
 import { Progress } from "@/components/ui";
-import { GDriveLogin } from "@/components/workspace/gdrive-login";
 
 /** Kunci localStorage serah-terima dari uji coba tamu (components/uji-coba). */
 const KUNCI_JUDUL_UJI = "uthruha.judulUjiCoba";
@@ -102,18 +101,13 @@ export default function DaftarProyekPage() {
             Proyek Anda
           </h1>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-600">
-            Semua proyek tersimpan di peramban ini. Sinkronkan ke Google Drive agar aman.
+            Semua proyek tersimpan di peramban ini. Unduh cadangan dari tab Ekspor di dalam proyek agar tetap aman.
           </p>
         </div>
         <Link href="/mulai" className="btn-primary">
           <IconPlus className="h-4 w-4" />
           Proyek baru
         </Link>
-      </div>
-
-      {/* Google Drive Sync */}
-      <div className="mt-6">
-        <GDriveLogin />
       </div>
 
       {catatanUji && (

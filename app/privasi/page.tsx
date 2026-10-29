@@ -87,13 +87,11 @@ export default function PrivasiPage() {
         </p>
       </Bagian>
 
-      <Bagian judul="3. Google Drive — hanya dengan persetujuan terpisah">
+      <Bagian judul="3. Google Drive — tidak dipakai">
         <p>
-          Kitabah tidak menyentuh Google Drive Anda saat Anda masuk. Drive hanya disentuh bila
-          Anda pengguna Premium dan secara terpisah menyetujui akses saat membuat Google Doc
-          untuk proyek Anda. Akses itu terbatas pada berkas yang dibuat oleh aplikasi ini
-          sendiri (ruang lingkup <em>drive.file</em>) di Drive Anda; kami tidak dapat melihat,
-          mengubah, atau menghapus berkas Anda yang lain.
+          Kitabah tidak meminta dan tidak menggunakan akses ke Google Drive Anda sama
+          sekali. Masuk dengan Google hanya membaca identitas dasar (nama, foto, dan
+          alamat email) untuk mengenali akun Anda.
         </p>
       </Bagian>
 
