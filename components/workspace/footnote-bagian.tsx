@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { Project } from "@/lib/engine/project";
 import type { Sumber } from "@/lib/engine/cite";
 import { strukturProyek } from "@/lib/content/struktur";
@@ -62,13 +63,32 @@ export function FootnoteBagian({
   bagian,
   onCariRujukan,
   onPasang,
+  onPasangKursor,
 }: {
   p: Project;
   bagian: string;
   onCariRujukan: () => void;
   onPasang: (sumber: Sumber) => void;
+  /** Fitur Premium: dialog terbuka dengan paragraf & kalimat dari posisi kursor. */
+  onPasangKursor?: (sumber: Sumber) => void;
 }) {
   const [sumberId, setSumberId] = useState("");
+  const [tier, setTier] = useState<string | null>(null);
+  const [catatanPremium, setCatatanPremium] = useState(false);
+  useEffect(() => {
+    let hidup = true;
+    void fetch("/api/lapis/status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (hidup) setTier(typeof d?.tier === "string" ? d.tier : "tamu");
+      })
+      .catch(() => {
+        if (hidup) setTier("tamu");
+      });
+    return () => {
+      hidup = false;
+    };
+  }, []);
   const daftar = useMemo(() => footnoteBagian(p, bagian), [p, bagian]);
   const terpilih = p.sumber.find((s) => s.id === (sumberId || p.sumber[0]?.id));
 
@@ -101,6 +121,26 @@ export function FootnoteBagian({
               >
                 Pasang footnote
               </button>
+              {tier === "premium" ? (
+                <button
+                  type="button"
+                  className="btn-quiet !py-1"
+                  disabled={!terpilih}
+                  title="Taruh kursor di kalimat yang memuat data pada teks di atas, lalu klik ini: paragraf dan kalimat tujuan terisi otomatis"
+                  onClick={() => terpilih && onPasangKursor?.(terpilih)}
+                >
+                  Pasang di posisi kursor
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-quiet !py-1"
+                  title="Fitur Premium"
+                  onClick={() => setCatatanPremium((v) => !v)}
+                >
+                  🔒 Pasang di posisi kursor
+                </button>
+              )}
             </>
           ) : (
             <button
@@ -117,6 +157,17 @@ export function FootnoteBagian({
           </button>
         </div>
       </div>
+
+      {catatanPremium && tier !== "premium" && (
+        <p className="mt-1.5 rounded-lg bg-gold-500/10 px-2.5 py-2 text-[11.5px] leading-relaxed text-ink-700">
+          <strong>Pasang di posisi kursor</strong> adalah fitur Premium: taruh kursor di kalimat
+          yang memuat data, lalu footnote terpasang tepat di situ tanpa memilih paragraf dan
+          kalimat dari daftar. Lapis gratis tetap bisa memasang footnote lewat dialog biasa.{" "}
+          <Link href="/premium" className="font-semibold text-gold-700 underline">
+            Lihat Premium
+          </Link>
+        </p>
+      )}
 
       {p.sumber.length === 0 && (
         <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">
