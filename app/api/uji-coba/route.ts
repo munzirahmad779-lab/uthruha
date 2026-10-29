@@ -79,8 +79,10 @@ export async function POST(req: Request) {
     );
   }
 
-  // Tembolok per judul ternormalisasi.
-  const kunciJudul = judul.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
+  // Tembolok per judul ternormalisasi. Prefiks versi membuang hasil lama
+  // bila mesin generasi/pencarian rujukan berubah (v2: pencarian multi-frasa
+  // + label kecocokan bergradasi, 29 Okt 2026).
+  const kunciJudul = "v2|" + judul.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
   const tembolok = await ambil("tembolok", kunciJudul);
 
   let generasi: HasilGenerasi;

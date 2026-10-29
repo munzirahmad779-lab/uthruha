@@ -25,6 +25,11 @@ export interface RujukanTamu {
    * (0..jumlah kalimat kunci). Dipakai untuk label kecocokan topik dan
    * menyaring hasil yang hanya menumpang frasa umum. */
   kecocokan: number;
+  /** Apakah judul ini memuat kata inti frasa pertama (mis. "زكاة" pada
+   * frasa "زكاة المهنة"). Membedakan rujukan yang menyentuh pokok judul
+   * dari yang hanya menumpang kata ekor frasa (mis. "المهنة" pada artikel
+   * etika profesi atau kepustakawanan). */
+  inti: boolean;
 }
 
 const UA = "Uthruha/1.0 (uji coba tamu; +https://uthruha.vercel.app)";
@@ -84,9 +89,10 @@ async function verifikasiDOI(doi: string): Promise<boolean> {
   return Boolean(j?.message?.DOI);
 }
 
-interface Kandidat extends Omit<RujukanTamu, "id" | "skor" | "kecocokan"> {
+interface Kandidat extends Omit<RujukanTamu, "id" | "skor" | "kecocokan" | "inti"> {
   skorMentah: number;
   frasa: number;
+  inti: boolean;
 }
 
 export async function cariRujukanTamu(
@@ -101,22 +107,38 @@ export async function cariRujukanTamu(
     const t = tokenJudul(judul);
     return frasaToken.filter((s) => [...s].some((x) => t.has(x))).length;
   };
+  /** Kata inti = token pertama frasa pertama (pokok judul penelitian). */
+  const tokenInti = frasaToken[0] ? [...frasaToken[0]][0] : undefined;
   const kandidat: Kandidat[] = [];
   const lihat = new Set<string>();
 
-  const tambah = (k: Omit<Kandidat, "frasa">) => {
+  const tambah = (k: Omit<Kandidat, "frasa" | "inti">) => {
     const kunciUnik = (k.doi ?? k.isbn ?? k.judul).toLowerCase();
     if (lihat.has(kunciUnik)) return;
     lihat.add(kunciUnik);
-    kandidat.push({ ...k, frasa: hitungFrasa(k.judul) });
+    kandidat.push({
+      ...k,
+      frasa: hitungFrasa(k.judul),
+      inti: tokenInti ? tokenJudul(k.judul).has(tokenInti) : false,
+    });
   };
 
   // — OpenAlex: artikel —
+  // Cari dengan SETIAP kalimat kunci, bukan hanya frasa pertama: frasa
+  // pertama saja terbukti memancing sempalan yang berbagi satu frasa
+  // (audit zakat 29 Okt: etika profesi dan kepustakawanan ikut tampil
+  // karena berbagi kata "المهنة"), sementara rujukan tentang frasa kedua
+  // dan ketiga (kemiskinan, Indonesia) tidak pernah dicari sama sekali.
   const mailto = process.env.OPENALEX_MAILTO?.trim() || "uthruha@contoh.id";
-  const oa = (await ambilJSON(
-    `https://api.openalex.org/works?search=${encodeURIComponent(kueriUtama)}&per-page=12&mailto=${encodeURIComponent(mailto)}`,
-  )) as { results?: Record<string, unknown>[] } | null;
-  for (const w of oa?.results ?? []) {
+  const daftarKueri = [...new Set([kueriUtama, ...kalimatKunci.slice(0, 3)])].slice(0, 3);
+  const hasilOA: Record<string, unknown>[] = [];
+  for (const q of daftarKueri) {
+    const oa = (await ambilJSON(
+      `https://api.openalex.org/works?search=${encodeURIComponent(q)}&per-page=8&mailto=${encodeURIComponent(mailto)}`,
+    )) as { results?: Record<string, unknown>[] } | null;
+    for (const w of oa?.results ?? []) hasilOA.push(w);
+  }
+  for (const w of hasilOA) {
     const doi = typeof w.doi === "string" ? w.doi.replace("https://doi.org/", "") : null;
     const judul = typeof w.title === "string" ? w.title : "";
     if (!judul) continue;
@@ -175,10 +197,14 @@ export async function cariRujukanTamu(
   }
 
   // — Crossref (juga jalur utama bila OpenAlex 429) —
-  const cr = (await ambilJSON(
-    `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(kueriUtama)}&rows=12&mailto=${encodeURIComponent(mailto)}`,
-  )) as { message?: { items?: Record<string, unknown>[] } } | null;
-  for (const it of cr?.message?.items ?? []) {
+  const hasilCR: Record<string, unknown>[] = [];
+  for (const q of daftarKueri) {
+    const cr = (await ambilJSON(
+      `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(q)}&rows=8&mailto=${encodeURIComponent(mailto)}`,
+    )) as { message?: { items?: Record<string, unknown>[] } } | null;
+    for (const it of cr?.message?.items ?? []) hasilCR.push(it);
+  }
+  for (const it of hasilCR) {
     const judul = Array.isArray(it.title) ? String(it.title[0] ?? "") : "";
     if (!judul) continue;
     const doi = typeof it.DOI === "string" ? it.DOI : null;
@@ -246,7 +272,7 @@ export async function cariRujukanTamu(
   }
 
   // — Verifikasi identifier (paralel, dibatasi) —
-  const terurut = kandidat.sort((a, b) => b.skorMentah - a.skorMentah).slice(0, 14);
+  const terurut = kandidat.sort((a, b) => b.skorMentah - a.skorMentah).slice(0, 18);
   await Promise.all(
     terurut.map(async (k) => {
       if (k.doi) {
@@ -277,7 +303,7 @@ export async function cariRujukanTamu(
   // menyentuh satu kalimat kunci karena kalimat kunci lain sangat khas),
   // jadi sisa keraguan ditangani urutan dan label kecocokan, bukan
   // pembuangan.
-  const PENANDA_ASING = new Set(["صحي", "غسيل", "بتكوين"]);
+  const PENANDA_ASING = new Set(["صحي", "غسيل", "بتكوين", "اعلام", "مكتبي", "ارشيفي", "معلوف"]);
   const lolosMentah = terurut.filter((k) => {
     if (k.skorMentah < AMBANG) return false;
     const tokenKandidat = tokenJudul(k.judul);
@@ -286,9 +312,13 @@ export async function cariRujukanTamu(
     }
     return true;
   });
-  // Urutan akhir: yang menyentuh lebih banyak kalimat kunci didahulukan.
+  // Urutan akhir: lebih banyak kalimat kunci disentuh didahulukan, lalu
+  // yang memuat kata inti frasa pertama, lalu skor token.
   const lolos = lolosMentah.sort(
-    (a, b) => b.frasa - a.frasa || b.skorMentah - a.skorMentah,
+    (a, b) =>
+      b.frasa - a.frasa ||
+      Number(b.inti) - Number(a.inti) ||
+      b.skorMentah - a.skorMentah,
   );
   const jurnal = lolos.filter((k) => k.jenis === "jurnal").slice(0, 4);
   const buku = lolos.filter((k) => k.jenis === "buku");
@@ -315,5 +345,6 @@ export async function cariRujukanTamu(
     terverifikasi: k.terverifikasi,
     skor: Math.round(k.skorMentah * 100) / 100,
     kecocokan: k.frasa,
+    inti: k.inti,
   }));
 }

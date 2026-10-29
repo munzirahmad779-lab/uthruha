@@ -57,7 +57,10 @@ export default function KetentuanPage() {
           <strong className="text-ink-900">Gratis:</strong> satu proyek, pencarian rujukan
           tanpa batas, maksimal tiga footnote dalam satu paragraf, dan ruang lingkup proyek
           yang terkunci setelah footnote pertama terpasang (satu kali penggantian kategori
-          diperbolehkan sebelum itu).
+          diperbolehkan sebelum itu). Angka tiga itu adalah batas lapis layanan;
+          pedoman penulisan kampus dapat menetapkan batas yang lebih ketat (misalnya
+          maksimal dua footnote dalam satu paragraf), dan batas pedoman itulah yang
+          ditampilkan serta ditegakkan di ruang kerja.
         </p>
         <p>
           <strong className="text-ink-900">Premium:</strong> proyek dan footnote tanpa batas

@@ -15,9 +15,14 @@ interface Rujukan {
   terverifikasi: boolean;
   skor: number;
   kecocokan?: number;
+  inti?: boolean;
 }
 
-/** Label kecocokan topik dari jumlah kalimat kunci yang disentuh judul. */
+/** Label kecocokan topik bergradasi: kalimat kunci yang disentuh, kata
+ * inti frasa pertama, dan skor token digabung. Hasil audit zakat (29 Okt)
+ * menunjukkan label datar "sebagian" untuk semua rujukan menyesatkan:
+ * sempalan yang hanya menumpang kata ekor frasa (mis. "المهنة" pada etika
+ * profesi) harus bisa jatuh ke "rendah". */
 function labelKecocokan(r: Rujukan): { teks: string; kelas: string } {
   const k = r.kecocokan;
   if (k === undefined) {
@@ -25,9 +30,11 @@ function labelKecocokan(r: Rujukan): { teks: string; kelas: string } {
       ? { teks: "Kecocokan topik: sedang, periksa dulu isinya", kelas: "text-amber-700" }
       : { teks: "Kecocokan topik: rendah, tidak disarankan untuk judul ini", kelas: "font-semibold text-red-700" };
   }
-  if (k >= 2) return { teks: "Kecocokan topik: tinggi", kelas: "font-semibold text-emerald-700" };
-  if (k === 1) return { teks: "Kecocokan topik: sebagian, periksa dulu isinya", kelas: "text-amber-700" };
-  return { teks: "Kecocokan topik: rendah, tidak disarankan untuk judul ini", kelas: "font-semibold text-red-700" };
+  if (k >= 2 || r.skor >= 0.45)
+    return { teks: "Kecocokan topik: tinggi", kelas: "font-semibold text-emerald-700" };
+  if (!r.inti && r.skor <= 0.25)
+    return { teks: "Kecocokan topik: rendah, tidak disarankan untuk judul ini", kelas: "font-semibold text-red-700" };
+  return { teks: "Kecocokan topik: sebagian, periksa dulu isinya", kelas: "text-amber-700" };
 }
 
 /** Contoh bentuk footnote jadi dari rujukan paling cocok (data apa adanya;
@@ -35,7 +42,10 @@ function labelKecocokan(r: Rujukan): { teks: string; kelas: string } {
 function contohFootnoteDari(refs: Rujukan[]): string | null {
   if (!refs.length) return null;
   const r = [...refs].sort(
-    (a, b) => (b.kecocokan ?? 0) - (a.kecocokan ?? 0) || b.skor - a.skor,
+    (a, b) =>
+      (b.kecocokan ?? 0) - (a.kecocokan ?? 0) ||
+      Number(b.inti ?? false) - Number(a.inti ?? false) ||
+      b.skor - a.skor,
   )[0]!;
   const penulis = r.penulis.join(", ") || "Penulis";
   if (r.jenis === "buku") {
@@ -191,7 +201,8 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
           isykaliyat, dan ahdaf — lalu mencarikan rujukan asli yang bisa diverifikasi.
           Teks susunan hasil uji coba <strong>terkunci</strong> (tidak bisa disalin),
           tetapi daftar rujukannya bisa Anda salin dan periksa sendiri. Untuk menyusun,
-          mengedit, dan memasang footnote, masuk gratis.
+          mengedit, dan memasang footnote, masuk dengan kunci gratis (minta lewat email
+          di halaman masuk).
         </p>
 
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -214,7 +225,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
         {pernahCoba && !hasil && (
           <p className="mt-3 text-xs text-ink-500">
             Perangkat ini sudah pernah memakai uji coba tamu. Percobaan berikutnya lewat server
-            akan diarahkan untuk masuk gratis.
+            akan diarahkan untuk masuk dengan kunci gratis.
           </p>
         )}
         {galat && (
@@ -223,7 +234,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
         {wajibLogin && (
           <div className="mt-3">
             <button type="button" onClick={loginDariUjiCoba} className="btn-primary">
-              {googleAktif ? "Login gratis dengan Google" : "Masuk dengan kunci akses"}
+              {googleAktif ? "Masuk dengan Google + kunci gratis" : "Masuk dengan kunci akses"}
             </button>
             <p className="mt-2 text-xs text-ink-500">
               {googleAktif
@@ -283,7 +294,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
                 </p>
                 {contohFootnote && (
                   <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 text-xs leading-relaxed text-ink-800">
-                    <span className="font-semibold">Contoh footnote jadi:</span>{" "}
+                    <span className="font-semibold">Contoh format footnote:</span>{" "}
                     {contohFootnote}
                     <span className="mt-1 block text-ink-500">
                       Nomor halaman (hlm.) diisi dari sumber aslinya saat Anda
@@ -380,11 +391,11 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
             <div className="mt-6 rounded-2xl bg-ink-900 p-4 text-center">
               <p className="text-sm font-semibold text-parchment-100">
                 {googleAktif
-                  ? "Ingin lebih lanjut? Silakan login gratis."
+                  ? "Ingin lebih lanjut? Silakan masuk dengan Google dan kunci gratis."
                   : "Ingin lebih lanjut? Masuk dengan kunci akses yang dibagikan pemilik lewat salurannya."}
               </p>
               <button type="button" onClick={loginDariUjiCoba} className="btn-primary mt-3 inline-block">
-                {googleAktif ? "Login gratis dengan Google" : "Masuk dengan kunci akses"}
+                {googleAktif ? "Masuk dengan Google + kunci gratis" : "Masuk dengan kunci akses"}
               </button>
               <p className="mt-2 text-xs text-parchment-100/70">
                 Judul yang Anda coba di atas akan diteruskan menjadi proyek pertama Anda.

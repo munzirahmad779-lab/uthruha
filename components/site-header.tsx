@@ -68,6 +68,7 @@ export function SiteHeader() {
             <IconLock className="h-3 w-3 text-ink-400" aria-label="Perlu masuk" />
           </Link>
           <Link href="/proyek" className="btn-primary !px-4 !py-2.5 text-[13px]">
+            <IconLock className="h-3.5 w-3.5" aria-label="Perlu masuk" />
             Buka Ruang Kerja
             <IconArrowRight className="h-4 w-4" />
           </Link>

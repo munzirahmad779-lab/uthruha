@@ -12,6 +12,7 @@ import {
   IconDoc,
   IconLayers,
   IconList,
+  IconLock,
   IconPen,
   IconQuote,
   IconScale,
@@ -289,6 +290,7 @@ export function CaraKerja() {
                 href={l.tautan}
                 className="mt-4 inline-flex items-center gap-1 text-[12px] font-semibold text-ink-700 hover:text-gold-600"
               >
+                <IconLock className="h-3.5 w-3.5 text-ink-400" aria-label="Perlu masuk" />
                 {l.label}
                 <IconArrowRight className="h-3.5 w-3.5" />
               </Link>
@@ -491,7 +493,7 @@ export function FrasaPreview() {
   const contoh = CONTOH_FRASA.map((id) => FRASA.find((f) => f.id === id)).filter(Boolean);
   return (
     <section className="wrap py-16 sm:py-20">
-      <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <div>
           <span className="eyebrow">Bank frasa</span>
           <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
@@ -549,8 +551,8 @@ export function JurnalPreview() {
   return (
     <section className="wrap pb-16 sm:pb-20">
       <div className="panel overflow-hidden">
-        <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
-          <div>
+        <div className="grid grid-cols-1 gap-8 p-6 sm:p-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
+          <div className="min-w-0">
             <span className="eyebrow">Direktori jurnal</span>
             <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-ink-900 sm:text-3xl">
               Sebelum mengirim naskah, cek dulu tujuannya.
@@ -566,7 +568,7 @@ export function JurnalPreview() {
             </Link>
           </div>
 
-          <div className="grid gap-2.5">
+          <div className="grid grid-cols-1 min-w-0 gap-2.5">
             {tampil.filter(Boolean).map((j) => (
               <div
                 key={j!.id}
