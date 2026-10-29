@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { MasukForm } from "@/components/masuk-form";
-import { BrandMark } from "@/components/brand";
 import { loginGoogleAktif } from "@/lib/security/akses";
 
 export const metadata: Metadata = {
@@ -17,8 +16,7 @@ export default function MasukPage() {
     <div className="wrap flex min-h-[70vh] items-center justify-center py-16">
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-ink-900/10 bg-white p-8 shadow-sm">
-          <BrandMark className="h-12 w-12" />
-          <p className="mt-4 font-arabic text-2xl text-gold-600" dir="rtl">
+          <p className="font-arabic text-2xl text-gold-600" dir="rtl">
             كِتَابَة
           </p>
           <h1 className="mt-3 text-xl font-bold text-ink-900">Ruang kerja terkunci</h1>
