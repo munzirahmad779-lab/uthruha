@@ -351,7 +351,7 @@ const FITUR = [
     ikon: IconCompass,
     judul: "Pemadu jurnal",
     ar: "مطابقة المجلات",
-    isi: `${JURNAL.length} jurnal Arab dan kajian Islam, dicocokkan dengan kata kunci naskah Anda, lengkap dengan catatan yang perlu dicek.`,
+    isi: `${JURNAL.length} jurnal Arab dan kajian Islam, dicocokkan dengan kalimat kunci naskah Anda, lengkap dengan catatan yang perlu dicek.`,
     href: "/jurnal",
   },
   {
@@ -559,7 +559,7 @@ export function JurnalPreview() {
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-700">
               {JURNAL.length} jurnal yang menerima atau lazim memuat naskah berbahasa
-              Arab. Pemadu mencocokkan kata kunci naskah Anda dengan cakupan jurnal —
+              Arab. Pemadu mencocokkan kalimat kunci naskah Anda dengan cakupan jurnal —
               lalu Anda memutuskan sendiri setelah membaca laman resminya.
             </p>
             <Link href="/jurnal" className="btn-ghost mt-6">

@@ -44,7 +44,7 @@ export function OverviewTab({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Topik / kata kunci (Arab)" className="sm:col-span-2">
+          <Field label="Topik / kalimat kunci (Arab)" className="sm:col-span-2">
             <input
               dir="rtl"
               className="input text-right font-naskh text-[15px]"

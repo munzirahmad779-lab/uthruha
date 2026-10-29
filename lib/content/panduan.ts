@@ -67,7 +67,7 @@ export const REFERENSI_PANDUAN: { judul: string; isi: string[] }[] = [
   {
     judul: "Kitabah tidak mengarang sumber",
     isi: [
-      "AI di Kitabah hanya membantu menyusun kata kunci pencarian dari topik Anda — ia tidak pernah menulis judul, penulis, atau DOI.",
+      "AI di Kitabah hanya membantu menyusun kalimat kunci pencarian dari topik Anda — ia tidak pernah menulis judul, penulis, atau DOI.",
       "Setiap referensi di daftar Anda berasal dari data yang Anda isi, impor, atau pilih sendiri dari hasil pencarian.",
       "Gunakan Cross-check sitasi di tab Periksa untuk memastikan setiap penanda menunjuk rujukan yang masih ada.",
     ],

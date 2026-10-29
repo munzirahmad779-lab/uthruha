@@ -304,7 +304,7 @@ export default function MulaiPage() {
               </p>
               <div className="mt-5 grid gap-4">
                 <Field
-                  label="Topik / kata kunci penelitian (Arab)"
+                  label="Topik / kalimat kunci penelitian (Arab)"
                   hint="Contoh: تعليم اللغة العربية، الوقف الإنتاجي، منهج التفسير الموضوعي"
                 >
                   <input

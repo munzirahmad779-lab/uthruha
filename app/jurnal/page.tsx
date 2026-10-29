@@ -114,12 +114,12 @@ export default function JurnalPage() {
             </div>
             {teks.trim().length > 20 && skor.length === 0 && (
               <p className="mt-2 text-[11.5px] text-ink-500">
-                Tidak ada kata kunci yang cocok. Periksa kembali bahasa teks (Arab) atau pilih
+                Tidak ada kalimat kunci yang cocok. Periksa kembali bahasa teks (Arab) atau pilih
                 bidang tertentu.
               </p>
             )}
             <p className="mt-2 text-[10.5px] leading-relaxed text-ink-500">
-              Skor dihitung dari irisan kata kunci antara teks Anda dan cakupan jurnal. Ini
+              Skor dihitung dari irisan kalimat kunci antara teks Anda dan cakupan jurnal. Ini
               indikator awal, bukan keputusan editorial.
             </p>
           </div>

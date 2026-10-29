@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Direktori jurnal berbahasa Arab",
   description:
-    "30 jurnal kajian Islam Indonesia dan internasional yang menerima naskah berbahasa Arab, lengkap dengan pemadu berbasis kata kunci dan catatan verifikasi.",
+    "30 jurnal kajian Islam Indonesia dan internasional yang menerima naskah berbahasa Arab, lengkap dengan pemadu berbasis kalimat kunci dan catatan verifikasi.",
   alternates: { canonical: "/jurnal" },
 };
 

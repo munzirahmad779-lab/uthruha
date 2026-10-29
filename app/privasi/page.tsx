@@ -82,7 +82,7 @@ export default function PrivasiPage() {
         </p>
         <p>
           Pencarian rujukan memakai basis data akademik publik (antara lain OpenAlex, Crossref,
-          Google Books, dan Open Library). Yang dikirim ke sana adalah kata kunci pencarian,
+          Google Books, dan Open Library). Yang dikirim ke sana adalah kalimat kunci pencarian,
           bukan data akun Anda.
         </p>
       </Bagian>
