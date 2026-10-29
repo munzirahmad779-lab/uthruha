@@ -503,7 +503,10 @@ export function FrasaPreview() {
             {FRASA.length} pola kalimat akademik, dipetakan ke bagian naskah: pembuka
             latar belakang, rumusan masalah, celah penelitian, analisis data, sampai
             kesimpulan. Setiap pola dilengkapi terjemahan Indonesia agar Anda tahu
-            persis apa yang Anda pakai.
+            persis apa yang Anda pakai. Rinciannya bisa dihitung: {FRASA.length} pola
+            tersebar merata di {new Set(FRASA.map((f) => f.section)).size} bagian
+            naskah, {FRASA.length / new Set(FRASA.map((f) => f.section)).size} pola
+            per bagian.
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
             {["pembuka", "kesenjangan", "metodologi", "statistik", "kutipan", "etika"].map((t) => (
@@ -586,7 +589,9 @@ export function JurnalPreview() {
           </div>
         </div>
         <p className="border-t border-ink-900/10 bg-white/50 px-6 py-3 text-[11px] leading-relaxed text-ink-500">
-          Data direktori bersifat indikatif dan berubah dari waktu ke waktu. Selalu
+          Pratinjau ini menampilkan {tampil.filter(Boolean).length} dari {JURNAL.length}{" "}
+          jurnal dalam direktori; daftar lengkapnya ada di dalam sesudah masuk. Data
+          direktori bersifat indikatif dan berubah dari waktu ke waktu. Selalu
           verifikasi cakupan, biaya, dan indeks pada laman resmi jurnal sebelum mengirim
           naskah.
         </p>

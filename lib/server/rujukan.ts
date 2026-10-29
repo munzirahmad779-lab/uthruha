@@ -30,6 +30,10 @@ export interface RujukanTamu {
    * dari yang hanya menumpang kata ekor frasa (mis. "المهنة" pada artikel
    * etika profesi atau kepustakawanan). */
   inti: boolean;
+  /** Judul hanya berisi satu token khas (mis. entri ensiklopedia "زكاة"):
+   * skor tokennya otomatis penuh, tetapi ia gambaran umum, bukan rujukan
+   * inti. Label di klien menurunkannya dari "tinggi" (audit Cue 29 Okt). */
+  umum: boolean;
 }
 
 const UA = "Uthruha/1.0 (uji coba tamu; +https://uthruha.vercel.app)";
@@ -89,10 +93,15 @@ async function verifikasiDOI(doi: string): Promise<boolean> {
   return Boolean(j?.message?.DOI);
 }
 
-interface Kandidat extends Omit<RujukanTamu, "id" | "skor" | "kecocokan" | "inti"> {
+interface Kandidat extends Omit<RujukanTamu, "id" | "skor" | "kecocokan" | "inti" | "umum"> {
   skorMentah: number;
   frasa: number;
   inti: boolean;
+  umum: boolean;
+  /** DOI berasal dari indeks Crossref sendiri: nomor itu pasti terdaftar,
+   * jadi verifikasi ulang tidak diperlukan (dan terbukti bisa gagal sesaat
+   * karena batas laju Crossref saat banyak panggilan paralel, audit Cue). */
+  dariCrossref?: boolean;
 }
 
 export async function cariRujukanTamu(
@@ -112,7 +121,7 @@ export async function cariRujukanTamu(
   const kandidat: Kandidat[] = [];
   const lihat = new Set<string>();
 
-  const tambah = (k: Omit<Kandidat, "frasa" | "inti">) => {
+  const tambah = (k: Omit<Kandidat, "frasa" | "inti" | "umum">) => {
     const kunciUnik = (k.doi ?? k.isbn ?? k.judul).toLowerCase();
     if (lihat.has(kunciUnik)) return;
     lihat.add(kunciUnik);
@@ -120,6 +129,7 @@ export async function cariRujukanTamu(
       ...k,
       frasa: hitungFrasa(k.judul),
       inti: tokenInti ? tokenJudul(k.judul).has(tokenInti) : false,
+      umum: tokenJudul(k.judul).size <= 1,
     });
   };
 
@@ -223,6 +233,7 @@ export async function cariRujukanTamu(
       isbn: Array.isArray(it.ISBN) ? String(it.ISBN[0] ?? "") || null : null,
       tautan: doi ? `https://doi.org/${doi}` : "",
       terverifikasi: false,
+      dariCrossref: true,
       skorMentah: skorRelevansi(kueriToken, judul),
     });
   }
@@ -276,7 +287,13 @@ export async function cariRujukanTamu(
   await Promise.all(
     terurut.map(async (k) => {
       if (k.doi) {
-        k.terverifikasi = await verifikasiDOI(k.doi);
+        // DOI dari indeks Crossref sendiri pasti terdaftar; DOI dari sumber
+        // lain diverifikasi ke Crossref dengan satu kali pengulangan,
+        // karena panggilan paralel terbukti sesekali gagal sesaat dan
+        // menghasilkan label "belum ketemu" yang keliru (audit Cue T-01).
+        k.terverifikasi = k.dariCrossref
+          ? true
+          : (await verifikasiDOI(k.doi)) || (await verifikasiDOI(k.doi));
       } else if (k.isbn) {
         if (!isbnSah(k.isbn)) {
           k.isbn = null;
@@ -346,5 +363,6 @@ export async function cariRujukanTamu(
     skor: Math.round(k.skorMentah * 100) / 100,
     kecocokan: k.frasa,
     inti: k.inti,
+    umum: k.umum,
   }));
 }

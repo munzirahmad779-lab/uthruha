@@ -16,6 +16,22 @@ interface Rujukan {
   skor: number;
   kecocokan?: number;
   inti?: boolean;
+  umum?: boolean;
+}
+
+/** Catatan akses untuk sumber yang penerbitnya dikenal membatasi teks
+ * penuh (Brill berbayar, Mandumah terbatas): metadata tetap terbuka,
+ * tetapi pengunjung perlu tahu sebelum mengklik (audit Cue T-02). */
+function catatanAkses(tautan: string): string | null {
+  try {
+    const h = new URL(tautan).hostname;
+    if (h.includes("brill.com") || h.includes("mandumah.com")) {
+      return "Catatan akses: penerbit situs tujuan dapat membatasi teks penuh (berbayar/terdaftar); metadata dan abstraknya tetap bisa Anda periksa.";
+    }
+  } catch {
+    /* tautan kosong/tidak sah: tanpa catatan */
+  }
+  return null;
 }
 
 /** Label kecocokan topik bergradasi: kalimat kunci yang disentuh, kata
@@ -30,10 +46,12 @@ function labelKecocokan(r: Rujukan): { teks: string; kelas: string } {
       ? { teks: "Kecocokan topik: sedang, periksa dulu isinya", kelas: "text-amber-700" }
       : { teks: "Kecocokan topik: rendah, tidak disarankan untuk judul ini", kelas: "font-semibold text-red-700" };
   }
-  if (k >= 2 || r.skor >= 0.45)
+  if (k >= 2 || (r.inti && r.skor >= 0.45 && !r.umum))
     return { teks: "Kecocokan topik: tinggi", kelas: "font-semibold text-emerald-700" };
   if (!r.inti && r.skor <= 0.25)
     return { teks: "Kecocokan topik: rendah, tidak disarankan untuk judul ini", kelas: "font-semibold text-red-700" };
+  if (r.umum)
+    return { teks: "Kecocokan topik: sebagian (gambaran umum, bukan rujukan inti), periksa dulu isinya", kelas: "text-amber-700" };
   return { teks: "Kecocokan topik: sebagian, periksa dulu isinya", kelas: "text-amber-700" };
 }
 
@@ -378,6 +396,11 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
                     </span>
                     <span className={labelKecocokan(r).kelas}>{labelKecocokan(r).teks}</span>
                   </span>
+                  {catatanAkses(r.tautan) && (
+                    <span className="mt-1 block text-[11px] leading-relaxed text-ink-500">
+                      {catatanAkses(r.tautan)}
+                    </span>
+                  )}
                 </li>
               ))}
               {hasil.refs.length === 0 && (
