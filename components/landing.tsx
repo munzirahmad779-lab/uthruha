@@ -402,7 +402,7 @@ export function Fitur() {
             <h3 className="mt-4 text-[15px] font-bold text-ink-900">{f.judul}</h3>
             <p className="mt-2 flex-1 text-[13px] leading-relaxed text-ink-700">{f.isi}</p>
             <span className="mt-4 inline-flex items-center gap-1 text-[12px] font-semibold text-gold-600 opacity-0 transition group-hover:opacity-100">
-              Buka <IconArrowRight className="h-3.5 w-3.5" />
+              Masuk untuk memakai <IconArrowRight className="h-3.5 w-3.5" />
             </span>
           </Link>
         ))}
@@ -440,7 +440,7 @@ export function StrukturSection() {
             href="/panduan#struktur"
             className="inline-flex items-center gap-1.5 rounded-xl border border-parchment-200/25 px-4 py-2.5 text-xs font-semibold text-parchment-100 hover:border-gold-300/60 hover:text-gold-200"
           >
-            Bandingkan detailnya
+            Bandingkan detailnya (perlu masuk)
             <IconArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -511,7 +511,7 @@ export function FrasaPreview() {
             ))}
           </div>
           <Link href="/alat#frasa" className="btn-primary mt-8">
-            Telusuri semua frasa
+            Masuk untuk menelusuri semua frasa
             <IconArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -561,7 +561,7 @@ export function JurnalPreview() {
               lalu Anda memutuskan sendiri setelah membaca laman resminya.
             </p>
             <Link href="/jurnal" className="btn-ghost mt-6">
-              Buka direktori
+              Masuk untuk membuka direktori
               <IconArrowRight className="h-4 w-4" />
             </Link>
           </div>

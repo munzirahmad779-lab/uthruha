@@ -15,8 +15,8 @@ export function LapisSection() {
           Mulai gratis. Naik kelas bila perlu.
         </h2>
         <p className="mt-4 text-sm leading-relaxed text-ink-700">
-          Dua lapis pemakaian dengan aturan yang sama jelasnya di halaman ini dan di server —
-          tidak ada batas tersembunyi yang baru terasa di tengah jalan.
+          Dua lapis pemakaian dengan aturan yang ditulis apa adanya di halaman
+          ini, termasuk batas-batasnya, dan ditegakkan sama di server.
         </p>
       </div>
 
@@ -27,7 +27,7 @@ export function LapisSection() {
           <ul className="mt-4 space-y-2 text-sm leading-relaxed text-ink-700">
             <li>✓ 1 proyek penulisan</li>
             <li>✓ Pencarian rujukan kitab &amp; jurnal tanpa batas</li>
-            <li>✓ Maksimal 3 footnote dalam satu paragraf</li>
+            <li>✓ Maksimal 3 footnote dalam satu paragraf (batas lapis gratis; pedoman penulisan kampus dapat menetapkan batas lebih ketat, misalnya 2, dan batas pedoman itulah yang ditampilkan di ruang kerja)</li>
             <li>✓ Ruang lingkup terkunci setelah footnote pertama (satu kali ganti kategori sebelum itu)</li>
             <li>✓ Ekspor naskah ke Word (.docx)</li>
             <li>✓ Uji coba tamu tanpa akun, satu kali per perangkat</li>

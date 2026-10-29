@@ -16,8 +16,10 @@ import { footnoteGaya, footnotePedoman, gayaSah } from "@/lib/engine/citation";
  */
 
 function pecahKalimatLokal(paragraf: string): string[] {
+  // Koma Arab (،) ikut menjadi titik pecah sekunder: paragraf panjang yang
+  // hanya dipisahkan koma tetap punya pilihan posisi selain akhir paragraf.
   return paragraf
-    .split(/(?<=[.؟!؛])\s+/u)
+    .split(/(?<=[.؟!؛،])\s+/u)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -64,9 +66,23 @@ export function PasangFootnote({
   const [jilid, setJilid] = useState(sumber.jilid ?? "");
 
   const drafLama = p.draf[sectionId] ?? "";
-  const paragraf = useMemo(
+  // Blok mentah = semua blok teks draf, termasuk baris judul markdown.
+  // Yang ditawarkan sebagai tempat footnote hanya blok bukan judul, tetapi
+  // penyimpanan tetap memakai blok mentah agar judul tidak ikut terhapus.
+  const blokMentah = useMemo(
     () => drafLama.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean),
     [drafLama],
+  );
+  const indeksNyata = useMemo(
+    () =>
+      blokMentah
+        .map((x, i) => (x.startsWith("#") ? -1 : i))
+        .filter((i) => i >= 0),
+    [blokMentah],
+  );
+  const paragraf = useMemo(
+    () => indeksNyata.map((i) => blokMentah[i]!),
+    [indeksNyata, blokMentah],
   );
   const bisaBaru = Boolean(kutipan && kutipan.trim().length > 10);
   const [modeBaru, setModeBaru] = useState(paragraf.length === 0 && bisaBaru);
@@ -83,10 +99,11 @@ export function PasangFootnote({
       return drafLama.trim() ? `${drafLama.trim()}\n\n${parBaru}` : parBaru;
     }
     if (paragraf.length === 0) return drafLama;
-    const salin = [...paragraf];
-    salin[paragrafIdx] = sisipSetelahKalimat(salin[paragrafIdx] ?? "", kalimatIdx, penanda);
+    const salin = [...blokMentah];
+    const nyata = indeksNyata[paragrafIdx] ?? 0;
+    salin[nyata] = sisipSetelahKalimat(salin[nyata] ?? "", kalimatIdx, penanda);
     return salin.join("\n\n");
-  }, [modeBaru, kutipan, penanda, drafLama, paragraf, paragrafIdx, kalimatIdx]);
+  }, [modeBaru, kutipan, penanda, drafLama, paragraf, paragrafIdx, kalimatIdx, blokMentah, indeksNyata]);
 
   /** Pratinjau: kompilasi naskah bayangan untuk tahu nomor footnote-nya. */
   const pratinjau = useMemo(() => {
@@ -127,9 +144,10 @@ export function PasangFootnote({
             idx = berjalan + cocok.length - 1;
           } else {
             const pars = drafBaru.split(/\n\s*\n/);
+            const nyata = indeksNyata[paragrafIdx] ?? 0;
             let offset = 0;
-            for (let i = 0; i < paragrafIdx && i < pars.length; i++) offset += (pars[i]?.length ?? 0) + 2;
-            const kal = pecahKalimatLokal(pars[paragrafIdx] ?? "");
+            for (let i = 0; i < nyata && i < pars.length; i++) offset += (pars[i]?.length ?? 0) + 2;
+            const kal = pecahKalimatLokal(pars[nyata] ?? "");
             let dalam = 0;
             for (let j = 0; j <= kalimatIdx && j < kal.length; j++) dalam += (kal[j]?.length ?? 0) + (j > 0 ? 1 : 0);
             const posisi = offset + dalam;
@@ -144,7 +162,7 @@ export function PasangFootnote({
     }
     const def = idx >= 0 ? defs[idx] : undefined;
     return { teksFootnote: def?.teks ?? teksCadangan, nomor: def?.nomor ?? "?" };
-  }, [p, sumber, sectionId, drafBaru, halaman, jilid, modeBaru, paragrafIdx, kalimatIdx]);
+  }, [p, sumber, sectionId, drafBaru, halaman, jilid, modeBaru, paragrafIdx, kalimatIdx, indeksNyata]);
 
   const [galatLapis, setGalatLapis] = useState("");
   const [memasang, setMemasang] = useState(false);

@@ -14,6 +14,39 @@ interface Rujukan {
   tautan: string;
   terverifikasi: boolean;
   skor: number;
+  kecocokan?: number;
+}
+
+/** Label kecocokan topik dari jumlah kalimat kunci yang disentuh judul. */
+function labelKecocokan(r: Rujukan): { teks: string; kelas: string } {
+  const k = r.kecocokan;
+  if (k === undefined) {
+    return r.skor >= 0.35
+      ? { teks: "Kecocokan topik: sedang, periksa dulu isinya", kelas: "text-amber-700" }
+      : { teks: "Kecocokan topik: rendah, tidak disarankan untuk judul ini", kelas: "font-semibold text-red-700" };
+  }
+  if (k >= 2) return { teks: "Kecocokan topik: tinggi", kelas: "font-semibold text-emerald-700" };
+  if (k === 1) return { teks: "Kecocokan topik: sebagian, periksa dulu isinya", kelas: "text-amber-700" };
+  return { teks: "Kecocokan topik: rendah, tidak disarankan untuk judul ini", kelas: "font-semibold text-red-700" };
+}
+
+/** Contoh bentuk footnote jadi dari rujukan paling cocok (data apa adanya;
+ * nomor halaman memang diisi dari sumber asli di ruang kerja). */
+function contohFootnoteDari(refs: Rujukan[]): string | null {
+  if (!refs.length) return null;
+  const r = [...refs].sort(
+    (a, b) => (b.kecocokan ?? 0) - (a.kecocokan ?? 0) || b.skor - a.skor,
+  )[0]!;
+  const penulis = r.penulis.join(", ") || "Penulis";
+  if (r.jenis === "buku") {
+    const kurung = r.wadah
+      ? ` (${r.wadah}${r.tahun ? `, ${r.tahun}` : ""})`
+      : r.tahun
+        ? ` (${r.tahun})`
+        : "";
+    return `${penulis}, ${r.judul}${kurung}, hlm. …`;
+  }
+  return `${penulis}, "${r.judul}," ${r.wadah || "Nama jurnal"}${r.tahun ? ` (${r.tahun})` : ""}, hlm. …`;
 }
 
 interface HasilUji {
@@ -123,6 +156,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
   }
 
   const tampilParagraf = paragrafKembang ?? hasil?.khalfiyah ?? [];
+  const contohFootnote = hasil ? contohFootnoteDari(hasil.refs) : null;
 
   /**
    * CTA masuk dari uji coba: judul yang sedang dicoba disimpan dulu,
@@ -155,7 +189,8 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
         <p className="mt-2 text-sm leading-relaxed text-ink-600">
           Masukkan judul penelitian. Kitabah menyusun kalimat kunci, khalfiyah tiga paragraf,
           isykaliyat, dan ahdaf — lalu mencarikan rujukan asli yang bisa diverifikasi.
-          Hasil uji coba <strong>terkunci</strong> (tidak bisa disalin): untuk menyusun,
+          Teks susunan hasil uji coba <strong>terkunci</strong> (tidak bisa disalin),
+          tetapi daftar rujukannya bisa Anda salin dan periksa sendiri. Untuk menyusun,
           mengedit, dan memasang footnote, masuk gratis.
         </p>
 
@@ -199,6 +234,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
         )}
 
         {hasil && (
+          <>
           <div
             ref={kotakHasil}
             className="mt-6 select-none"
@@ -238,9 +274,33 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
               </button>
             )}
             {paragrafKembang && (
-              <p className="mt-2 text-xs text-ink-500">
-                Penanda [[fn:…]] menunjukkan tempat footnote akan terpasang di ruang kerja penuh.
-              </p>
+              <div className="mt-3 rounded-xl border border-gold-300/60 bg-gold-50 p-3.5">
+                <p className="text-xs leading-relaxed text-ink-600">
+                  Penanda [[fn:…]] di atas menunjukkan tempat footnote akan
+                  terpasang di ruang kerja penuh. Penanda itu bukan teks rusak:
+                  di ruang kerja ia berubah menjadi footnote bernomor seperti
+                  contoh berikut.
+                </p>
+                {contohFootnote && (
+                  <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 text-xs leading-relaxed text-ink-800">
+                    <span className="font-semibold">Contoh footnote jadi:</span>{" "}
+                    {contohFootnote}
+                    <span className="mt-1 block text-ink-500">
+                      Nomor halaman (hlm.) diisi dari sumber aslinya saat Anda
+                      memasang footnote di ruang kerja.
+                    </span>
+                  </p>
+                )}
+                <button type="button" onClick={loginDariUjiCoba} className="btn-primary mt-3">
+                  Masuk untuk mengembangkan paragraf ini
+                </button>
+                <p className="mt-2 text-xs text-ink-500">
+                  Sesudah masuk, judul dan paragraf ini terbawa menjadi proyek
+                  pertama Anda, dan pengembangan dilanjutkan di panel
+                  Kembangkan dengan rujukan yang bisa Anda periksa satu per
+                  satu.
+                </p>
+              </div>
             )}
 
             <div className="mt-6 grid gap-6 sm:grid-cols-2">
@@ -262,9 +322,20 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
               </div>
             </div>
 
-            <h3 className="mt-6 text-sm font-bold uppercase tracking-wide text-ink-500">
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">
               Rujukan yang ditemukan (cek lewat DOI/ISBN)
             </h3>
+            <p className="mt-1 text-xs leading-relaxed text-ink-500">
+              Daftar rujukan ini sengaja tidak dikunci: salin judul, DOI, atau
+              ISBN-nya untuk Anda periksa sendiri. Label "DOI/ISBN ketemu"
+              hanya berarti nomor itu terdaftar, bukan berarti isinya sudah
+              dibaca atau pasti cocok dengan judul Anda, jadi perhatikan juga
+              label kecocokan topiknya. Tahun terbit yang tampak lebih baru
+              bisa berasal dari data terbitan online-first.
+            </p>
             <ul className="mt-2 space-y-2">
               {hasil.refs.map((r) => (
                 <li key={r.id} className="rounded-xl border border-ink-100 bg-white px-3 py-2 text-sm">
@@ -284,12 +355,17 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
                     {r.isbn && <span className="font-mono text-gold-700">ISBN: {r.isbn}</span>}
                     {r.tautan && (
                       <a href={r.tautan} target="_blank" rel="noreferrer" className="text-gold-700 underline underline-offset-2">
-                        Buka sumber ↗
+                        {r.tautan.includes("openalex.org") ? "Lihat metadata di OpenAlex ↗" : "Buka sumber ↗"}
                       </a>
                     )}
                     <span className={r.terverifikasi ? "font-semibold text-emerald-700" : "text-ink-400"}>
-                      {r.terverifikasi ? "✓ terverifikasi" : "belum terverifikasi"}
+                      {r.doi || r.isbn
+                        ? r.terverifikasi
+                          ? "✓ DOI/ISBN ketemu"
+                          : "DOI/ISBN belum ketemu"
+                        : "Tanpa DOI/ISBN"}
                     </span>
+                    <span className={labelKecocokan(r).kelas}>{labelKecocokan(r).teks}</span>
                   </span>
                 </li>
               ))}
@@ -315,6 +391,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
               </p>
             </div>
           </div>
+          </>
         )}
       </div>
     </section>

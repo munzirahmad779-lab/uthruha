@@ -241,15 +241,24 @@ export function Workspace({ id }: { id: string }) {
           </div>
           <div className="w-full sm:w-56">
             <div className="flex items-center justify-between text-[11px] font-semibold text-ink-600">
-              <span>Progres</span>
+              <span>Progres bagian</span>
               <span>{stat.progres}%</span>
             </div>
             <div className="mt-1.5">
               <Progress nilai={stat.progres} tebal />
             </div>
-            <p className="mt-1.5 text-[10px] text-ink-500">
-              {stat.kata.toLocaleString("id-ID")} kata dari target ±
-              {stat.target.toLocaleString("id-ID")}
+            <p className="mt-1.5 text-[11px] font-medium text-ink-600">
+              Progres kata: {stat.kata.toLocaleString("id-ID")} dari target ±
+              {stat.target.toLocaleString("id-ID")} kata (
+              {stat.target > 0
+                ? Math.min(100, Math.round((stat.kata / stat.target) * 100))
+                : 0}
+              %)
+            </p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-ink-500">
+              Persen bagian menghitung bab yang sudah terisi; persen kata
+              mengukur kedekatan ke naskah jadi. Keduanya memang bisa berbeda
+              jauh.
             </p>
             <Link href="/mulai" className="btn-quiet mt-2 !px-0 text-[11px]">
               Ubah konteks proyek <IconArrowRight className="h-3 w-3" />

@@ -36,7 +36,7 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
   // identitas menggantikannya: kedipan "flash" yang dilaporkan pemilik.
   const [statusDimuat, setStatusDimuat] = useState(false);
   const [kunci, setKunci] = useState("");
-  const [ingat, setIngat] = useState(true);
+  const [ingat, setIngat] = useState(false);
   const [loading, setLoading] = useState(false);
   const [memuatGoogle, setMemuatGoogle] = useState(false);
   const [pesan, setPesan] = useState<string | null>(null);
@@ -296,7 +296,9 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
           />
           <span className="text-[12px] leading-relaxed text-ink-700">
             <strong className="text-ink-900">Ingat perangkat ini</strong> — perangkat ini langsung
-            masuk sendiri selama 1 tahun. Hanya centang pada komputer milik Anda sendiri.
+            masuk sendiri selama 1 tahun. Jangan centang di komputer bersama
+            (kampus, warnet, atau milik orang lain); centang hanya di perangkat
+            milik Anda sendiri.
           </span>
         </label>
 

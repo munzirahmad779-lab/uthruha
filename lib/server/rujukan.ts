@@ -21,10 +21,27 @@ export interface RujukanTamu {
   tautan: string;
   terverifikasi: boolean;
   skor: number;
+  /** Berapa dari kalimat kunci proyek yang benar-benar disentuh judul ini
+   * (0..jumlah kalimat kunci). Dipakai untuk label kecocokan topik dan
+   * menyaring hasil yang hanya menumpang frasa umum. */
+  kecocokan: number;
 }
 
 const UA = "Uthruha/1.0 (uji coba tamu; +https://uthruha.vercel.app)";
 const AMBANG = 0.08; // ambang tumpang-tindih token judul untuk tampil
+
+/**
+ * Normalisasi token Arab/Indonesia agar padanan tidak gagal hanya karena
+ * bentuk kata: lepas al- ta'rif, samakan ة/ه dan ى/ي, buang akhiran jamak
+ * ات pada kata panjang (مهارات -> مهار, sama dengan batang مهارة -> مهار).
+ */
+function batangKata(t: string): string {
+  let x = t.replace(/^(ال)/, "");
+  x = x.replace(/ة/g, "ه").replace(/ى/g, "ي");
+  if (x.length > 4 && x.endsWith("ات")) x = x.slice(0, -2);
+  else if (x.length > 3 && x.endsWith("ه")) x = x.slice(0, -1);
+  return x;
+}
 
 function tokenJudul(teks: string): Set<string> {
   return new Set(
@@ -32,6 +49,8 @@ function tokenJudul(teks: string): Set<string> {
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .split(/\s+/)
+      .filter((t) => t.length >= 3)
+      .map(batangKata)
       .filter((t) => t.length >= 3),
   );
 }
@@ -65,8 +84,9 @@ async function verifikasiDOI(doi: string): Promise<boolean> {
   return Boolean(j?.message?.DOI);
 }
 
-interface Kandidat extends Omit<RujukanTamu, "id" | "skor"> {
+interface Kandidat extends Omit<RujukanTamu, "id" | "skor" | "kecocokan"> {
   skorMentah: number;
+  frasa: number;
 }
 
 export async function cariRujukanTamu(
@@ -75,14 +95,20 @@ export async function cariRujukanTamu(
 ): Promise<RujukanTamu[]> {
   const kueriToken = tokenJudul([judulProyek, ...kalimatKunci].join(" "));
   const kueriUtama = (kalimatKunci[0] || judulProyek).slice(0, 200);
+  const frasaToken = kalimatKunci.map((k) => tokenJudul(k)).filter((s) => s.size > 0);
+  /** Berapa kalimat kunci yang disentuh judul kandidat (padanan batang kata). */
+  const hitungFrasa = (judul: string): number => {
+    const t = tokenJudul(judul);
+    return frasaToken.filter((s) => [...s].some((x) => t.has(x))).length;
+  };
   const kandidat: Kandidat[] = [];
   const lihat = new Set<string>();
 
-  const tambah = (k: Kandidat) => {
+  const tambah = (k: Omit<Kandidat, "frasa">) => {
     const kunciUnik = (k.doi ?? k.isbn ?? k.judul).toLowerCase();
     if (lihat.has(kunciUnik)) return;
     lihat.add(kunciUnik);
-    kandidat.push(k);
+    kandidat.push({ ...k, frasa: hitungFrasa(k.judul) });
   };
 
   // — OpenAlex: artikel —
@@ -94,6 +120,14 @@ export async function cariRujukanTamu(
     const doi = typeof w.doi === "string" ? w.doi.replace("https://doi.org/", "") : null;
     const judul = typeof w.title === "string" ? w.title : "";
     if (!judul) continue;
+    // Filter bidang OpenAlex: karya yang bidang utamanya Health Sciences
+    // adalah sempalan untuk ruang lingkup Kitabah (pendidikan, bahasa,
+    // studi Islam). Kasus nyata audit 29 Okt: artikel layanan kesehatan
+    // digital lolos hanya karena berbagi frasa "الوسائل الرقمية".
+    const bidangUtama = (
+      w.primary_topic as { field?: { display_name?: string } } | undefined
+    )?.field?.display_name;
+    if (bidangUtama === "Health Sciences") continue;
     tambah({
       jenis: (w.type as string) === "book" || (w.type as string) === "book-chapter" ? "buku" : "jurnal",
       judul,
@@ -119,6 +153,10 @@ export async function cariRujukanTamu(
     const doi = typeof w.doi === "string" ? w.doi.replace("https://doi.org/", "") : null;
     const judul = typeof w.title === "string" ? w.title : "";
     if (!judul) continue;
+    const bidangBuku = (
+      w.primary_topic as { field?: { display_name?: string } } | undefined
+    )?.field?.display_name;
+    if (bidangBuku === "Health Sciences") continue;
     tambah({
       jenis: "buku",
       judul,
@@ -229,7 +267,29 @@ export async function cariRujukanTamu(
     }),
   );
 
-  const lolos = terurut.filter((k) => k.skorMentah >= AMBANG);
+  // Saring hasil sempalan bidang, dengan sengaja sempit (audit 29 Okt):
+  // penanda domain asing yang kuat pada judul kandidat (kesehatan,
+  // pencucian uang, bitcoin) yang tidak disebut kueri sama sekali dibuang.
+  // Ini menutup kasus artikel layanan kesehatan dan pencucian uang yang
+  // lolos hanya karena berbagi frasa "الوسائل الرقمية". Saringan berbasis
+  // skor/frasa yang lebih agresif sudah dicoba dan terbukti membuang juga
+  // rujukan pendidikan dan bahasa Arab yang relevan (kebanyakan hanya
+  // menyentuh satu kalimat kunci karena kalimat kunci lain sangat khas),
+  // jadi sisa keraguan ditangani urutan dan label kecocokan, bukan
+  // pembuangan.
+  const PENANDA_ASING = new Set(["صحي", "غسيل", "بتكوين"]);
+  const lolosMentah = terurut.filter((k) => {
+    if (k.skorMentah < AMBANG) return false;
+    const tokenKandidat = tokenJudul(k.judul);
+    for (const t of tokenKandidat) {
+      if (PENANDA_ASING.has(t) && !kueriToken.has(t)) return false;
+    }
+    return true;
+  });
+  // Urutan akhir: yang menyentuh lebih banyak kalimat kunci didahulukan.
+  const lolos = lolosMentah.sort(
+    (a, b) => b.frasa - a.frasa || b.skorMentah - a.skorMentah,
+  );
   const jurnal = lolos.filter((k) => k.jenis === "jurnal").slice(0, 4);
   const buku = lolos.filter((k) => k.jenis === "buku");
   const bukuTerverifikasi = buku.find((k) => k.terverifikasi);
@@ -254,5 +314,6 @@ export async function cariRujukanTamu(
     tautan: k.tautan,
     terverifikasi: k.terverifikasi,
     skor: Math.round(k.skorMentah * 100) / 100,
+    kecocokan: k.frasa,
   }));
 }

@@ -186,7 +186,7 @@ export function RefFinder({
               البحث عن المراجع
             </p>
             <p className="text-[11px] text-ink-500">
-              Turath dicari otomatis · sumber lain lewat tautan · maksimal {pedoman.maksFootnotePerParagraf} footnote per paragraf
+              Turath dicari otomatis · sumber lain lewat tautan · maksimal {pedoman.maksFootnotePerParagraf} footnote per paragraf menurut pedoman (batas lapis gratis: 3)
             </p>
           </div>
           <button type="button" onClick={tutup} className="btn-quiet shrink-0">

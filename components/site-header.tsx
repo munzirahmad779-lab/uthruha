@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandLockup } from "@/components/brand";
-import { IconArrowRight, IconClose, IconMenu } from "@/components/icons";
+import { IconArrowRight, IconClose, IconLock, IconMenu } from "@/components/icons";
 
-const NAV = [
+/** terkunci = halaman di balik gerbang kunci akses; ditandai ikon gembok
+ * agar pengunjung tahu sejak awal, bukan sesudah diklik. */
+const NAV: { href: string; label: string; terkunci?: boolean }[] = [
   { href: "/#cara-kerja", label: "Cara Kerja" },
   { href: "/#fitur", label: "Fitur" },
   { href: "/#struktur", label: "Struktur" },
-  { href: "/alat", label: "Alat" },
-  { href: "/jurnal", label: "Jurnal" },
-  { href: "/panduan", label: "Panduan" },
+  { href: "/alat", label: "Alat", terkunci: true },
+  { href: "/jurnal", label: "Jurnal", terkunci: true },
+  { href: "/panduan", label: "Panduan", terkunci: true },
 ];
 
 export function SiteHeader() {
@@ -50,16 +52,20 @@ export function SiteHeader() {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-lg px-3 py-2 text-[13px] font-medium text-ink-700 transition hover:bg-ink-900/5 hover:text-ink-900"
+              className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-[13px] font-medium text-ink-700 transition hover:bg-ink-900/5 hover:text-ink-900"
             >
               {item.label}
+              {item.terkunci && (
+                <IconLock className="h-3 w-3 text-ink-400" aria-label="Perlu masuk" />
+              )}
             </Link>
           ))}
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link href="/panduan" className="hidden text-[13px] font-medium text-ink-600 hover:text-ink-900 sm:block">
+          <Link href="/panduan" className="hidden items-center gap-1 text-[13px] font-medium text-ink-600 hover:text-ink-900 sm:inline-flex">
             Integritas Akademik
+            <IconLock className="h-3 w-3 text-ink-400" aria-label="Perlu masuk" />
           </Link>
           <Link href="/proyek" className="btn-primary !px-4 !py-2.5 text-[13px]">
             Buka Ruang Kerja
@@ -86,9 +92,15 @@ export function SiteHeader() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="rounded-xl px-3 py-3 text-sm font-medium text-ink-800 hover:bg-parchment-100"
+                  className="flex items-center gap-1.5 rounded-xl px-3 py-3 text-sm font-medium text-ink-800 hover:bg-parchment-100"
                 >
                   {item.label}
+                  {item.terkunci && (
+                    <>
+                      <IconLock className="h-3.5 w-3.5 text-ink-400" aria-hidden />
+                      <span className="text-xs font-normal text-ink-400">perlu masuk</span>
+                    </>
+                  )}
                 </Link>
               ))}
             </nav>

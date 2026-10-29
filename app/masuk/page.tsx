@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { MasukForm } from "@/components/masuk-form";
 import { loginGoogleAktif } from "@/lib/security/akses";
+import { EMAIL_KONTAK } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Masuk — Kitabah",
@@ -37,11 +38,20 @@ export default function MasukPage() {
           </p>
           <MasukForm googleAktif={googleAktif} />
           <p className="mt-6 text-[11px] leading-relaxed text-ink-500">
-            Lupa kunci? Kunci tidak bisa dipulihkan dari sini — hubungi pemilik server.
-            Pemilik server dapat menggantinya dengan mengubah nilai{" "}
-            <code className="rounded bg-ink-900/5 px-1 py-0.5">UTH_ACCESS_KEY</code>{" "}
-            atau{" "}
-            <code className="rounded bg-ink-900/5 px-1 py-0.5">UTH_KUNCI_GRATIS</code>.
+            Belum punya kunci, atau lupa kunci? Kunci tidak bisa dipulihkan dari
+            halaman ini. Minta kunci gratis atau kunci pengganti lewat email ke{" "}
+            <a
+              href={`mailto:${EMAIL_KONTAK}`}
+              className="font-semibold text-gold-700 underline underline-offset-2"
+            >
+              {EMAIL_KONTAK}
+            </a>{" "}
+            dengan menyebut nama dan kampus Anda.
+          </p>
+          <p className="mt-3 text-[11px] leading-relaxed text-ink-500">
+            Perlu diketahui sebelum masuk: pada lapis gratis, kategori ruang
+            lingkup proyek hanya bisa diganti satu kali per perangkat, dan
+            terkunci permanen sesudah footnote pertama terpasang.
           </p>
         </div>
       </div>
