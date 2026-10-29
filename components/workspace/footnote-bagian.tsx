@@ -79,7 +79,7 @@ export function FootnoteBagian({
           Footnote bagian ini — langsung sesuai {p.pedoman ? "pedoman kampus" : "gaya sitasi proyek"} ({daftar.length})
         </span>
         <div className="flex flex-wrap items-center gap-1.5">
-          {p.sumber.length > 0 && (
+          {p.sumber.length > 0 ? (
             <>
               <select
                 className="input !w-auto max-w-52 !py-1 text-[12px]"
@@ -102,6 +102,15 @@ export function FootnoteBagian({
                 Pasang footnote
               </button>
             </>
+          ) : (
+            <button
+              type="button"
+              className="btn-quiet !py-1"
+              disabled
+              title="Belum ada rujukan tersimpan di proyek ini"
+            >
+              Pasang footnote
+            </button>
           )}
           <button type="button" className="btn-quiet !py-1" onClick={onCariRujukan}>
             Cari rujukan (AI)
@@ -109,10 +118,20 @@ export function FootnoteBagian({
         </div>
       </div>
 
+      {p.sumber.length === 0 && (
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">
+          Tombol <em>Pasang footnote</em> belum aktif karena proyek ini belum memiliki rujukan
+          tersimpan. Footnote hanya bisa dipasang dari rujukan yang sudah ada: klik{" "}
+          <em>Cari rujukan (AI)</em> untuk mencari dan menambahkan, atau tambah manual di tab
+          Rujukan, lalu kembali ke sini.
+        </p>
+      )}
+
       {daftar.length === 0 ? (
         <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">
           Belum ada sitasi di bagian ini. Caranya: (1) tulis atau tempel teks bagian ini dulu,
-          boleh seluruhnya sekaligus; (2) pilih sumber di atas lalu klik <em>Pasang footnote</em>;
+          boleh seluruhnya sekaligus; (2) pastikan proyek sudah punya rujukan tersimpan, pilih
+          sumber di atas lalu klik <em>Pasang footnote</em>;
           (3) di dialog yang terbuka, tentukan paragraf dan kalimat tempat catatan ini menempel,
           isi halamannya, lalu pasang. Footnote jadinya langsung tampil di sini, terformat pedoman
           dan bernomor. Belum punya sumbernya? Klik <em>Cari rujukan (AI)</em>, atau tambah manual

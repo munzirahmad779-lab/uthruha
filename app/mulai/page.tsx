@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BIDANG } from "@/lib/content/bidang";
 import { METODE } from "@/lib/content/metode";
 import { KARYA_LABEL, type KaryaType, type Metode } from "@/lib/content/types";
@@ -58,6 +58,19 @@ export default function MulaiPage() {
   // pedoman kampus lain yang disusun belakangan di ruang kerja.
   const [pedomanIdx, setPedomanIdx] = useState<number | "sendiri" | null>(null);
   const [membuat, setMembuat] = useState(false);
+  // Batas lapis ditampilkan DI AWAL (audit Joseph 30 Okt 2026): akun gratis
+  // yang sudah punya 1 proyek server langsung melihat penjelasannya di sini,
+  // bukan baru ditolak sesudah mengisi seluruh wizard. Gagal memuat status
+  // tidak menghalangi wizard; penolakan di akhir tetap menjadi penjaga.
+  const [batasProyek, setBatasProyek] = useState(false);
+  useEffect(() => {
+    void fetch("/api/lapis/status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { tier?: string; jumlahProyek?: number } | null) => {
+        if (d && d.tier === "gratis" && (d.jumlahProyek ?? 0) >= 1) setBatasProyek(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const bidang = useMemo(() => BIDANG.find((b) => b.id === bidangId) ?? BIDANG[0], [bidangId]);
   const bisaLanjut =
@@ -134,6 +147,32 @@ export default function MulaiPage() {
       /* jaringan gagal: lanjut lokal */
     }
     router.push(`/proyek/${p.id}`);
+  }
+
+  if (batasProyek) {
+    return (
+      <div className="wrap py-10 sm:py-14">
+        <div className="mx-auto max-w-3xl">
+          <span className="eyebrow">Proyek baru</span>
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-ink-900 sm:text-3xl">
+            Lapis gratis hanya boleh 1 proyek
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-ink-600">
+            Akun Anda sudah memiliki satu proyek, dan itulah batas lapis gratis. Proyek lama Anda
+            tidak hilang dan tetap bisa dikerjakan seperti biasa. Untuk membuat proyek tambahan,
+            naik ke Premium dari halaman proyek.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Link href="/proyek" className="btn-gold">
+              Buka proyek saya
+            </Link>
+            <Link href="/ketentuan" className="btn-quiet">
+              Baca ketentuan lapis
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

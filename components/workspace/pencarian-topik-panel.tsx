@@ -166,10 +166,18 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
 
   /* ── Tahap 2: susun tepat 3 kalimat kunci ─────────────────────────────── */
   async function susunKalimat() {
+    const kataDipakai = setKunci.kataDipakai.length > 0 ? setKunci.kataDipakai : setKunci.kata;
+    // Prasyarat dijelaskan, bukan tombol mati tanpa suara (audit Joseph
+    // 30 Okt 2026: tombol yang nonaktif diam-diam terbaca sebagai macet).
+    if (kataDipakai.length === 0 && judul.trim().length < 8 && teks.trim().length < 8) {
+      setPesan(
+        "Belum bisa menyusun kalimat kunci: susun dulu kata kuncinya lewat tombol Generate kata kunci di Langkah 1 atau kolom tambah kata, atau isi judul/teks topik yang lebih lengkap, lalu klik Susun lagi.",
+      );
+      return;
+    }
     setSibuk("kalimat");
     setPesan("");
     try {
-      const kataDipakai = setKunci.kataDipakai.length > 0 ? setKunci.kataDipakai : setKunci.kata;
       const res = await fetch("/api/kata-kunci", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -239,7 +247,14 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
       const hasil = await cariJurnalTopik(kunci);
       setHasilJurnal(hasil.entri);
       setStatusJurnal(hasil.status);
-      if (hasil.entri.length === 0) setPesan("Tidak ditemukan. Coba ubah kalimat kunci kurasi Anda.");
+      if (hasil.entri.length === 0) {
+        const gagal = hasil.status.filter((s) => !s.ok).map((s) => s.sumber);
+        setPesan(
+          gagal.length > 0
+            ? `Tidak ditemukan, dan sumber ini gagal menjawab: ${gagal.join(", ")}. Coba lagi sebentar, atau ubah kalimat kunci kurasi Anda.`
+            : "Tidak ditemukan. Coba ubah kalimat kunci kurasi Anda.",
+        );
+      }
     } catch {
       setPesan("Pencarian jurnal gagal — periksa koneksi, lalu coba lagi. Pencarian lokal tetap bisa dipakai.");
     } finally {
@@ -438,7 +453,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[12px] font-semibold text-ink-800">Langkah 2 · Kalimat kunci (tepat 3, berperan)</span>
-            <button type="button" className="btn-quiet !py-1 !text-[11.5px]" disabled={!online || sibuk !== "" || (setKunci.kata.length === 0 && judul.trim().length < 8)} onClick={susunKalimat}>
+            <button type="button" className="btn-quiet !py-1 !text-[11.5px]" disabled={!online || sibuk !== ""} onClick={susunKalimat}>
               {sibuk === "kalimat" ? "Menyusun…" : "Susun 3 kalimat kunci"}
             </button>
             {setKunci.kalimat.length < 3 && (
@@ -454,6 +469,12 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
               </button>
             )}
           </div>
+          {setKunci.kata.length === 0 && judul.trim().length < 8 && teks.trim().length < 8 && (
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-500">
+              Tombol Susun menyusun dari kata kunci Langkah 1 atau dari judul/teks topik. Bila
+              keduanya masih kosong, klik tombolnya untuk melihat penjelasannya.
+            </p>
+          )}
           {setKunci.kalimat.length > 0 && (
             <div className="mt-2 space-y-2">
               {setKunci.kalimat.map((k, i) => (
