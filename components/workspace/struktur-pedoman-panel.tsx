@@ -10,6 +10,7 @@ import {
   type GalatBidang,
   type StrukturPedoman,
 } from "@/lib/pedoman/skema-struktur";
+import { TEMPLATE_PEDOMAN } from "@/lib/pedoman/template-pedoman";
 import { CopyButton, Note } from "@/components/ui";
 import { IconCheck, IconSparkle } from "@/components/icons";
 
@@ -21,6 +22,9 @@ const AI_LUAR = [
 ];
 
 const MAKS_PUTARAN = 3;
+
+/** Label singkat tombol template, sejajar urutan TEMPLATE_PEDOMAN. */
+const LABEL_TEMPLATE = ["Ma'had Aly DDI Mangkoso", "Ma'had Aly As'adiyah Sengkang"];
 
 /**
  * Panel STRUKTUR PEDOMAN (Fase 3, keputusan F): mahasiswa mengulik PDF
@@ -54,6 +58,14 @@ export function StrukturPedomanPanel({
     setPratinjau(hasil.data);
   }
 
+  // Template permanen: satu klik memuat struktur resmi kampus ke
+  // pratinjau yang sama dengan jalur tempel — terapkan() tidak berubah.
+  function pilihTemplate(t: StrukturPedoman) {
+    setGalat([]);
+    setPesan("");
+    setPratinjau(t);
+  }
+
   function terapkan() {
     if (!pratinjau) return;
     ubah({
@@ -72,10 +84,44 @@ export function StrukturPedomanPanel({
     <div className="rounded-xl border border-ink-900/10 bg-white/60 p-4">
       <h3 className="text-[13px] font-bold text-ink-900">Struktur pedoman → daftar isi otomatis</h3>
       <p className="mt-1 text-[12px] leading-relaxed text-ink-600">
-        Ulik buku pedoman kampus Anda (PDF) dengan bantuan AI luar, lalu tempel hasilnya di sini.
-        Kitabah memvalidasinya dengan skema tetap dan menyusun daftar isi proyek mengikuti logika
-        pedoman itu — bab demi bab, lengkap dengan aturan wajibnya.
+        Pilih pedoman kampus yang tersedia permanen di bawah untuk langsung memakai strukturnya,
+        atau ulik buku pedoman lain dengan bantuan AI luar lewat jalur Pedoman Sendiri.
+        Kitabah menyusun daftar isi proyek mengikuti logika pedoman itu — bab demi bab, lengkap
+        dengan aturan wajibnya.
       </p>
+
+      <div className="mt-3">
+        <p className="label">Pilih pedoman</p>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {TEMPLATE_PEDOMAN.map((t, i) => {
+            const aktif = pratinjau?.namaPedoman === t.namaPedoman;
+            return (
+              <button
+                key={t.namaPedoman}
+                type="button"
+                onClick={() => pilihTemplate(t)}
+                className={`btn-quiet ${aktif ? "font-bold ring-2 ring-gold-500/60" : ""}`}
+              >
+                {LABEL_TEMPLATE[i] ?? t.namaPedoman} · {t.bab.length} bab
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => {
+              setPratinjau(null);
+              setGalat([]);
+            }}
+            className="btn-quiet"
+          >
+            Pedoman Sendiri (Custom)
+          </button>
+        </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-ink-500">
+          Template kampus langsung tampil sebagai pratinjau di bawah, tanpa langkah AI luar.
+          Jalur Custom memakai langkah 1–3 berikut.
+        </p>
+      </div>
 
       <ol className="mt-3 list-decimal space-y-1 pl-5 text-[12px] leading-relaxed text-ink-700">
         <li>
