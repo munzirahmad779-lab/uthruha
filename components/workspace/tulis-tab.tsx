@@ -173,14 +173,16 @@ export function TulisTab({
               return (
                 <div className="flex flex-wrap items-center gap-3">
                   <p className="text-[12px] leading-relaxed text-ink-700">
-                    <span className="font-semibold text-ink-900">Khalfiyah: {jumlahParagraf}/3 paragraf.</span>{" "}
-                    {jumlahParagraf > 3
-                      ? "Melebihi 3 paragraf — latar belakang di panel ini maksimal 3 paragraf; gabung atau padatkan dulu."
-                      : "Isi latar belakang: (1) pengantar & konteks topik, (2) masalah/fenomena yang Anda amati, (3) kesenjangan dari penelitian terdahulu & urgensi penelitian Anda. Tulis atau tempel per paragraf, pisahkan dengan satu baris kosong. Footnote dipasang sesudahnya per kalimat lewat strip Footnote bagian ini di bawah editor."}
+                    <span className="font-semibold text-ink-900">Khalfiyah: {jumlahParagraf} paragraf.</span>{" "}
+                    Draf awal bagian ini tersusun otomatis dari data proyek Anda (judul, topik,
+                    fenomena). Sunting dan padatkan sesuai alur pedoman: pengantar & konteks topik,
+                    masalah/fenomena, lalu kesenjangan dari penelitian terdahulu & urgensi
+                    penelitian Anda. Footnote dipasang sesudahnya per kalimat lewat strip Footnote
+                    bagian ini di bawah editor.
                   </p>
                   <button
                     type="button"
-                    disabled={jumlahParagraf === 0 || jumlahParagraf > 3}
+                    disabled={jumlahParagraf === 0}
                     onClick={() => {
                       ubah({
                         jawaban: {

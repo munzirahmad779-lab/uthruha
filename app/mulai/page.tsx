@@ -7,6 +7,8 @@ import { BIDANG } from "@/lib/content/bidang";
 import { METODE } from "@/lib/content/metode";
 import { KARYA_LABEL, type KaryaType, type Metode } from "@/lib/content/types";
 import { hapusProyek, newProject, simpanProyek } from "@/lib/engine/project";
+import { composeSection } from "@/lib/engine/compose";
+import { strukturProyek } from "@/lib/content/struktur";
 import { strukturKeDaftarIsi } from "@/lib/pedoman/skema-struktur";
 import { TEMPLATE_PEDOMAN } from "@/lib/pedoman/template-pedoman";
 import {
@@ -84,6 +86,26 @@ export default function MulaiPage() {
       // mengisi apa pun: struktur disusun dari panel Pedoman kampus.
       ...(tpl ? { strukturPedoman: tpl, daftarIsi: strukturKeDaftarIsi(tpl) } : {}),
     });
+    // DATA DULU, BARU SUSUN (keputusan pemilik 29 Okt 2026): draf Bab I
+    // langsung disusun otomatis dari data wizard saat proyek dibuat, supaya
+    // mahasiswa membuka ruang kerja yang sudah berisi draf — bukan halaman
+    // kosong. Yang disusun hanya bagian yang murni berasal dari data wizard
+    // (latar belakang dari topik/fenomena, rumusan dan tujuan dari rumusan
+    // yang ditulis, manfaat, batasan, definisi). Bab isi tetap dikerjakan
+    // lewat pencarian rujukan. Kegagalan menyusun tidak boleh menggagalkan
+    // pembuatan proyek.
+    try {
+      const idBagian = new Set(
+        strukturProyek(p).chapters.flatMap((c) => c.sections.map((s) => s.id)),
+      );
+      const drafAwal: Record<string, string> = {};
+      for (const id of ["khalfiya", "masalah", "ahdaf", "fawaid", "hudud", "mustalahat"]) {
+        if (idBagian.has(id)) drafAwal[id] = composeSection(p, id).markdown;
+      }
+      if (Object.keys(drafAwal).length > 0) p.draf = { ...p.draf, ...drafAwal };
+    } catch {
+      /* draf awal gagal disusun: proyek tetap dibuat, tombol Susun draf tersedia */
+    }
     simpanProyek(p);
     // Fase 3: daftarkan ke server agar aturan lapis berlaku (gratis maks 1
     // proyek; ruang lingkup = bidang yang dipilih di sini, terkunci setelah
@@ -462,6 +484,12 @@ export default function MulaiPage() {
                   </p>
                 </div>
               </div>
+              <p className="mt-3 text-[12px] leading-relaxed text-ink-600">
+                Begitu proyek dibuat, <strong className="text-ink-900">draf Bab I langsung
+                tersusun otomatis dari data ini</strong> — latar belakang dari topik dan fenomena
+                Anda, rumusan dan tujuan dari pertanyaan di atas. Anda tinggal menyunting dan
+                mengembangkannya, bukan mulai dari halaman kosong.
+              </p>
               <Note jenis="warn">
                 <strong>Sebelum mulai:</strong> semua draf tersimpan di peramban ini saja. Ekspor
                 .docx secara berkala agar naskah Anda punya cadangan.
