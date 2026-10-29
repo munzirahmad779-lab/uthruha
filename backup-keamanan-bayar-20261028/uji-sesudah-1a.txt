@@ -1,0 +1,18 @@
+== FASE 1a: pembuatan order + webhook non-aktivasi ==
+  ✓ Buat order TANPA sesi ditolak 401 — HTTP 401
+  ✓ Buat order dengan body manipulatif tetap 200 — HTTP 200
+  ✓ order_id berformat UTH- + 24 heksadesimal acak — UTH-50fe6d74c7fdd97ffbeabd98
+  ✓ Nominal tersimpan DITENTUKAN SERVER (10000, bukan 1 dari body) — jumlah=10000
+  ✓ Order terikat identitas sesi (uji-gratis, bukan uji-premium dari body) — userId=uji-gratis
+  ✓ Webhook order TIDAK DIKENAL ditolak (404) — HTTP 404
+  ✓ Webhook tanda tangan PALSU ditolak 403 — HTTP 403
+  ✓ Webhook status pending diterima handler (200) — HTTP 200
+  ✓ Webhook status deny diterima handler (200) — HTTP 200
+  ✓ Webhook status cancel diterima handler (200) — HTTP 200
+  ✓ Webhook status expire diterima handler (200) — HTTP 200
+  ✓ Webhook capture+challenge diterima handler (200) — HTTP 200
+  ✓ Setelah pending/deny/cancel/expire/challenge: tier TETAP gratis — tier=gratis
+  ✓ Status internal order BUKAN lunas_final — statusInternal=menunggu_bayar
+
+HASIL FASE 1a: 14 lulus, 0 gagal
+  6266

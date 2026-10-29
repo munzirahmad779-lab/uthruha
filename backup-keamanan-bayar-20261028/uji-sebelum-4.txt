@@ -1,0 +1,12 @@
+== FASE 4: mode PRODUKSI (tanpa UTH_MODE_UJI) — header uji & cookie tempaan ==
+  ✓ Header x-uji-user DIABAIKAN: status tetap tamu — tier=tamu
+  ✓ Buat order bermodal header uji ditolak 401 — HTTP 401
+  ✓ Cookie sesi sah terbaca (uji-gratis) — id=uji-gratis
+  ✓ Tier dibaca dari STORE (gratis), bukan klaim cookie — tier=gratis
+  ✓ Cookie dengan userId diganti (klaim premium) DITOLAK → tamu — pengguna=null
+  ✓ Cookie bertanda tangan rahasia asing DITOLAK → tamu — pengguna=null
+  ✓ GET konfigurasi bayar tidak memuat server key
+  ✓ GET konfigurasi bayar memuat client key (publik, wajar)
+
+HASIL FASE 4: 8 lulus, 0 gagal
+  4519

@@ -1,0 +1,12 @@
+== FASE 2: replay serial + status mundur setelah lunas ==
+  ✓ Order dibuat — HTTP 200
+  ✓ Replay settlement ke-1 diterima (200) — HTTP 200
+  ✓ Replay settlement ke-2 diterima (200) — HTTP 200
+  ✓ Replay settlement ke-3 diterima (200) — HTTP 200
+  ✓ Replay 3× serial: premium diperpanjang SEKALI (±30 hari, bukan 60/90) — sisa=30.00 hari
+  ✓ Webhook expire-susulan diterima handler (200) — HTTP 200
+  ✓ Status internal TETAP lunas_final setelah expire susulan — statusInternal=lunas_final
+  ✓ Premium TIDAK dibatalkan oleh status mundur — tier=premium
+
+HASIL FASE 2: 8 lulus, 0 gagal
+  6692

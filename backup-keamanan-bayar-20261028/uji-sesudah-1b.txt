@@ -1,0 +1,8 @@
+== FASE 1b: capture dengan fraud_status deny ==
+  ✓ Order dibuat — HTTP 200
+  ✓ Webhook capture+deny diterima handler (200) — HTTP 200
+  ✓ capture+deny TIDAK mengaktifkan premium — tier=gratis
+  ✓ Status internal order BUKAN lunas_final — statusInternal=gagal
+
+HASIL FASE 1b: 4 lulus, 0 gagal
+  6408

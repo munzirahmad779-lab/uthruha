@@ -7,6 +7,8 @@ import { BIDANG } from "@/lib/content/bidang";
 import { METODE } from "@/lib/content/metode";
 import { KARYA_LABEL, type KaryaType, type Metode } from "@/lib/content/types";
 import { hapusProyek, newProject, simpanProyek } from "@/lib/engine/project";
+import { strukturKeDaftarIsi } from "@/lib/pedoman/skema-struktur";
+import { TEMPLATE_PEDOMAN } from "@/lib/pedoman/template-pedoman";
 import {
   IconArrowRight,
   IconBook,
@@ -23,8 +25,12 @@ const LANGKAH = [
   { id: 1, label: "Bidang", ar: "المجال" },
   { id: 2, label: "Metode", ar: "المنهج" },
   { id: 3, label: "Data penelitian", ar: "بيانات البحث" },
-  { id: 4, label: "Rumusan masalah", ar: "أسئلة البحث" },
+  { id: 4, label: "Pedoman", ar: "الدليل" },
+  { id: 5, label: "Rumusan masalah", ar: "أسئلة البحث" },
 ];
+
+/** Label singkat pilihan template di wizard, sejajar TEMPLATE_PEDOMAN. */
+const LABEL_PEDOMAN_WIZARD = ["Ma'had Aly DDI Mangkoso", "Ma'had Aly As'adiyah Sengkang"];
 
 const KARYA: { id: KaryaType; ikon: typeof IconBook; ket: string }[] = [
   { id: "skripsi", ikon: IconBook, ket: "Satu fenomena, satu metode, lima bab." },
@@ -45,14 +51,21 @@ export default function MulaiPage() {
   const [populasi, setPopulasi] = useState("");
   const [fenomenaAr, setFenomenaAr] = useState("");
   const [rumusan, setRumusan] = useState("");
+  // Pedoman WAJIB dipilih (keputusan pemilik 29 Okt 2026): indeks
+  // TEMPLATE_PEDOMAN untuk template permanen, atau "sendiri" untuk
+  // pedoman kampus lain yang disusun belakangan di ruang kerja.
+  const [pedomanIdx, setPedomanIdx] = useState<number | "sendiri" | null>(null);
   const [membuat, setMembuat] = useState(false);
 
   const bidang = useMemo(() => BIDANG.find((b) => b.id === bidangId) ?? BIDANG[0], [bidangId]);
-  const bisaLanjut = langkah !== 3 || topikAr.trim().length > 2;
+  const bisaLanjut =
+    (langkah !== 3 || topikAr.trim().length > 2) &&
+    (langkah !== 4 || pedomanIdx !== null);
   const terakhir = langkah === LANGKAH.length - 1;
 
   async function selesai() {
     setMembuat(true);
+    const tpl = typeof pedomanIdx === "number" ? TEMPLATE_PEDOMAN[pedomanIdx] : undefined;
     const p = newProject({
       jenis,
       metode,
@@ -66,6 +79,10 @@ export default function MulaiPage() {
         .split("\n")
         .map((s) => s.replace(/^[-*\d.)\s]+/, "").trim())
         .filter(Boolean),
+      // Template permanen yang dipilih di langkah Pedoman langsung menjadi
+      // struktur + daftar isi proyek sejak awal. "Pedoman Sendiri" tidak
+      // mengisi apa pun: struktur disusun dari panel Pedoman kampus.
+      ...(tpl ? { strukturPedoman: tpl, daftarIsi: strukturKeDaftarIsi(tpl) } : {}),
     });
     simpanProyek(p);
     // Fase 3: daftarkan ke server agar aturan lapis berlaku (gratis maks 1
@@ -107,7 +124,7 @@ export default function MulaiPage() {
               Siapkan konteks penelitian Anda
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-ink-600">
-              Lima langkah singkat. Semua jawaban bisa diubah lagi di ruang kerja.
+              Enam langkah singkat. Semua jawaban bisa diubah lagi di ruang kerja.
             </p>
           </div>
           <Link href="/proyek" className="btn-quiet shrink-0">
@@ -328,6 +345,81 @@ export default function MulaiPage() {
 
           {langkah === 4 && (
             <div>
+              <h2 className="text-lg font-bold text-ink-900">Pedoman penulisan kampus</h2>
+              <p className="mt-1 text-[13px] text-ink-600">
+                Wajib dipilih satu. Struktur bab proyek Anda langsung mengikuti pedoman ini,
+                dan masih bisa diganti belakangan di ruang kerja.
+              </p>
+              <div className="mt-5 grid gap-3">
+                {TEMPLATE_PEDOMAN.map((t, i) => {
+                  const on = pedomanIdx === i;
+                  const sub = t.bab.reduce((a, b) => a + b.subBab.length, 0);
+                  const atr = t.bab.reduce((a, b) => a + b.aturan.length, 0);
+                  return (
+                    <button
+                      key={t.namaPedoman}
+                      type="button"
+                      onClick={() => setPedomanIdx(i)}
+                      className={`flex items-start gap-4 rounded-xl border p-4 text-left transition ${
+                        on
+                          ? "border-gold-500 bg-gold-100/50"
+                          : "border-ink-900/10 bg-white/60 hover:border-ink-900/25"
+                      }`}
+                    >
+                      <span
+                        className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
+                          on ? "border-gold-600 bg-gold-500 text-white" : "border-ink-900/20"
+                        }`}
+                      >
+                        {on && <IconCheck className="h-3 w-3" />}
+                      </span>
+                      <span>
+                        <span className="block text-[14px] font-bold text-ink-900">
+                          {LABEL_PEDOMAN_WIZARD[i] ?? t.namaPedoman}
+                        </span>
+                        <span className="mt-1 block text-[12px] leading-relaxed text-ink-700">
+                          {t.namaPedoman} — {t.bab.length} bab · {sub} sub-bab · {atr} aturan.
+                          Struktur resmi kampus, langsung terpasang sebagai daftar isi proyek.
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setPedomanIdx("sendiri")}
+                  className={`flex items-start gap-4 rounded-xl border p-4 text-left transition ${
+                    pedomanIdx === "sendiri"
+                      ? "border-gold-500 bg-gold-100/50"
+                      : "border-ink-900/10 bg-white/60 hover:border-ink-900/25"
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
+                      pedomanIdx === "sendiri" ? "border-gold-600 bg-gold-500 text-white" : "border-ink-900/20"
+                    }`}
+                  >
+                    {pedomanIdx === "sendiri" && <IconCheck className="h-3 w-3" />}
+                  </span>
+                  <span>
+                    <span className="block text-[14px] font-bold text-ink-900">Pedoman Sendiri</span>
+                    <span className="mt-1 block text-[12px] leading-relaxed text-ink-700">
+                      Pedoman kampus lain. Proyek dimulai dengan struktur bawaan Kitabah; susun
+                      struktur pedoman Anda dari PDF lewat panel Pedoman kampus di ruang kerja.
+                    </span>
+                  </span>
+                </button>
+              </div>
+              {pedomanIdx === null && (
+                <p className="mt-3 text-[11px] font-medium text-amber-700">
+                  Pilih satu pedoman dulu untuk melanjutkan.
+                </p>
+              )}
+            </div>
+          )}
+
+          {langkah === 5 && (
+            <div>
               <h2 className="text-lg font-bold text-ink-900">Rumusan masalah</h2>
               <p className="mt-1 text-[13px] text-ink-600">
                 Satu pertanyaan per baris, dalam bahasa Arab. Kosongkan bila masih ragu — aplikasi
@@ -340,7 +432,7 @@ export default function MulaiPage() {
                 onChange={(e) => setRumusan(e.target.value)}
                 placeholder={"كيف واقع تعليم المحادثة في المعهد؟\nما العوامل المؤثرة في ضعف مهارة الكلام؟\nكيف يمكن تطوير تعليم المحادثة في ضوء النتائج؟"}
               />
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-4">
                 <div className="rounded-xl border border-ink-900/10 bg-parchment-100/70 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
                     Jenis
@@ -358,6 +450,16 @@ export default function MulaiPage() {
                     Metode
                   </p>
                   <p className="mt-1 text-[12px] font-semibold text-ink-900">{METODE[metode].labelId}</p>
+                </div>
+                <div className="rounded-xl border border-ink-900/10 bg-parchment-100/70 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                    Pedoman
+                  </p>
+                  <p className="mt-1 text-[12px] font-semibold text-ink-900">
+                    {typeof pedomanIdx === "number"
+                      ? (LABEL_PEDOMAN_WIZARD[pedomanIdx] ?? "Template kampus")
+                      : "Pedoman Sendiri"}
+                  </p>
                 </div>
               </div>
               <Note jenis="warn">

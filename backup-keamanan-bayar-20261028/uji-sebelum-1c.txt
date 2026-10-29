@@ -1,0 +1,11 @@
+== FASE 1c: nominal diubah dengan tanda tangan sah ==
+  ✓ Order dibuat — HTTP 200
+  ✓ Webhook nominal-salah ditangani (200/4xx, bukan 5xx) — HTTP 200
+  ✗ GAGAL: Nominal 5000.00 TIDAK mengaktifkan premium — tier=premium
+  ✓ Webhook format-nominal-lain ditangani — HTTP 200
+  ✗ GAGAL: Format '10000' (tanpa .00) TIDAK mengaktifkan premium — tier=premium
+  ✓ Webhook sah persis diterima (200) — HTTP 200
+  ✓ Jalur sah: premium aktif ±30 hari — tier=premium sisa=30.00 hari
+
+HASIL FASE 1c: 5 lulus, 2 gagal
+  4000

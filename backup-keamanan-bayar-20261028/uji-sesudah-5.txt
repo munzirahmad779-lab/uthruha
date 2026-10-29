@@ -1,0 +1,12 @@
+== FASE 5: pembatas laju per pengguna & jalur refund otomatis ==
+  ✓ Order ke-1..5 (IP berganti) lolos — 200,200,200,200,200,429,429
+  ✓ Order ke-6 per PENGGUNA dibatasi (429) walau IP baru — 200,200,200,200,200,429,429
+  ✓ Insiden ke-1..5 tercatat — 200,200,200,200,200,429
+  ✓ Insiden ke-6 per PENGGUNA dibatasi (429) walau IP baru — 200,200,200,200,200,429
+  ✓ Insiden terikat identitas pelapor di store — jumlah=5
+  ✓ Endpoint /api/bayar/refund TIDAK ADA (404) — HTTP 404
+  ✓ Endpoint /api/bayar/aktifkan TIDAK ADA (404) — HTTP 404
+  ✓ Endpoint /api/bayar/konfirmasi TIDAK ADA (404) — HTTP 404
+
+HASIL FASE 5: 8 lulus, 0 gagal
+  7102

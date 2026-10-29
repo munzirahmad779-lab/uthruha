@@ -1,0 +1,7 @@
+== FASE 3: replay PARALEL (balapan) ==
+  ✓ Order dibuat — HTTP 200
+  ✓ 5 webhook paralel semua tertangani — 200,200,200,200,200
+  ✓ Balapan 5×: premium diperpanjang SEKALI (±30 hari) — sisa=30.00 hari
+
+HASIL FASE 3: 3 lulus, 0 gagal
+  6832
