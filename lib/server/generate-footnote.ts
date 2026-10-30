@@ -8,6 +8,12 @@
  * kalimat tempat footnote menempel, selesai. Tanpa dialog, tanpa memilih
  * paragraf/kalimat/rujukan sendiri.
  *
+ * Dua jalur rujukan: MARAJI' dari web umum (jurnal/buku modern, boleh
+ * dari mana saja) dan MASADIR dari Turath.io + Shamela (kitab turath,
+ * wajib ada untuk sumber primer — keputusan pemilik 30 Okt 2026).
+ * Paragraf yang mengutip atau membahas sumber klasik didahulukan
+ * masadirnya; selain itu jurnal terverifikasi yang memimpin.
+ *
  * Hemat API lewat bank rujukan bersama (lib/server/bank-rujukan.ts):
  *  1. Sidik paragraf persis sama pernah diproses → kalimat kuncinya
  *     dipakai ulang, tanpa panggilan AI.
@@ -30,6 +36,9 @@ import {
 } from "./bank-rujukan";
 import { idAcak } from "./store";
 import type { Sumber } from "@/lib/engine/cite";
+import { cari as cariTurath } from "@/lib/refs/adapters/turath";
+import { cari as cariShamela } from "@/lib/refs/adapters/shamela";
+import type { RefCandidate } from "@/lib/refs/types";
 
 /** Sama persis dengan pecahKalimatLokal di komponen dialog pasang footnote. */
 export function pecahKalimatServer(paragraf: string): string[] {
@@ -89,9 +98,10 @@ async function kalimatKunciDariAI(paragraf: string): Promise<string[] | null> {
   }
 }
 
-/** Rujukan hasil web → Sumber proyek. Halaman/jilid kosong: halaman
- *  mengikuti bawaan rujukan (keputusan pemilik), dan rujukan web memang
- *  tidak membawa nomor halaman sitasi. */
+/** Rujukan hasil web → Sumber proyek. Halaman/jilid mengikuti bawaan
+ *  rujukan (keputusan pemilik): rujukan maraji' web tidak membawa nomor
+ *  halaman sitasi, sedangkan masadir dari Turath/Shamela justru membawa
+ *  jilid dan halaman cetak yang persis — itu nilai utamanya. */
 export function rujukanKeSumber(r: RujukanTamu): Sumber {
   return {
     id: idAcak("src-"),
@@ -102,19 +112,103 @@ export function rujukanKeSumber(r: RujukanTamu): Sumber {
     judul: r.judul,
     penerbit: r.jenis === "buku" ? r.wadah || undefined : undefined,
     jurnal: r.jenis === "jurnal" ? r.wadah || undefined : undefined,
+    jilid: r.jilid || undefined,
+    halaman: r.halaman || undefined,
     doi: r.doi ?? undefined,
     isbn: r.isbn ?? undefined,
     url: r.tautan || undefined,
-    sumberImpor: "web-generate",
+    sumberImpor: r.asal ? `web-${r.asal}` : "web-generate",
     perluVerifikasi: r.terverifikasi ? undefined : true,
   };
 }
 
-/** Pilih rujukan terbaik: jurnal terverifikasi didahulukan (daftar dari
- *  cariRujukanTamu sudah terurut relevansi), lalu terverifikasi apa pun,
- *  lalu peringkat pertama. */
-function pilihRujukan(daftar: RujukanTamu[]): RujukanTamu | null {
+/**
+ * Jalur MASADIR: cari kitab turath di Turath.io dan Shamela (keputusan
+ * pemilik 30 Okt 2026 — untuk masadir dua korpus ini wajib ada; maraji'
+ * boleh dari mana saja). Memakai adapter yang sama dengan pencari
+ * rujukan ruang kerja. Kueri: kalimat kunci berhuruf Arab; adapter
+ * Turath memecahnya sendiri menjadi jendela frasa persis.
+ */
+async function cariMasadir(kalimatKunci: string[], paragraf: string): Promise<RujukanTamu[]> {
+  const arab = kalimatKunci.filter((k) => /[\u0600-\u06FF]/.test(k)).slice(0, 2);
+  const kueri = arab.length > 0 ? arab : [pecahKalimatServer(paragraf)[0] ?? ""].filter(Boolean);
+  if (kueri.length === 0) return [];
+
+  const frasaToken = kalimatKunci.map((k) => tokenJudul(k)).filter((s) => s.size > 0);
+  const tokenInti = frasaToken[0] ? [...frasaToken[0]][0] : undefined;
+  const keRujukan = (c: RefCandidate): RujukanTamu | null => {
+    const judul = (c.kitab ?? "").trim();
+    if (!judul || judul.startsWith("[ !")) return null;
+    const token = tokenJudul(judul);
+    return {
+      id: `ref-${c.source}`,
+      jenis: "buku",
+      judul,
+      penulis: c.penulis ? [c.penulis] : [],
+      tahun: c.tahun ? String(c.tahun) : "",
+      wadah: c.penerbit ?? "",
+      doi: null,
+      isbn: null,
+      tautan: c.url_sumber ?? "",
+      // Turath/Shamela tidak mengirim penerbit/tahun lengkap: catatan
+      // kakinya wajib diverifikasi manusia, sama seperti di RefFinder.
+      terverifikasi: false,
+      skor: c.skor,
+      kecocokan: frasaToken.filter((s) => [...s].some((x) => token.has(x))).length,
+      inti: tokenInti ? token.has(tokenInti) : false,
+      umum: token.size <= 1,
+      jilid: c.jilid ? String(c.jilid) : undefined,
+      halaman: c.halaman_cetak ? String(c.halaman_cetak) : undefined,
+      asal: c.source,
+    };
+  };
+
+  const hasil: RujukanTamu[] = [];
+  const lihat = new Set<string>();
+  const panggilan: Promise<RefCandidate[]>[] = [];
+  for (const q of kueri) {
+    panggilan.push(cariTurath(q, { maks: 4 }), cariShamela(q, { maks: 4 }));
+  }
+  const semua = await Promise.allSettled(panggilan);
+  for (const s of semua) {
+    if (s.status !== "fulfilled") continue;
+    for (const c of s.value) {
+      const r = keRujukan(c);
+      if (!r) continue;
+      const kunci = `${r.judul.toLowerCase()}|${r.jilid ?? ""}|${r.halaman ?? ""}`;
+      if (lihat.has(kunci)) continue;
+      lihat.add(kunci);
+      hasil.push(r);
+    }
+  }
+  return hasil.sort((a, b) => b.skor - a.skor).slice(0, 5);
+}
+
+/** Penanda paragraf yang sedang mengutip/membahas sumber klasik:
+ *  kata atribusi, penanda ayat, atau gelar ulama. */
+const PENANDA_KLASIK = /(قال|يقول|روى|أخرج|حديث|﴿|قوله تعالى|رحمه الله|رضي الله عنه|عليه السلام|صلى الله عليه)/;
+
+/**
+ * Pilih rujukan terbaik.
+ * - Ada kandidat masadir (Turath/Shamela) yang kuat → didahulukan:
+ *   paragraf bertanda klasik cukup dengan skor sedang, paragraf lain
+ *   butuh skor kemiripan tinggi dari halaman kitabnya. Masadir adalah
+ *   sumber primer; maraji' tidak menggantikannya.
+ * - Selain itu: jurnal terverifikasi didahulukan (daftar maraji' sudah
+ *   terurut relevansi), lalu terverifikasi apa pun, lalu peringkat satu.
+ */
+function pilihRujukan(daftar: RujukanTamu[], paragraf: string): RujukanTamu | null {
   if (daftar.length === 0) return null;
+  const masadir = daftar
+    .filter((r) => r.asal === "turath" || r.asal === "shamela")
+    .sort((a, b) => b.skor - a.skor);
+  const terbaikMasadir = masadir[0];
+  if (terbaikMasadir) {
+    const klasik = PENANDA_KLASIK.test(paragraf);
+    if (terbaikMasadir.skor >= 0.25 || (klasik && terbaikMasadir.skor >= 0.12)) {
+      return terbaikMasadir;
+    }
+  }
   return (
     daftar.find((r) => r.terverifikasi && r.jenis === "jurnal") ??
     daftar.find((r) => r.terverifikasi) ??
@@ -196,17 +290,24 @@ export async function generateFootnoteUntukParagraf(opsi: {
   let daftar = bank?.rujukan ?? null;
   let dariBank = Boolean(bank);
 
-  // 5) Cari baru di web, lalu simpan ke bank + sidik untuk pengguna lain.
+  // 5) Cari baru: maraji' di web umum dan masadir di Turath/Shamela,
+  //    berjalan paralel. Hasil gabungan disimpan ke bank + sidik agar
+  //    pengguna berikutnya tidak mengulang pencarian apa pun.
   if (!daftar || daftar.length === 0) {
     dariBank = false;
-    daftar = await cariRujukanTamu(opsi.judulProyek ?? "", kalimatKunci);
+    const [maraji, masadir] = await Promise.all([
+      cariRujukanTamu(opsi.judulProyek ?? "", kalimatKunci),
+      cariMasadir(kalimatKunci, paragraf).catch(() => [] as RujukanTamu[]),
+    ]);
+    const lihat = new Set(maraji.map((r) => r.judul.toLowerCase()));
+    daftar = [...maraji, ...masadir.filter((r) => !lihat.has(r.judul.toLowerCase()))];
     if (daftar.length > 0) {
       await simpanKeBank(kalimatKunci, daftar).catch(() => undefined);
       if (!sidik) await simpanSidikParagraf(paragraf, kalimatKunci).catch(() => undefined);
     }
   }
 
-  const rujukan = pilihRujukan(daftar ?? []);
+  const rujukan = pilihRujukan(daftar ?? [], paragraf);
   if (!rujukan) {
     return {
       ketemu: false,
