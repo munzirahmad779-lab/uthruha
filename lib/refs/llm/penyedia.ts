@@ -28,6 +28,8 @@ export interface OpsiLLM {
   maksToken?: number;
   /** Kunci yang diberikan pengguna lewat UI (menimpa env). */
   kunci?: string;
+  /** Pemanggil Premium terverifikasi: kolam mencoba kunci premium lebih dulu. */
+  premium?: boolean;
 }
 
 export interface Penyedia {
@@ -304,6 +306,7 @@ export async function panggilLLM(
       const hasil = await panggilKolam({
         pengguna: prompt,
         maksToken: opsi.maksToken ?? 220,
+        premium: opsi.premium ?? false,
       });
       if (hasil.teks.trim()) {
         return {

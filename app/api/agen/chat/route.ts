@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   if (!pesan) return NextResponse.json({ error: "Pesan kosong." }, { status: 400 });
 
   try {
-    const hasil = await panggilKolam({ sistem: SISTEM_AGEN, pengguna: pesan, maksToken: 900 });
+    const hasil = await panggilKolam({ sistem: SISTEM_AGEN, pengguna: pesan, maksToken: 900, premium: true });
     return NextResponse.json({ jawaban: hasil.teks, penyedia: hasil.penyedia, model: hasil.model });
   } catch {
     return NextResponse.json({ error: "Agen sedang tidak bisa menjawab. Coba lagi sebentar." }, { status: 503 });
