@@ -36,8 +36,9 @@ import {
 } from "./bank-rujukan";
 import { idAcak } from "./store";
 import type { Sumber } from "@/lib/engine/cite";
-import { cari as cariTurath } from "@/lib/refs/adapters/turath";
+import { cari as cariTurath, cariKonsep as cariKonsepTurath } from "@/lib/refs/adapters/turath";
 import { cari as cariShamela } from "@/lib/refs/adapters/shamela";
+import { ekstrakKonsep } from "@/lib/refs/konsep";
 import type { RefCandidate } from "@/lib/refs/types";
 
 /** Sama persis dengan pecahKalimatLokal di komponen dialog pasang footnote. */
@@ -175,25 +176,41 @@ async function cariMasadir(
       umum: token.size <= 1,
       jilid: c.jilid ? String(c.jilid) : undefined,
       halaman: c.halaman_cetak ? String(c.halaman_cetak) : undefined,
+      konsepCocok: c.konsep_cocok?.length ?? 0,
       asal: c.source,
     };
   };
 
   const hasil: RujukanTamu[] = [];
-  const lihat = new Set<string>();
   const panggilan: Promise<RefCandidate[]>[] = [];
   for (const q of kueri) {
     panggilan.push(cariTurath(q, { maks: 4 }), cariShamela(q, { maks: 4 }));
   }
+  // Jalur konsep Turath: halaman dinilai dari konsep yang muncul di
+  // JUDUL BAB kitab — kitab yang memang membaktikan bab untuk topik ini
+  // (masadir sejati) naik, kitab yang hanya menyebutnya sepintas turun.
+  const konsep = ekstrakKonsep(paragraf);
+  if (konsep.length > 0) {
+    panggilan.push(cariKonsepTurath(konsep, { maks: 6 }).catch(() => [] as RefCandidate[]));
+  }
   const semua = await Promise.allSettled(panggilan);
+  const indeks = new Map<string, number>();
   for (const s of semua) {
     if (s.status !== "fulfilled") continue;
     for (const c of s.value) {
       const r = keRujukan(c);
       if (!r) continue;
       const kunci = `${r.judul.toLowerCase()}|${r.jilid ?? ""}|${r.halaman ?? ""}`;
-      if (lihat.has(kunci)) continue;
-      lihat.add(kunci);
+      const ada = indeks.get(kunci);
+      if (ada !== undefined) {
+        // Halaman yang sama dari jalur lain (kata vs konsep): gabungkan
+        // kekuatan penilaiannya, jangan dibuang salah satu.
+        const lama = hasil[ada]!;
+        lama.konsepCocok = Math.max(lama.konsepCocok ?? 0, r.konsepCocok ?? 0);
+        lama.skor = Math.max(lama.skor, r.skor);
+        continue;
+      }
+      indeks.set(kunci, hasil.length);
       hasil.push(r);
     }
   }
@@ -227,7 +244,7 @@ function pilihRujukan(daftar: RujukanTamu[], paragraf: string, judulProyek?: str
   if (daftar.length === 0) return null;
   const masadir = daftar
     .filter((r) => r.asal === "turath" || r.asal === "shamela")
-    .sort((a, b) => b.skor - a.skor);
+    .sort((a, b) => (b.konsepCocok ?? 0) - (a.konsepCocok ?? 0) || b.skor - a.skor);
   // Kitab yang NAMANYA disebut persis di paragraf atau judul proyek
   // (mis. "في إحياء علوم الدين قال...") adalah sumber yang dimaksud
   // mahasiswa — menangkan tanpa syarat skor.
@@ -237,6 +254,9 @@ function pilihRujukan(daftar: RujukanTamu[], paragraf: string, judulProyek?: str
   const terbaikMasadir = masadir[0];
   if (terbaikMasadir) {
     const klasik = PENANDA_KLASIK.test(paragraf);
+    // Kitab yang judul babnya memuat 2+ konsep paragraf adalah masadir
+    // topik ini — cukup itu untuk menang.
+    if ((terbaikMasadir.konsepCocok ?? 0) >= 2) return terbaikMasadir;
     if (terbaikMasadir.skor >= 0.25 || (klasik && terbaikMasadir.skor >= 0.12)) {
       return terbaikMasadir;
     }
