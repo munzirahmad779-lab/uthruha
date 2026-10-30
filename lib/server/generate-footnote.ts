@@ -170,7 +170,11 @@ async function cariMasadir(
       // Turath/Shamela tidak mengirim penerbit/tahun lengkap: catatan
       // kakinya wajib diverifikasi manusia, sama seperti di RefFinder.
       terverifikasi: false,
-      skor: c.skor,
+      // Transkrip seri pelajaran (دروس/سلسلة/محاضرات atau "شرح كذا -
+      // فلان") mengutip teks klasik kata demi kata sehingga skor
+      // cuplikannya jenuh — turunkan agar kitab klasik penyusun asli
+      // yang menang, bukan transkrip pengajian.
+      skor: /^(دروس|سلسلة|محاضرات|لقاءات)\b/.test(judul) || judul.includes(" - ") ? c.skor * 0.45 : c.skor,
       kecocokan: frasaToken.filter((s) => [...s].some((x) => token.has(x))).length,
       inti: tokenInti ? token.has(tokenInti) : false,
       umum: token.size <= 1,
@@ -189,7 +193,11 @@ async function cariMasadir(
   // Jalur konsep Turath: halaman dinilai dari konsep yang muncul di
   // JUDUL BAB kitab — kitab yang memang membaktikan bab untuk topik ini
   // (masadir sejati) naik, kitab yang hanya menyebutnya sepintas turun.
-  const konsep = ekstrakKonsep(paragraf);
+  // Konsep = kalimat kunci Arab pendek (dari AI) + ekstraksi aturan.
+  const konsep = [
+    ...kalimatKunci.filter((k) => /[\u0600-\u06FF]/.test(k) && k.split(/\s+/).length <= 6),
+    ...ekstrakKonsep(paragraf),
+  ].slice(0, 8);
   if (konsep.length > 0) {
     panggilan.push(cariKonsepTurath(konsep, { maks: 6 }).catch(() => [] as RefCandidate[]));
   }
@@ -223,8 +231,16 @@ async function cariMasadir(
         .filter((r) => r.judul.length >= 8 && (r.judul.includes(ekorJudul) || ekorJudul.includes(r.judul)))
         .sort((a, b) => b.skor - a.skor)
     : [];
-  const sisa = hasil.filter((r) => !cocokJudul.includes(r)).sort((a, b) => b.skor - a.skor);
-  return [...cocokJudul.slice(0, 3), ...sisa].slice(0, 6);
+  // Kandidat jalur konsep disisihkan slotnya sendiri: skor cuplikannya
+  // kalah dari skor jalur kata yang jenuh di angka 1, padahal penilaian
+  // judul-babnya yang membuat mereka berharga.
+  const dariKonsep = hasil
+    .filter((r) => (r.konsepCocok ?? 0) > 0 && !cocokJudul.includes(r))
+    .sort((a, b) => (b.konsepCocok ?? 0) - (a.konsepCocok ?? 0) || b.skor - a.skor);
+  const sisa = hasil
+    .filter((r) => !cocokJudul.includes(r) && !dariKonsep.includes(r))
+    .sort((a, b) => b.skor - a.skor);
+  return [...cocokJudul.slice(0, 3), ...dariKonsep.slice(0, 3), ...sisa].slice(0, 8);
 }
 
 /** Penanda paragraf yang sedang mengutip/membahas sumber klasik:
@@ -233,12 +249,11 @@ const PENANDA_KLASIK = /(قال|يقول|روى|أخرج|حديث|﴿|قوله �
 
 /**
  * Pilih rujukan terbaik.
- * - Ada kandidat masadir (Turath/Shamela) yang kuat → didahulukan:
- *   paragraf bertanda klasik cukup dengan skor sedang, paragraf lain
- *   butuh skor kemiripan tinggi dari halaman kitabnya. Masadir adalah
- *   sumber primer; maraji' tidak menggantikannya.
- * - Selain itu: jurnal terverifikasi didahulukan (daftar maraji' sudah
- *   terurut relevansi), lalu terverifikasi apa pun, lalu peringkat satu.
+ * - Kitab yang disebut namanya di paragraf/judul proyek selalu menang.
+ * - Paragraf bertanda klasik: masadir teratas menang (penilaian judul
+ *   bab 2+ konsep, atau skor cuplikan sedang saja cukup).
+ * - Paragraf lain: jurnal terverifikasi didahulukan, lalu terverifikasi
+ *   apa pun; masadir baru menang bila tak ada maraji' terverifikasi.
  */
 function pilihRujukan(daftar: RujukanTamu[], paragraf: string, judulProyek?: string): RujukanTamu | null {
   if (daftar.length === 0) return null;
@@ -252,21 +267,23 @@ function pilihRujukan(daftar: RujukanTamu[], paragraf: string, judulProyek?: str
   const disebut = masadir.find((r) => r.judul.length >= 8 && konteks.includes(r.judul));
   if (disebut) return disebut;
   const terbaikMasadir = masadir[0];
-  if (terbaikMasadir) {
-    const klasik = PENANDA_KLASIK.test(paragraf);
-    // Kitab yang judul babnya memuat 2+ konsep paragraf adalah masadir
-    // topik ini — cukup itu untuk menang.
-    if ((terbaikMasadir.konsepCocok ?? 0) >= 2) return terbaikMasadir;
-    if (terbaikMasadir.skor >= 0.25 || (klasik && terbaikMasadir.skor >= 0.12)) {
-      return terbaikMasadir;
-    }
+  // Masadir hanya menang pada paragraf yang memang bertanda klasik
+  // (mengutip/mengatribusi sumber lama). Skor cuplikan Turath jenuh di
+  // angka 1 untuk korpus besar mana pun, jadi tanpa penanda klasik ia
+  // BUKAN bukti bahwa paragraf ini butuh kitab — paragraf modern tetap
+  // dilayani maraji'.
+  const klasik = PENANDA_KLASIK.test(paragraf);
+  if (terbaikMasadir && klasik && ((terbaikMasadir.konsepCocok ?? 0) >= 2 || terbaikMasadir.skor >= 0.12)) {
+    return terbaikMasadir;
   }
-  return (
-    daftar.find((r) => r.terverifikasi && r.jenis === "jurnal") ??
-    daftar.find((r) => r.terverifikasi) ??
-    daftar[0] ??
-    null
-  );
+  const jurnal = daftar.find((r) => r.terverifikasi && r.jenis === "jurnal");
+  if (jurnal) return jurnal;
+  const terverifikasi = daftar.find((r) => r.terverifikasi);
+  if (terverifikasi) return terverifikasi;
+  // Tak ada maraji' terverifikasi: halaman kitab nyata lebih baik
+  // daripada temuan web yang belum terverifikasi.
+  if (terbaikMasadir && terbaikMasadir.skor >= 0.5) return terbaikMasadir;
+  return daftar[0] ?? null;
 }
 
 /** Pilih kalimat tempat footnote menempel: tumpang-tindih token kalimat
