@@ -135,6 +135,21 @@ export async function simpan(koleksi: Koleksi, rec: Rekam): Promise<Rekam> {
   return rec;
 }
 
+export async function hapus(koleksi: Koleksi, id: string): Promise<void> {
+  if (supabaseSiap()) {
+    await sbFetch(
+      `uthruha_kv?koleksi=eq.${encodeURIComponent(koleksi)}&id=eq.${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    );
+    return;
+  }
+  const db = await muatBerkas();
+  if (db[koleksi]?.[id]) {
+    delete db[koleksi][id];
+    await simpanBerkas();
+  }
+}
+
 export async function perbarui(
   koleksi: Koleksi,
   id: string,

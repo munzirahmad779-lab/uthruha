@@ -8,7 +8,14 @@ import { IconArrowRight, IconCheck, IconDownload, IconPen, IconSearch, IconSpark
 import { CopyButton, Note } from "@/components/ui";
 import { Manuscript } from "@/components/manuscript";
 import { RefFinder } from "@/components/workspace/ref-finder";
-import { PasangFootnote, targetDariKursor } from "@/components/workspace/pasang-footnote";
+import {
+  PasangFootnote,
+  ambilParagraf,
+  penandaUntuk,
+  sisipPenandaKeDraf,
+  targetDariKursor,
+} from "@/components/workspace/pasang-footnote";
+import type { Sumber } from "@/lib/engine/cite";
 import { FootnoteBagian } from "@/components/workspace/footnote-bagian";
 import { BatasStrip } from "@/components/workspace/batas-strip";
 
@@ -37,6 +44,11 @@ export function TulisTab({
   const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string; paragrafIdx?: number; kalimatIdx?: number } | null>(null);
   const [kursor, setKursor] = useState<number | null>(null);
   const [pesanPasang, setPesanPasang] = useState("");
+  const [sibukGenerate, setSibukGenerate] = useState(false);
+  const [pesanGenerate, setPesanGenerate] = useState<{
+    jenis: "ok" | "info" | "galat";
+    teks: string;
+  } | null>(null);
   const sinkron = useRef(p.draf[bagian] ?? "");
 
   // Ganti bagian: muat draf bagian tersebut.
@@ -77,6 +89,110 @@ export function TulisTab({
     setTeks(hasil.markdown);
     sinkron.current = hasil.markdown;
     ubah({ draf: { ...p.draf, [bagian]: hasil.markdown } });
+  }
+
+  /**
+   * Generate Footnote otomatis (Premium): paragraf tempat kursor berada
+   * dikirim ke server; AI menyusun kalimat kunci, mencari rujukan di web
+   * (atau memakai bank rujukan bersama), memilih kalimat tempat menempel.
+   * Di sini tinggal tanam penandanya — tanpa dialog sama sekali.
+   */
+  async function generateOtomatis() {
+    if (sibukGenerate) return;
+    // Samakan dulu draf proyek dengan isi editor, lalu tentukan paragraf
+    // dan kalimat dari posisi kursor terakhir yang tercatat.
+    sinkron.current = teks;
+    ubah({ draf: { ...p.draf, [bagian]: teks } });
+    const target = kursor != null ? targetDariKursor(teks, kursor) : null;
+    const paragraf = target ? ambilParagraf(teks, target.paragrafIdx) : null;
+    if (!target || !paragraf) {
+      setPesanGenerate({
+        jenis: "info",
+        teks: "Taruh kursor dulu di dalam paragraf yang mau diberi footnote, lalu klik Generate footnote lagi.",
+      });
+      return;
+    }
+    setSibukGenerate(true);
+    setPesanGenerate(null);
+    try {
+      const res = await fetch("/api/footnote/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paragraf,
+          judulProyek: p.judulAr ?? "",
+          kalimatKursor: target.kalimatIdx,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        ketemu?: boolean;
+        sumber?: Sumber;
+        kalimatIdx?: number;
+        dariBank?: boolean;
+        catatan?: string;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        setPesanGenerate({
+          jenis: "galat",
+          teks: data?.error ?? "Generate footnote gagal. Coba lagi sebentar.",
+        });
+        return;
+      }
+      if (!data?.ketemu || !data.sumber) {
+        setPesanGenerate({
+          jenis: "info",
+          teks: data?.catatan ?? "Belum ditemukan rujukan yang cocok untuk paragraf ini.",
+        });
+        return;
+      }
+      const sumberBaru = data.sumber;
+      // Rujukan yang sama sudah tersimpan? Pakai yang lama agar sitasi
+      // berulang mendapat nomor dan bentuk singkat yang benar.
+      const sudahAda = p.sumber.find(
+        (s) =>
+          (sumberBaru.doi && s.doi && s.doi.toLowerCase() === sumberBaru.doi.toLowerCase()) ||
+          s.judul.trim().toLowerCase() === sumberBaru.judul.trim().toLowerCase(),
+      );
+      const sumberFinal = sudahAda ?? sumberBaru;
+      // Gerbang lapis server, sama seperti dialog manual (403 = tolak).
+      try {
+        const gerbang = await fetch("/api/lapis/footnote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ proyekId: p.id, paragrafId: `${bagian}:${target.paragrafIdx}` }),
+        });
+        if (gerbang.status === 403) {
+          const g = (await gerbang.json().catch(() => null)) as { error?: string } | null;
+          setPesanGenerate({
+            jenis: "galat",
+            teks: g?.error ?? "Pemasangan footnote ditolak oleh aturan lapis akun Anda.",
+          });
+          return;
+        }
+      } catch {
+        /* lanjut lokal, sama seperti dialog */
+      }
+      const kalimatIdx = typeof data.kalimatIdx === "number" ? data.kalimatIdx : target.kalimatIdx;
+      const drafBaru = sisipPenandaKeDraf(teks, target.paragrafIdx, kalimatIdx, penandaUntuk(sumberFinal));
+      ubah({
+        sumber: sudahAda ? p.sumber : [...p.sumber, sumberBaru],
+        draf: { ...p.draf, [bagian]: drafBaru },
+      });
+      setTeks(drafBaru);
+      sinkron.current = drafBaru;
+      setPesanGenerate({
+        jenis: "ok",
+        teks: `Footnote terpasang otomatis di paragraf ${target.paragrafIdx + 1}, setelah kalimat ${kalimatIdx + 1}: ${sumberFinal.judul}${data.dariBank ? " (dari bank rujukan bersama, tanpa pencarian baru)" : ""}`,
+      });
+    } catch {
+      setPesanGenerate({
+        jenis: "galat",
+        teks: "Generate footnote gagal tersambung ke server. Periksa koneksi lalu coba lagi.",
+      });
+    } finally {
+      setSibukGenerate(false);
+    }
   }
 
   function sisipkan(jawaban: string) {
@@ -319,20 +435,27 @@ export function TulisTab({
         {pesanPasang && (
           <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[12px] text-emerald-900">{pesanPasang}</p>
         )}
+        {pesanGenerate && (
+          <p
+            className={`mt-2 rounded-lg px-3 py-2 text-[12px] ${
+              pesanGenerate.jenis === "ok"
+                ? "bg-emerald-50 text-emerald-900"
+                : pesanGenerate.jenis === "galat"
+                  ? "bg-red-50 text-red-700"
+                  : "bg-amber-50 text-amber-900"
+            }`}
+          >
+            {pesanGenerate.teks}
+          </p>
+        )}
 
         <FootnoteBagian
           p={p}
           bagian={bagian}
           onCariRujukan={() => setCariRujukan(true)}
           onPasang={(sumber) => setPasangTarget({ sumber })}
-          onPasangKursor={(sumber) => {
-            // Samakan dulu draf proyek dengan isi editor, lalu hitung paragraf
-            // & kalimat dari posisi kursor terakhir yang tercatat.
-            sinkron.current = teks;
-            ubah({ draf: { ...p.draf, [bagian]: teks } });
-            const t = kursor != null ? targetDariKursor(teks, kursor) : null;
-            setPasangTarget({ sumber, paragrafIdx: t?.paragrafIdx, kalimatIdx: t?.kalimatIdx });
-          }}
+          onGenerate={generateOtomatis}
+          sibukGenerate={sibukGenerate}
         />
 
         <div className="mt-3">

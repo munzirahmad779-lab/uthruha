@@ -52,7 +52,7 @@ function batangKata(t: string): string {
   return x;
 }
 
-function tokenJudul(teks: string): Set<string> {
+export function tokenJudul(teks: string): Set<string> {
   return new Set(
     teks
       .toLowerCase()

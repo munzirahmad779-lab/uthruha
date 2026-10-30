@@ -77,6 +77,42 @@ function sisipSetelahKalimat(paragraf: string, idx: number, sisipan: string): st
   return parts.join(" ");
 }
 
+/** Penanda sitasi untuk satu sumber — format persis seperti yang dibangun
+ *  dialog. Halaman/jilid mengikuti bawaan rujukannya. */
+export function penandaUntuk(sumber: Sumber): string {
+  const hlm = sumber.halaman?.trim();
+  const jld = sumber.jilid?.trim();
+  return ` [[ref:${sumber.id}${hlm ? `|hlm:${hlm}` : ""}${jld ? `|jilid:${jld}` : ""}]]`;
+}
+
+/** Teks paragraf isi ke-N (0-based, blok judul dilewati) dari draf satu
+ *  bagian — pemetaan yang sama dengan yang dipakai dialog. */
+export function ambilParagraf(teks: string, paragrafIdx: number): string | null {
+  const blok = teks.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+  const isi = blok.filter((b) => !b.startsWith("#"));
+  return isi[paragrafIdx] ?? null;
+}
+
+/** Sisipkan penanda ke draf satu bagian pada paragraf & kalimat tujuan
+ *  (indeks isi, sama seperti dialog), kembalikan draf baru utuh.
+ *  Dipakai Generate Footnote otomatis: tanpa dialog sama sekali. */
+export function sisipPenandaKeDraf(
+  teksDraf: string,
+  paragrafIdx: number,
+  kalimatIdx: number,
+  penanda: string,
+): string {
+  const blokMentah = teksDraf.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+  const indeksNyata = blokMentah
+    .map((x, i) => (x.startsWith("#") ? -1 : i))
+    .filter((i) => i >= 0);
+  const nyata = indeksNyata[paragrafIdx];
+  if (nyata === undefined) return teksDraf;
+  const salin = [...blokMentah];
+  salin[nyata] = sisipSetelahKalimat(salin[nyata] ?? "", kalimatIdx, penanda);
+  return salin.join("\n\n");
+}
+
 export function PasangFootnote({
   p,
   ubah,
