@@ -167,6 +167,10 @@ const JALUR_BEBAS = new Set([
   // Webhook Midtrans adalah panggilan server-ke-server tanpa cookie;
   // keamanannya signature_key SHA512 yang diverifikasi di handler.
   "/api/bayar/webhook",
+  // Pengelolaan bank rujukan bersama oleh Vercel Cron tiap malam:
+  // panggilan server-ke-server tanpa cookie, tanpa data pengguna, tanpa
+  // LLM. Bila CRON_SECRET terisi, handler mewajibkan header-nya persis.
+  "/api/kron/bank-rujukan",
 ]);
 
 /** Tujuan setelah berhasil masuk; hanya jalur internal (anti open redirect). */

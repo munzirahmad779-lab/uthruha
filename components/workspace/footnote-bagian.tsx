@@ -63,14 +63,16 @@ export function FootnoteBagian({
   bagian,
   onCariRujukan,
   onPasang,
-  onPasangKursor,
+  onGenerate,
+  sibukGenerate,
 }: {
   p: Project;
   bagian: string;
   onCariRujukan: () => void;
   onPasang: (sumber: Sumber) => void;
-  /** Fitur Premium: dialog terbuka dengan paragraf & kalimat dari posisi kursor. */
-  onPasangKursor?: (sumber: Sumber) => void;
+  /** Fitur Premium: generate footnote otomatis dari paragraf tempat kursor. */
+  onGenerate: () => void;
+  sibukGenerate?: boolean;
 }) {
   const [sumberId, setSumberId] = useState("");
   const [tier, setTier] = useState<string | null>(null);
@@ -121,26 +123,6 @@ export function FootnoteBagian({
               >
                 Pasang footnote
               </button>
-              {tier === "premium" ? (
-                <button
-                  type="button"
-                  className="btn-quiet !py-1"
-                  disabled={!terpilih}
-                  title="Taruh kursor di kalimat yang memuat data pada teks di atas, lalu klik ini: paragraf dan kalimat tujuan terisi otomatis"
-                  onClick={() => terpilih && onPasangKursor?.(terpilih)}
-                >
-                  Pasang di posisi kursor
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-quiet !py-1"
-                  title="Fitur Premium"
-                  onClick={() => setCatatanPremium((v) => !v)}
-                >
-                  🔒 Pasang di posisi kursor
-                </button>
-              )}
             </>
           ) : (
             <button
@@ -152,6 +134,26 @@ export function FootnoteBagian({
               Pasang footnote
             </button>
           )}
+          {tier === "premium" ? (
+            <button
+              type="button"
+              className="btn-quiet !py-1"
+              disabled={sibukGenerate}
+              title="Taruh kursor di paragraf yang mau diberi footnote, lalu klik ini: AI menyusun kalimat kunci, mencari rujukan di web, dan footnote langsung terpasang di kalimat yang tepat"
+              onClick={onGenerate}
+            >
+              {sibukGenerate ? "Sedang menggenerate…" : "✦ Generate footnote"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-quiet !py-1"
+              title="Fitur Premium"
+              onClick={() => setCatatanPremium((v) => !v)}
+            >
+              🔒 Generate footnote
+            </button>
+          )}
           <button type="button" className="btn-quiet !py-1" onClick={onCariRujukan}>
             Cari rujukan (AI)
           </button>
@@ -160,9 +162,10 @@ export function FootnoteBagian({
 
       {catatanPremium && tier !== "premium" && (
         <p className="mt-1.5 rounded-lg bg-gold-500/10 px-2.5 py-2 text-[11.5px] leading-relaxed text-ink-700">
-          <strong>Pasang di posisi kursor</strong> adalah fitur Premium: taruh kursor di kalimat
-          yang memuat data, lalu footnote terpasang tepat di situ tanpa memilih paragraf dan
-          kalimat dari daftar. Lapis gratis tetap bisa memasang footnote lewat dialog biasa.{" "}
+          <strong>Generate footnote</strong> adalah fitur Premium: taruh kursor di paragraf
+          yang memuat data, AI menyusun kalimat kunci, mencari rujukan di web, dan footnote
+          langsung terpasang di kalimat yang tepat, tanpa dialog dan tanpa memilih sendiri.
+          Lapis gratis tetap bisa memasang footnote lewat dialog <em>Pasang footnote</em>.{" "}
           <Link href="/premium" className="font-semibold text-gold-700 underline">
             Lihat Premium
           </Link>
@@ -172,21 +175,24 @@ export function FootnoteBagian({
       {p.sumber.length === 0 && (
         <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">
           Tombol <em>Pasang footnote</em> belum aktif karena proyek ini belum memiliki rujukan
-          tersimpan. Footnote hanya bisa dipasang dari rujukan yang sudah ada: klik{" "}
+          tersimpan. Footnote manual hanya bisa dipasang dari rujukan yang sudah ada: klik{" "}
           <em>Cari rujukan (AI)</em> untuk mencari dan menambahkan, atau tambah manual di tab
-          Rujukan, lalu kembali ke sini.
+          Rujukan, lalu kembali ke sini. Akun Premium bisa langsung memakai{" "}
+          <em>Generate footnote</em>: AI mencarikan rujukan baru dari web dan memasangnya
+          otomatis.
         </p>
       )}
 
       {daftar.length === 0 ? (
         <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-500">
           Belum ada sitasi di bagian ini. Caranya: (1) tulis atau tempel teks bagian ini dulu,
-          boleh seluruhnya sekaligus; (2) pastikan proyek sudah punya rujukan tersimpan, pilih
-          sumber di atas lalu klik <em>Pasang footnote</em>;
-          (3) di dialog yang terbuka, tentukan paragraf dan kalimat tempat catatan ini menempel,
-          isi halamannya, lalu pasang. Footnote jadinya langsung tampil di sini, terformat pedoman
-          dan bernomor. Belum punya sumbernya? Klik <em>Cari rujukan (AI)</em>, atau tambah manual
-          di tab Rujukan.
+          boleh seluruhnya sekaligus; (2) akun Premium: taruh kursor di paragraf yang memuat
+          data lalu klik <em>Generate footnote</em>, footnote langsung terpasang otomatis;
+          (3) cara manual untuk semua lapis: pastikan proyek sudah punya rujukan tersimpan,
+          pilih sumber di atas lalu klik <em>Pasang footnote</em>, lalu tentukan paragraf dan
+          kalimat tempat catatan ini menempel dan isi halamannya. Footnote jadinya langsung
+          tampil di sini, terformat pedoman dan bernomor. Belum punya sumbernya? Klik{" "}
+          <em>Cari rujukan (AI)</em>, atau tambah manual di tab Rujukan.
         </p>
       ) : (
         <ol className="mt-2 space-y-1.5">
