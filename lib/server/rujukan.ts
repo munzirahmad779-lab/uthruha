@@ -37,6 +37,9 @@ export interface RujukanTamu {
   /** Jilid & halaman cetak — diisi jalur masadir (Turath/Shamela). */
   jilid?: string;
   halaman?: string;
+  /** Berapa konsep paragraf yang cocok di judul bab kitab ini (mode
+   *  konsep Turath) — penanda relevansi topik masadir. */
+  konsepCocok?: number;
   /** Asal pencarian: "turath" | "shamela" untuk jalur masadir. */
   asal?: string;
 }
