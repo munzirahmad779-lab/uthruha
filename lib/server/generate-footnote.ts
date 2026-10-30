@@ -202,6 +202,11 @@ function pilihRujukan(daftar: RujukanTamu[], paragraf: string): RujukanTamu | nu
   const masadir = daftar
     .filter((r) => r.asal === "turath" || r.asal === "shamela")
     .sort((a, b) => b.skor - a.skor);
+  // Kitab yang NAMANYA disebut persis di paragraf (mis. "في إحياء علوم
+  // الدين قال...") adalah sumber yang dimaksud mahasiswa — menangkan
+  // tanpa syarat skor.
+  const disebut = masadir.find((r) => r.judul.length >= 8 && paragraf.includes(r.judul));
+  if (disebut) return disebut;
   const terbaikMasadir = masadir[0];
   if (terbaikMasadir) {
     const klasik = PENANDA_KLASIK.test(paragraf);
