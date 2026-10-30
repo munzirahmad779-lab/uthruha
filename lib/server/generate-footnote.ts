@@ -259,7 +259,7 @@ function pilihRujukan(daftar: RujukanTamu[], paragraf: string, judulProyek?: str
   if (daftar.length === 0) return null;
   const masadir = daftar
     .filter((r) => r.asal === "turath" || r.asal === "shamela")
-    .sort((a, b) => (b.konsepCocok ?? 0) - (a.konsepCocok ?? 0) || b.skor - a.skor);
+    .sort((a, b) => b.skor - a.skor || (b.konsepCocok ?? 0) - (a.konsepCocok ?? 0));
   // Kitab yang NAMANYA disebut persis di paragraf atau judul proyek
   // (mis. "في إحياء علوم الدين قال...") adalah sumber yang dimaksud
   // mahasiswa — menangkan tanpa syarat skor.
