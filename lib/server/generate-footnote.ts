@@ -170,11 +170,15 @@ async function cariMasadir(
       // Turath/Shamela tidak mengirim penerbit/tahun lengkap: catatan
       // kakinya wajib diverifikasi manusia, sama seperti di RefFinder.
       terverifikasi: false,
-      // Transkrip seri pelajaran (دروس/سلسلة/محاضرات atau "شرح كذا -
-      // فلان") mengutip teks klasik kata demi kata sehingga skor
-      // cuplikannya jenuh — turunkan agar kitab klasik penyusun asli
-      // yang menang, bukan transkrip pengajian.
-      skor: /^(دروس|سلسلة|محاضرات|لقاءات)\b/.test(judul) || judul.includes(" - ") ? c.skor * 0.45 : c.skor,
+      // Transkrip seri pelajaran (judul mulai دروس/سلسلة/محاضرات/لقاءات
+      // atau pola "شرح كذا - فلان") mengutip teks klasik kata demi kata
+      // sehingga skor cuplikannya jenuh — turunkan agar kitab klasik
+      // penyusun asli yang menang, bukan transkrip pengajian. (Tanpa \b:
+      // batas kata JS tidak berlaku untuk huruf Arab.)
+      skor:
+        ["دروس ", "سلسلة ", "محاضرات ", "لقاءات "].some((p) => judul.startsWith(p)) || judul.includes(" - ")
+          ? c.skor * 0.45
+          : c.skor,
       kecocokan: frasaToken.filter((s) => [...s].some((x) => token.has(x))).length,
       inti: tokenInti ? token.has(tokenInti) : false,
       umum: token.size <= 1,
