@@ -34,6 +34,11 @@ export interface RujukanTamu {
    * skor tokennya otomatis penuh, tetapi ia gambaran umum, bukan rujukan
    * inti. Label di klien menurunkannya dari "tinggi" (audit Cue 29 Okt). */
   umum: boolean;
+  /** Jilid & halaman cetak — diisi jalur masadir (Turath/Shamela). */
+  jilid?: string;
+  halaman?: string;
+  /** Asal pencarian: "turath" | "shamela" untuk jalur masadir. */
+  asal?: string;
 }
 
 const UA = "Uthruha/1.0 (uji coba tamu; +https://uthruha.vercel.app)";
