@@ -155,6 +155,7 @@ export async function daftarFootnote(
  */
 export async function profilKategoriKustom(
   nama: string,
+  premium = false,
 ): Promise<{ profil: KategoriKustom; dariAI: boolean }> {
   const bersih = nama.trim().slice(0, 120);
   try {
@@ -164,6 +165,7 @@ export async function profilKategoriKustom(
       pengguna: `Tema bidang: ${bersih}`,
       maksToken: 500,
       json: true,
+      premium,
     });
     const j = JSON.parse(hasil.teks.slice(hasil.teks.indexOf("{"), hasil.teks.lastIndexOf("}") + 1)) as Record<string, unknown>;
     const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 6) : []);

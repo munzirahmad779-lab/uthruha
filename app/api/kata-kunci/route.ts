@@ -24,6 +24,7 @@ import {
   parseKata,
 } from "@/lib/engine/kata-kunci-server";
 import { tolakTanpaSesi } from "@/lib/security/akses";
+import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -85,13 +86,13 @@ async function panggilOpenAICompatible(opts: {
 }
 
 /** Panggil provider LLM berurutan (Groq → Cloudflare); kembalikan teks mentah. */
-async function panggilLLMMentah(system: string, user: string, maksToken: number): Promise<{ sumber: string; isi: string } | null> {
+async function panggilLLMMentah(system: string, user: string, maksToken: number, premium = false): Promise<{ sumber: string; isi: string } | null> {
   // Fase 3 (H): jalur utama kini KOLAM KUNCI (Gemini → Groq → Cloudflare →
   // slot DeepSeek/Meta) dengan rotasi + cooldown per kunci. Rantai lama di
   // bawah dipertahankan sebagai cadangan bila kolam belum terkonfigurasi.
   try {
     const { panggilKolam } = await import("@/lib/server/kolam");
-    const hasil = await panggilKolam({ sistem: system, pengguna: user, maksToken, json: true });
+    const hasil = await panggilKolam({ sistem: system, pengguna: user, maksToken, json: true, premium });
     if (hasil.teks) return { sumber: `kolam:${hasil.penyedia}`, isi: hasil.teks };
   } catch {
     /* kolam kosong/gagal — jatuh ke rantai lama */
@@ -173,6 +174,10 @@ export async function POST(req: NextRequest) {
     return balasanLaju(global.ulangDetik, "Server sedang sibuk. Coba lagi sebentar.");
   }
 
+  // Pemanggil Premium memakai kolam khusus premium lebih dulu.
+  const penggunaSesi = await penggunaDariRequest(req);
+  const premium = penggunaSesi ? tierEfektif(penggunaSesi) === "premium" : false;
+
   const body = await req.json().catch(() => null);
   const teks = typeof body?.teks === "string" ? body.teks.trim().slice(0, 2000) : "";
   if (teks.length < 10) {
@@ -182,7 +187,7 @@ export async function POST(req: NextRequest) {
   // ── Tahap kurasi v2 ──────────────────────────────────────────────────────
   const tahap = typeof body?.tahap === "string" ? body.tahap : "";
   if (tahap === "kata") {
-    const mentah = await panggilLLMMentah(PROMPT_KATA, teks, 500);
+    const mentah = await panggilLLMMentah(PROMPT_KATA, teks, 500, premium);
     const kata = mentah ? parseKata(mentah.isi) : null;
     if (kata) return NextResponse.json({ sumber: mentah!.sumber, kata });
     return NextResponse.json({
@@ -197,7 +202,7 @@ export async function POST(req: NextRequest) {
       ? body.kata.filter((x: unknown) => typeof x === "string").slice(0, 12)
       : [];
     const user = `JUDUL: ${judul}\nKATA KUNCI TERPILIH: ${kataPilihan.join("، ") || "(belum ada — ambil dari judul)"}`;
-    const mentah = await panggilLLMMentah(PROMPT_KALIMAT, user, 800);
+    const mentah = await panggilLLMMentah(PROMPT_KALIMAT, user, 800, premium);
     const kalimat = mentah ? parseKalimat(mentah.isi) : null;
     if (kalimat) return NextResponse.json({ sumber: mentah!.sumber, kalimat });
     return NextResponse.json({

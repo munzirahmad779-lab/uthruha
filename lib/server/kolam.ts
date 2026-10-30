@@ -13,6 +13,12 @@
  *   sendiri lewat jalur resmi).
  * - Nilai kunci TIDAK pernah disimpan di store/log; store hanya menyimpan
  *   label ("gemini#2") dan statistik.
+ * - Kolam khusus Premium (keputusan pemilik 30 Okt 2026): env
+ *   GEMINI_API_KEYS_PREMIUM & GROQ_API_KEYS_PREMIUM (dari akun terpisah agar
+ *   kuota tidak menumpuk) HANYA boleh dipakai pemanggil bertanda premium.
+ *   Pemanggil premium mencoba kunci premium lebih dulu, lalu jatuh ke kunci
+ *   umum bila kunci premium habis/cooldown; pemanggil umum TIDAK pernah
+ *   menyentuh kunci premium. Label keadaan terpisah: "gemini-premium#1".
  */
 import { ambil, simpan } from "./store";
 
@@ -29,6 +35,8 @@ interface PenyediaKolam {
   id: string;
   model: string;
   kunci: string[];
+  /** Kunci khusus Premium dari env terpisah; kosong bila belum diisi pemilik. */
+  kunciPremium: string[];
   panggil: (kunci: string, model: string, sistem: string, pengguna: string, maksToken: number, json: boolean) => Promise<string>;
 }
 
@@ -115,6 +123,7 @@ function penyediaSemua(): PenyediaKolam[] {
       id: "uji",
       model: "model-uji",
       kunci: ["kunci-uji"],
+      kunciPremium: [],
       panggil: (k, m, s, u, t, j) => panggilOpenAI(process.env.KOLAM_UJI_BASE!.trim(), k, m, s, u, t, j),
     });
   }
@@ -123,18 +132,21 @@ function penyediaSemua(): PenyediaKolam[] {
       id: "gemini",
       model: process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
       kunci: daftarKunci("GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"),
+      kunciPremium: daftarKunci("GEMINI_API_KEYS_PREMIUM"),
       panggil: panggilGemini,
     },
     {
       id: "groq",
       model: process.env.GROQ_MODEL?.trim() || "qwen/qwen3.8-27b",
       kunci: daftarKunci("GROQ_API_KEYS", "GROQ_API_KEY"),
+      kunciPremium: daftarKunci("GROQ_API_KEYS_PREMIUM"),
       panggil: (k, m, s, u, t, j) => panggilOpenAI("https://api.groq.com/openai/v1", k, m, s, u, t, j),
     },
     {
       id: "cloudflare",
       model: process.env.CLOUDFLARE_MODEL?.trim() || "@cf/meta/llama-3.1-8b-instruct",
       kunci: daftarKunci("CLOUDFLARE_API_TOKEN", "CF_API_TOKEN"),
+      kunciPremium: [],
       panggil: (k, m, s, u, t, j) =>
         panggilOpenAI(
           `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID?.trim() || "akun-belum-diisi"}/ai/v1`,
@@ -146,6 +158,7 @@ function penyediaSemua(): PenyediaKolam[] {
       id: "deepseek",
       model: process.env.DEEPSEEK_MODEL?.trim() || "deepseek-chat",
       kunci: daftarKunci("DEEPSEEK_API_KEYS", "DEEPSEEK_API_KEY"),
+      kunciPremium: [],
       panggil: (k, m, s, u, t, j) => panggilOpenAI("https://api.deepseek.com/v1", k, m, s, u, t, j),
     },
     {
@@ -154,6 +167,7 @@ function penyediaSemua(): PenyediaKolam[] {
       id: "meta",
       model: process.env.META_MODEL?.trim() || "muse-spark-1.3",
       kunci: daftarKunci("META_MODEL_API_KEYS", "META_MODEL_API_KEY"),
+      kunciPremium: [],
       panggil: (k, m, s, u, t, j) => panggilOpenAI("https://api.meta.ai/v1", k, m, s, u, t, j),
     },
   );
@@ -207,23 +221,36 @@ export async function panggilKolam(opsi: {
   pengguna: string;
   maksToken?: number;
   json?: boolean;
+  /** True hanya untuk pemanggil Premium terverifikasi: kunci premium dicoba
+   *  lebih dulu, kunci umum menjadi cadangan. Pemanggil lain tidak pernah
+   *  menerima kunci premium. */
+  premium?: boolean;
 }): Promise<HasilKolam> {
   const gagal: PercobaanGagal[] = [];
   const sekarang = Date.now();
   for (const p of penyediaSemua()) {
-    if (p.kunci.length === 0) {
+    // Grup kunci yang boleh dipakai pemanggil ini, urut per prioritas.
+    const grup: { kunci: string; label: string }[][] = [];
+    if (opsi.premium && p.kunciPremium.length > 0) {
+      grup.push(p.kunciPremium.map((k, i) => ({ kunci: k, label: `${p.id}-premium#${i + 1}` })));
+    }
+    grup.push(p.kunci.map((k, i) => ({ kunci: k, label: `${p.id}#${i + 1}` })));
+    if (grup.every((g) => g.length === 0)) {
       gagal.push({ label: p.id, alasan: "tidak ada kunci (slot kosong/belum diisi)" });
       continue;
     }
-    // Urutkan kunci: yang sehat & paling jarang dipakai lebih dulu.
+    // Dalam tiap grup: kunci sehat & paling jarang dipakai lebih dulu.
     const kandidat: { kunci: string; label: string; st: KeadaanKunci }[] = [];
-    for (let i = 0; i < p.kunci.length; i += 1) {
-      const label = `${p.id}#${i + 1}`;
-      const st = await keadaan(label);
-      if (st.status === "cooldown" && st.cooldownSampai > sekarang) continue;
-      kandidat.push({ kunci: p.kunci[i]!, label, st });
+    for (const g of grup) {
+      const siap: { kunci: string; label: string; st: KeadaanKunci }[] = [];
+      for (const item of g) {
+        const st = await keadaan(item.label);
+        if (st.status === "cooldown" && st.cooldownSampai > sekarang) continue;
+        siap.push({ ...item, st });
+      }
+      siap.sort((a, b) => a.st.sukses + a.st.gagal - (b.st.sukses + b.st.gagal));
+      kandidat.push(...siap);
     }
-    kandidat.sort((a, b) => a.st.sukses + a.st.gagal - (b.st.sukses + b.st.gagal));
     for (const k of kandidat) {
       try {
         const teks = await p.panggil(k.kunci, p.model, opsi.sistem ?? "", opsi.pengguna, opsi.maksToken ?? 1200, opsi.json ?? false);
@@ -267,7 +294,14 @@ export async function panggilKolam(opsi: {
 
 /** Status ringkas kolam untuk panel/status — tanpa nilai kunci. */
 export async function statusKolam(): Promise<
-  { penyedia: string; model: string; jumlahKunci: number; sehat: number }[]
+  {
+    penyedia: string;
+    model: string;
+    jumlahKunci: number;
+    sehat: number;
+    jumlahKunciPremium: number;
+    sehatPremium: number;
+  }[]
 > {
   const hasil = [];
   const sekarang = Date.now();
@@ -277,7 +311,19 @@ export async function statusKolam(): Promise<
       const st = await keadaan(`${p.id}#${i + 1}`);
       if (!(st.status === "cooldown" && st.cooldownSampai > sekarang)) sehat += 1;
     }
-    hasil.push({ penyedia: p.id, model: p.model, jumlahKunci: p.kunci.length, sehat });
+    let sehatPremium = 0;
+    for (let i = 0; i < p.kunciPremium.length; i += 1) {
+      const st = await keadaan(`${p.id}-premium#${i + 1}`);
+      if (!(st.status === "cooldown" && st.cooldownSampai > sekarang)) sehatPremium += 1;
+    }
+    hasil.push({
+      penyedia: p.id,
+      model: p.model,
+      jumlahKunci: p.kunci.length,
+      sehat,
+      jumlahKunciPremium: p.kunciPremium.length,
+      sehatPremium,
+    });
   }
   return hasil;
 }

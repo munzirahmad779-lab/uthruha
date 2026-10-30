@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { penggunaDariRequest } from "@/lib/server/identitas";
+import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
 import { gantiKategori, profilKategoriKustom, type KategoriKustom } from "@/lib/server/lapis";
 import { tolakTanpaSesi } from "@/lib/security/akses";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   if (!body) return NextResponse.json({ error: "Badan permintaan kosong." }, { status: 400 });
 
   if (body.kustom?.trim() && !body.proyekId) {
-    const { profil, dariAI } = await profilKategoriKustom(body.kustom);
+    const { profil, dariAI } = await profilKategoriKustom(body.kustom, tierEfektif(u) === "premium");
     return NextResponse.json({ kategoriKustom: profil, dariAI });
   }
   if (!body.proyekId) return NextResponse.json({ error: "proyekId wajib." }, { status: 400 });
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   let kategoriKustom: KategoriKustom | null = null;
   let kategoriId = body.kategoriId?.trim() ?? "";
   if (body.kustom?.trim()) {
-    const { profil } = await profilKategoriKustom(body.kustom);
+    const { profil } = await profilKategoriKustom(body.kustom, tierEfektif(u) === "premium");
     kategoriKustom = profil;
     kategoriId = `kustom:${profil.nama.toLowerCase().replace(/\s+/g, "-").slice(0, 60)}`;
   }
