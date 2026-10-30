@@ -197,7 +197,17 @@ async function cariMasadir(
       hasil.push(r);
     }
   }
-  return hasil.sort((a, b) => b.skor - a.skor).slice(0, 5);
+  // Kandidat yang judul kitabnya memuat frasa judul dari judul proyek
+  // (kitab yang sedang diteliti mahasiswa) didahulukan tanpa memandang
+  // skor kemiripan cuplikan: cuplikan isi kitab jarang memuat judulnya
+  // sendiri, jadi jalur skor murni menenggelamkan kitab yang dimaksud.
+  const cocokJudul = ekorJudul
+    ? hasil
+        .filter((r) => r.judul.length >= 8 && (r.judul.includes(ekorJudul) || ekorJudul.includes(r.judul)))
+        .sort((a, b) => b.skor - a.skor)
+    : [];
+  const sisa = hasil.filter((r) => !cocokJudul.includes(r)).sort((a, b) => b.skor - a.skor);
+  return [...cocokJudul.slice(0, 3), ...sisa].slice(0, 6);
 }
 
 /** Penanda paragraf yang sedang mengutip/membahas sumber klasik:
