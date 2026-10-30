@@ -129,9 +129,25 @@ export function rujukanKeSumber(r: RujukanTamu): Sumber {
  * rujukan ruang kerja. Kueri: kalimat kunci berhuruf Arab; adapter
  * Turath memecahnya sendiri menjadi jendela frasa persis.
  */
-async function cariMasadir(kalimatKunci: string[], paragraf: string): Promise<RujukanTamu[]> {
+async function cariMasadir(
+  kalimatKunci: string[],
+  paragraf: string,
+  judulProyek?: string,
+): Promise<RujukanTamu[]> {
   const arab = kalimatKunci.filter((k) => /[\u0600-\u06FF]/.test(k)).slice(0, 2);
   const kueri = arab.length > 0 ? arab : [pecahKalimatServer(paragraf)[0] ?? ""].filter(Boolean);
+  // Judul proyek kerap menyebut kitabnya persis ("... في إحياء علوم
+  // الدين"): ekor sesudah "في" terakhir menjadi kueri judul kitab.
+  const ekorJudul = (judulProyek ?? "").split(/\s+في\s+/).pop()?.trim() ?? "";
+  if (
+    ekorJudul &&
+    /[\u0600-\u06FF]/.test(ekorJudul) &&
+    ekorJudul.split(/\s+/).length >= 2 &&
+    ekorJudul.split(/\s+/).length <= 6 &&
+    !kueri.includes(ekorJudul)
+  ) {
+    kueri.push(ekorJudul);
+  }
   if (kueri.length === 0) return [];
 
   const frasaToken = kalimatKunci.map((k) => tokenJudul(k)).filter((s) => s.size > 0);
@@ -197,15 +213,16 @@ const PENANDA_KLASIK = /(قال|يقول|روى|أخرج|حديث|﴿|قوله �
  * - Selain itu: jurnal terverifikasi didahulukan (daftar maraji' sudah
  *   terurut relevansi), lalu terverifikasi apa pun, lalu peringkat satu.
  */
-function pilihRujukan(daftar: RujukanTamu[], paragraf: string): RujukanTamu | null {
+function pilihRujukan(daftar: RujukanTamu[], paragraf: string, judulProyek?: string): RujukanTamu | null {
   if (daftar.length === 0) return null;
   const masadir = daftar
     .filter((r) => r.asal === "turath" || r.asal === "shamela")
     .sort((a, b) => b.skor - a.skor);
-  // Kitab yang NAMANYA disebut persis di paragraf (mis. "في إحياء علوم
-  // الدين قال...") adalah sumber yang dimaksud mahasiswa — menangkan
-  // tanpa syarat skor.
-  const disebut = masadir.find((r) => r.judul.length >= 8 && paragraf.includes(r.judul));
+  // Kitab yang NAMANYA disebut persis di paragraf atau judul proyek
+  // (mis. "في إحياء علوم الدين قال...") adalah sumber yang dimaksud
+  // mahasiswa — menangkan tanpa syarat skor.
+  const konteks = `${paragraf} ${judulProyek ?? ""}`;
+  const disebut = masadir.find((r) => r.judul.length >= 8 && konteks.includes(r.judul));
   if (disebut) return disebut;
   const terbaikMasadir = masadir[0];
   if (terbaikMasadir) {
@@ -302,7 +319,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
     dariBank = false;
     const [maraji, masadir] = await Promise.all([
       cariRujukanTamu(opsi.judulProyek ?? "", kalimatKunci),
-      cariMasadir(kalimatKunci, paragraf).catch(() => [] as RujukanTamu[]),
+      cariMasadir(kalimatKunci, paragraf, opsi.judulProyek).catch(() => [] as RujukanTamu[]),
     ]);
     const lihat = new Set(maraji.map((r) => r.judul.toLowerCase()));
     daftar = [...maraji, ...masadir.filter((r) => !lihat.has(r.judul.toLowerCase()))];
@@ -312,7 +329,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
     }
   }
 
-  const rujukan = pilihRujukan(daftar ?? [], paragraf);
+  const rujukan = pilihRujukan(daftar ?? [], paragraf, opsi.judulProyek);
   if (!rujukan) {
     return {
       ketemu: false,
