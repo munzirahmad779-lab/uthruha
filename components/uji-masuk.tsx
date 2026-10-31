@@ -24,6 +24,18 @@ const PERSONA: PersonaRingkas[] = [
   { namaUji: "UJI-DEWI", nama: "Dewi (uji)", tier: "premium", peran: "Butuh jurnal + ekspor .docx" },
   { namaUji: "UJI-AGUS", nama: "Agus (uji)", tier: "premium", peran: "Pekerja paruh waktu, sensitif harga" },
   { namaUji: "UJI-LINA", nama: "Lina (uji)", tier: "gratis", peran: "Hati-hati data dan legal" },
+  { namaUji: "UJI-TANIA", nama: "Tania (uji)", tier: "gratis", peran: "Mahasiswa baru, laptop pinjaman" },
+  { namaUji: "UJI-RIZKI", nama: "Rizki (uji)", tier: "gratis", peran: "Sering ganti perangkat" },
+  { namaUji: "UJI-MAYA", nama: "Maya (uji)", tier: "gratis", peran: "Penulis teliti" },
+  { namaUji: "UJI-DEDI", nama: "Dedi (uji)", tier: "gratis", peran: "Koneksi lambat" },
+  { namaUji: "UJI-SARI", nama: "Sari (uji)", tier: "premium", peran: "Butuh masadir kitab" },
+  { namaUji: "UJI-BUDI", nama: "Budi (uji)", tier: "premium", peran: "Ekspor untuk pembimbing" },
+  { namaUji: "UJI-RINA", nama: "Rina (uji)", tier: "premium", peran: "Pemakai Chat Agen" },
+  { namaUji: "UJI-ANDI", nama: "Andi (uji)", tier: "premium", peran: "Dua proyek paralel" },
+  { namaUji: "UJI-FITRI", nama: "Fitri (uji)", tier: "premium", peran: "Verifikator sitasi" },
+  { namaUji: "UJI-JOKO", nama: "Joko (uji)", tier: "premium", peran: "Pemakai malam hari" },
+  { namaUji: "UJI-ANI", nama: "Ani (uji)", tier: "premium", peran: "Butuh direktori jurnal" },
+  { namaUji: "UJI-BAMBANG", nama: "Bambang (uji)", tier: "premium", peran: "Sensitif kuota" },
 ];
 
 export function UjiMasukPanel() {
@@ -64,10 +76,12 @@ export function UjiMasukPanel() {
     <section className="mt-6 rounded-2xl border-2 border-dashed border-gold-500/70 bg-gold-100/40 p-4">
       <h2 className="text-sm font-bold text-ink-900">Mode uji persona (lingkungan staging)</h2>
       <p className="mt-1 text-xs leading-relaxed text-ink-600">
-        Delapan identitas dummy untuk pengujian audit. Pilih persona untuk masuk
-        tanpa sandi; setiap persona adalah akun terpisah di lingkungan ini.
-        Pakai profil peramban terpisah untuk tiap persona agar proyek lokalnya
-        tidak tercampur. Lingkungan ini terisolasi dari data produksi.
+        Dua puluh identitas dummy untuk pengujian audit. Pilih persona untuk
+        masuk tanpa sandi; setiap persona adalah akun terpisah di lingkungan
+        ini. Pada audit 20 pengujian, tiap persona memakai asal stagingnya
+        sendiri dan hanya persona pemilik asal itu yang boleh dipilih di
+        sini, agar proyek lokalnya tidak tercampur. Lingkungan ini terisolasi
+        dari data produksi.
       </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {PERSONA.map((p) => (
