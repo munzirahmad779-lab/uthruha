@@ -353,9 +353,15 @@ export async function generateFootnoteUntukParagraf(opsi: {
     kalimatKunci = await kalimatKunciDariAI(paragraf);
   }
   // 3) Cadangan tanpa AI: kalimat pertama paragraf sebagai kueri apa adanya.
+  //    Potongan ini TEKS ASLI mahasiswa: boleh dipakai sesaat sebagai kueri
+  //    pencarian, tetapi tidak boleh disimpan ke bank maupun sidik (audit
+  //    dalam putaran 2, temuan R2-01), karena bank dibagikan antar pengguna
+  //    dan janji desainnya adalah teks paragraf tidak pernah dibagikan.
+  let dariCadangan = false;
   if (!kalimatKunci || kalimatKunci.length === 0) {
     const pertama = pecahKalimatServer(paragraf)[0] ?? paragraf.slice(0, 200);
     kalimatKunci = [pertama.slice(0, 200)];
+    dariCadangan = true;
   }
 
   // 4) Bank rujukan bersama: kalimat kunci ini pernah dicari → pakai ulang.
@@ -365,7 +371,10 @@ export async function generateFootnoteUntukParagraf(opsi: {
 
   // 5) Cari baru: maraji' di web umum dan masadir di Turath/Shamela,
   //    berjalan paralel. Hasil gabungan disimpan ke bank + sidik agar
-  //    pengguna berikutnya tidak mengulang pencarian apa pun.
+  //    pengguna berikutnya tidak mengulang pencarian apa pun, KECUALI
+  //    bila kalimat kunci berasal dari jalur cadangan (langkah 3):
+  //    hasil pencarian tetap dipakai untuk pengguna ini, tetapi tidak
+  //    disimpan, supaya potongan paragraf asli tidak masuk bank bersama.
   if (!daftar || daftar.length === 0) {
     dariBank = false;
     const [maraji, masadir] = await Promise.all([
@@ -374,7 +383,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
     ]);
     const lihat = new Set(maraji.map((r) => r.judul.toLowerCase()));
     daftar = [...maraji, ...masadir.filter((r) => !lihat.has(r.judul.toLowerCase()))];
-    if (daftar.length > 0) {
+    if (daftar.length > 0 && !dariCadangan) {
       await simpanKeBank(kalimatKunci, daftar).catch(() => undefined);
       if (!sidik) await simpanSidikParagraf(paragraf, kalimatKunci).catch(() => undefined);
     }
