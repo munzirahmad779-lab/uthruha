@@ -1,11 +1,18 @@
 /**
- * Delapan persona mahasiswa dummy untuk audit Kitabah (cabang uji-persona).
+ * Dua puluh persona mahasiswa dummy untuk audit Kitabah (cabang
+ * uji-persona): 10 lapis gratis dan 10 premium, satu persona per
+ * pengujian pada audit menyeluruh 31 Okt 2026.
  *
- * Persona mengikuti 8 peran pada audit Cue 29 Okt 2026. Semua identitas
- * rekaan (@uji.local), tanpa data mahasiswa sungguhan. Enam lapis gratis
- * dan dua premium (Dewi: butuh direktori + ekspor; Agus: sensitif harga,
- * untuk memeriksa tampilan Premium tanpa membayar). Premium fixture
- * berlaku 30 hari sejak pertama dibuat.
+ * Delapan persona pertama mengikuti 8 peran pada audit Cue 29 Okt 2026;
+ * dua belas sisanya ditambahkan agar tiap pengujian memakai pengguna
+ * yang berbeda. Semua identitas rekaan (@uji.local), tanpa data
+ * mahasiswa sungguhan. Premium fixture berlaku 30 hari sejak pertama
+ * dibuat.
+ *
+ * ISOLASI: tiap persona dijalankan pada asal stagingnya sendiri
+ * (cabang uji-<nama> dengan URL preview tersendiri), karena daftar
+ * proyek tersimpan di localStorage per asal. Satu asal hanya boleh
+ * dipakai persona yang ditunjuk untuk asal itu.
  *
  * Provisioning bersifat idempoten dan malas: pengguna dibuat saat pertama
  * diminta (login uji atau header x-uji-user), di store lokal mode uji.
@@ -34,6 +41,18 @@ export const PERSONA_UJI: PersonaUji[] = [
   { namaUji: "UJI-DEWI", id: "uji-dewi", nama: "Dewi (uji)", tier: "premium", peran: "Butuh jurnal + ekspor .docx" },
   { namaUji: "UJI-AGUS", id: "uji-agus", nama: "Agus (uji)", tier: "premium", peran: "Pekerja paruh waktu, sensitif harga" },
   { namaUji: "UJI-LINA", id: "uji-lina", nama: "Lina (uji)", tier: "gratis", peran: "Hati-hati data dan legal" },
+  { namaUji: "UJI-TANIA", id: "uji-tania", nama: "Tania (uji)", tier: "gratis", peran: "Mahasiswa baru, laptop pinjaman" },
+  { namaUji: "UJI-RIZKI", id: "uji-rizki", nama: "Rizki (uji)", tier: "gratis", peran: "Sering ganti perangkat" },
+  { namaUji: "UJI-MAYA", id: "uji-maya", nama: "Maya (uji)", tier: "gratis", peran: "Penulis teliti" },
+  { namaUji: "UJI-DEDI", id: "uji-dedi", nama: "Dedi (uji)", tier: "gratis", peran: "Koneksi lambat" },
+  { namaUji: "UJI-SARI", id: "uji-sari", nama: "Sari (uji)", tier: "premium", peran: "Butuh masadir kitab" },
+  { namaUji: "UJI-BUDI", id: "uji-budi", nama: "Budi (uji)", tier: "premium", peran: "Ekspor untuk pembimbing" },
+  { namaUji: "UJI-RINA", id: "uji-rina", nama: "Rina (uji)", tier: "premium", peran: "Pemakai Chat Agen" },
+  { namaUji: "UJI-ANDI", id: "uji-andi", nama: "Andi (uji)", tier: "premium", peran: "Dua proyek paralel" },
+  { namaUji: "UJI-FITRI", id: "uji-fitri", nama: "Fitri (uji)", tier: "premium", peran: "Verifikator sitasi" },
+  { namaUji: "UJI-JOKO", id: "uji-joko", nama: "Joko (uji)", tier: "premium", peran: "Pemakai malam hari" },
+  { namaUji: "UJI-ANI", id: "uji-ani", nama: "Ani (uji)", tier: "premium", peran: "Butuh direktori jurnal" },
+  { namaUji: "UJI-BAMBANG", id: "uji-bambang", nama: "Bambang (uji)", tier: "premium", peran: "Sensitif kuota" },
 ];
 
 export function personaDariNamaUji(namaUji: string): PersonaUji | null {
