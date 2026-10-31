@@ -147,7 +147,23 @@ export async function penggunaDariCookie(cookieHeader: string | null): Promise<P
   const userId = potong.join(".");
   if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) return null;
   if (!samaKonstan(sig, tanda(`${userId}.${exp}`))) return null;
-  return (await ambil("pengguna", userId)) as unknown as Pengguna | null;
+  const rekam = (await ambil("pengguna", userId)) as unknown as Pengguna | null;
+  if (rekam) return rekam;
+  // Mode uji (staging persona): store adalah berkas lokal PER INSTANS
+  // serverless, jadi instans yang tidak melayani login persona tidak
+  // memiliki rekamnya walau cookie sesi sah — akibatnya panggilan API
+  // persona terpental 401 "Masuk dulu" secara acak (terbukti pada uji
+  // Joseph 30 Okt 2026). Persona adalah fixture deterministik, jadi
+  // rekamnya dibuat ulang di instans ini (self-heal) alih-alih menolak
+  // sesi. Di luar mode uji jalur ini tidak berubah sama sekali, dan di
+  // produksi store adalah Supabase bersama sehingga rekam selalu ada.
+  const { modeUjiAktif } = await import("./mode-uji");
+  if (modeUjiAktif()) {
+    const { PERSONA_UJI, pastikanPersonaUji } = await import("./fixture-persona");
+    const persona = PERSONA_UJI.find((p) => p.id === userId);
+    if (persona) return pastikanPersonaUji(persona);
+  }
+  return null;
 }
 
 /**
