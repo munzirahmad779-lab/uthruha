@@ -18,6 +18,8 @@ import {
 } from "@/lib/engine/project";
 import { IconArrowRight, IconBook, IconCopy, IconPlus, IconTrash } from "@/components/icons";
 import { Progress } from "@/components/ui";
+import { strukturKeDaftarIsi } from "@/lib/pedoman/skema-struktur";
+import { TEMPLATE_PEDOMAN } from "@/lib/pedoman/template-pedoman";
 
 /** Kunci localStorage serah-terima dari uji coba tamu (components/uji-coba). */
 const KUNCI_JUDUL_UJI = "uthruha.judulUjiCoba";
@@ -37,13 +39,23 @@ export default function DaftarProyekPage() {
         const mentah = localStorage.getItem(KUNCI_JUDUL_UJI);
         if (mentah) {
           localStorage.removeItem(KUNCI_JUDUL_UJI);
-          const judul = (JSON.parse(mentah) as { judul?: unknown }).judul;
+          const serah = JSON.parse(mentah) as { judul?: unknown; pedoman?: unknown };
+          const judul = serah.judul;
           if (typeof judul === "string" && judul.trim().length >= 10) {
             const sudahAda = daftarProyek().some(
               (p) => p.judulAr === judul.trim() || p.topikAr === judul.trim(),
             );
             if (!sudahAda) {
-              const p = newProject({ judulAr: judul.trim(), topikAr: judul.trim() });
+              // Pilihan susunan dari langkah 2 uji coba ikut diteruskan:
+              // proyek pertama langsung memakai template pedoman itu.
+              const idxTpl =
+                serah.pedoman === "mangkoso" ? 0 : serah.pedoman === "asadiyah" ? 1 : -1;
+              const tpl = idxTpl >= 0 ? TEMPLATE_PEDOMAN[idxTpl] : undefined;
+              const p = newProject({
+                judulAr: judul.trim(),
+                topikAr: judul.trim(),
+                ...(tpl ? { strukturPedoman: tpl, daftarIsi: strukturKeDaftarIsi(tpl) } : {}),
+              });
               simpanProyek(p);
               // Daftarkan ke server seperti alur /mulai: 403 (batas
               // proyek lapis) membatalkan draf lokal; 401/jaringan

@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { strukturProyek } from "@/lib/content/struktur";
 import type { Project } from "@/lib/engine/project";
+import { cekKesesuaian } from "@/lib/pedoman/cek-kesesuaian";
 import { IconArrowRight, IconDoc, IconPen } from "@/components/icons";
 import { DaftarIsiEditor } from "@/components/workspace/daftar-isi-editor";
 
@@ -17,10 +19,53 @@ export function StrukturTab({
   onSusun: (sectionId: string) => void;
 }) {
   const st = strukturProyek(p);
+  // Penanda kesesuaian template: dihitung lokal dari data proyek vs
+  // template pedoman, tanpa panggilan API (lib/pedoman/cek-kesesuaian).
+  const tanda = useMemo(() => cekKesesuaian(p), [p]);
+  const diLuarSet = useMemo(() => new Set(p.bagianDiLuar ?? []), [p.bagianDiLuar]);
+  const alihkanDiLuar = (id: string) => {
+    const kini = new Set(diLuarSet);
+    if (kini.has(id)) kini.delete(id);
+    else kini.add(id);
+    ubah({ bagianDiLuar: [...kini] });
+  };
 
   return (
     <div className="space-y-6">
       <DaftarIsiEditor p={p} ubah={ubah} />
+      {p.strukturPedoman && (
+        <section className="rounded-2xl border border-ink-900/10 bg-parchment-100/60 p-4">
+          <h3 className="text-[13px] font-bold text-ink-900">
+            Kesesuaian dengan {p.strukturPedoman.namaPedoman}
+          </h3>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-600">
+            Diperiksa otomatis oleh web dari template pedoman, tanpa proses AI.
+            {diLuarSet.size > 0 &&
+              ` ${diLuarSet.size} bagian ditandai selesai di luar Kitabah dan tidak diperiksa.`}
+          </p>
+          {tanda.length === 0 ? (
+            <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] font-medium text-emerald-800">
+              Struktur proyek sesuai dengan template pedoman.
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-1.5">
+              {tanda.map((t, i) => (
+                <li
+                  key={i}
+                  className={`rounded-lg px-3 py-2 text-[12.5px] leading-relaxed ${
+                    t.tingkat === "wajib"
+                      ? "bg-red-50 font-medium text-red-800"
+                      : "bg-white/70 text-ink-700"
+                  }`}
+                >
+                  {t.tingkat === "wajib" ? "Tidak sesuai: " : "Catatan: "}
+                  {t.pesan}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[15px] font-bold text-ink-900">
@@ -65,9 +110,28 @@ export function StrukturTab({
                           {s.labelId} · target ±{s.targetKata.toLocaleString("id-ID")} kata
                           {kata > 0 ? ` · terisi ${kata}` : ""}
                           {s.butuhData ? " · data lapangan" : ""}
+                          {diLuarSet.has(s.id) ? " · selesai di luar" : ""}
                         </p>
                       </div>
-                      <div className="flex shrink-0 gap-1">
+                      <div className="flex shrink-0 items-start gap-1">
+                        {p.strukturPedoman && (
+                          <button
+                            type="button"
+                            onClick={() => alihkanDiLuar(s.id)}
+                            title={
+                              diLuarSet.has(s.id)
+                                ? "Batalkan tanda selesai di luar"
+                                : "Tandai bagian ini sudah dikerjakan di luar Kitabah"
+                            }
+                            className={`rounded-lg border px-2 py-1.5 text-[10.5px] font-semibold ${
+                              diLuarSet.has(s.id)
+                                ? "border-gold-500 bg-gold-100/60 text-gold-700"
+                                : "border-ink-900/15 text-ink-500 hover:border-ink-900/30"
+                            }`}
+                          >
+                            {diLuarSet.has(s.id) ? "Di luar ✓" : "Di luar"}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onSusun(s.id)}

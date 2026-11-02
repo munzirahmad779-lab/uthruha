@@ -11,7 +11,7 @@
  *     persisten antar-instance, jadi produksi wajib memakai backend 1).
  *
  * Koleksi: pengguna, proyek, pembayaran, insiden, kolam, tembolok,
- * sesiUji, perangkat.
+ * sesiUji, perangkat, ipUji.
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -24,7 +24,8 @@ export type Koleksi =
   | "kolam"
   | "tembolok"
   | "sesiUji"
-  | "perangkat";
+  | "perangkat"
+  | "ipUji";
 
 export type Rekam = Record<string, unknown> & { id: string };
 

@@ -85,7 +85,27 @@ interface HasilUji {
   ahdaf: string[];
   refs: Rujukan[];
   dariTembolok?: boolean;
+  pedoman?: string;
+  sisaJatah?: number;
 }
+
+/** Pilihan susunan pedoman di langkah 2 uji coba (perintah pemilik,
+ *  3 Nov 2026): hasil Bab 1 mengikuti susunan kampus yang dipilih, dan
+ *  pilihan ini diteruskan menjadi proyek sesudah tamu masuk. */
+const PILIHAN_PEDOMAN_UJI = [
+  {
+    id: "mangkoso",
+    label: "Ma'had Aly DDI Mangkoso",
+    ket: "Susunan risalah 5 bab. Bab 1 merangkum seluruh unsur proposal, Bab 2 sampai 4 menjawab rumusan masalah satu per satu.",
+  },
+  {
+    id: "asadiyah",
+    label: "Ma'had Aly As'adiyah Sengkang",
+    ket: "Susunan risalah 4 bab. Bab 1 memuat definisi judul yang berdiri sendiri dan metodologi empat unsur.",
+  },
+] as const;
+
+type PedomanUjiId = (typeof PILIHAN_PEDOMAN_UJI)[number]["id"];
 
 const KUNCI_PERANGKAT = "uthruha.perangkatId";
 const KUNCI_SUDAH = "uthruha.ujiCobaSudah";
@@ -113,6 +133,7 @@ function kunciSalin(e: React.SyntheticEvent) {
 
 export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
   const [judul, setJudul] = useState("");
+  const [pedomanPilihan, setPedomanPilihan] = useState<PedomanUjiId | null>(null);
   const [memuat, setMemuat] = useState(false);
   const [mengembangkan, setMengembangkan] = useState(false);
   const [hasil, setHasil] = useState<HasilUji | null>(null);
@@ -131,7 +152,11 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
   async function mulai() {
     setGalat("");
     if (judul.trim().length < 10) {
-      setGalat("Tulis judul penelitian Anda dulu (minimal 10 karakter).");
+      setGalat("Langkah 1 belum selesai: tulis judul penelitian Anda dulu (minimal 10 karakter).");
+      return;
+    }
+    if (!pedomanPilihan) {
+      setGalat("Langkah 2 belum selesai: pilih dulu susunan pedoman yang akan dipakai.");
       return;
     }
     setMemuat(true);
@@ -139,7 +164,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
       const res = await fetch("/api/uji-coba", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ judul: judul.trim(), perangkatId: perangkatId() }),
+        body: JSON.stringify({ judul: judul.trim(), perangkatId: perangkatId(), pedoman: pedomanPilihan }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -200,7 +225,12 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
       if (j.length >= 10) {
         localStorage.setItem(
           KUNCI_JUDUL_UJI,
-          JSON.stringify({ judul: j, sesiId: hasil?.sesiId ?? null, pada: new Date().toISOString() }),
+          JSON.stringify({
+            judul: j,
+            sesiId: hasil?.sesiId ?? null,
+            pedoman: hasil?.pedoman ?? pedomanPilihan,
+            pada: new Date().toISOString(),
+          }),
         );
       }
     } catch { /* penyimpanan tidak tersedia: tetap antar ke halaman masuk */ }
@@ -212,38 +242,72 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
       <div className="mx-auto max-w-3xl rounded-3xl border border-gold-300/60 bg-white/70 p-6 shadow-sm sm:p-8">
         <span className="eyebrow">Uji coba tanpa daftar</span>
         <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-ink-900">
-          Coba dari judul Anda — satu kali, gratis.
+          Coba dari judul Anda, gratis.
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-600">
-          Masukkan judul penelitian. Kitabah menyusun kalimat kunci, khalfiyah tiga paragraf,
-          isykaliyat, dan ahdaf — lalu mencarikan rujukan asli yang bisa diverifikasi.
-          Teks susunan hasil uji coba <strong>terkunci</strong> (tidak bisa disalin),
-          tetapi daftar rujukannya bisa Anda salin dan periksa sendiri. Untuk menyusun,
-          mengedit, dan memasang footnote, masuk dengan kunci gratis (minta lewat email
-          di halaman masuk).
+          Dua langkah singkat: tulis judul, lalu pilih susunan pedoman kampus Anda.
+          Kitabah menyusun kalimat kunci, khalfiyah tiga paragraf, isykaliyat, dan ahdaf
+          mengikuti susunan itu, lalu mencarikan rujukan asli yang bisa diverifikasi.
+          Jatah uji coba dua kali per jaringan. Teks susunan hasil uji coba{" "}
+          <strong>terkunci</strong> (tidak bisa disalin), tetapi daftar rujukannya bisa
+          Anda salin dan periksa sendiri. Untuk menyusun, mengedit, dan memasang
+          footnote, masuk dengan kunci gratis (minta lewat email di halaman masuk).
         </p>
 
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-          <input
-            value={judul}
-            onChange={(e) => setJudul(e.target.value)}
-            placeholder="مثال: أثر طريقة المناقشة في تنمية مهارة الكلام لدى طلاب…"
-            className="w-full flex-1 rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none focus:border-gold-500"
-            dir="auto"
-            maxLength={300}
-          />
+        <p className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+          Langkah 1 · Judul penelitian
+        </p>
+        <input
+          value={judul}
+          onChange={(e) => setJudul(e.target.value)}
+          placeholder="مثال: أثر طريقة المناقشة في تنمية مهارة الكلام لدى طلاب…"
+          className="mt-2 w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-sm text-ink-900 outline-none focus:border-gold-500"
+          dir="auto"
+          maxLength={300}
+        />
+
+        <p className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+          Langkah 2 · Susunan pedoman yang dipakai
+        </p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          {PILIHAN_PEDOMAN_UJI.map((pil) => {
+            const on = pedomanPilihan === pil.id;
+            return (
+              <button
+                key={pil.id}
+                type="button"
+                onClick={() => setPedomanPilihan(pil.id)}
+                className={`rounded-xl border p-4 text-left transition ${
+                  on
+                    ? "border-gold-500 bg-gold-100/50 shadow-card"
+                    : "border-ink-900/10 bg-white/60 hover:border-ink-900/25"
+                }`}
+              >
+                <span className="block text-[13.5px] font-bold text-ink-900">{pil.label}</span>
+                <span className="mt-1 block text-[12px] leading-relaxed text-ink-700">{pil.ket}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-5">
           <button
             onClick={mulai}
-            disabled={memuat}
-            className="btn-primary shrink-0 disabled:opacity-60"
+            disabled={memuat || !pedomanPilihan || judul.trim().length < 10}
+            className="btn-primary disabled:opacity-60"
           >
             {memuat ? "Menyusun…" : "Mulai uji coba"}
           </button>
+          {(!pedomanPilihan || judul.trim().length < 10) && (
+            <p className="mt-2 text-xs text-ink-500">
+              Tombol aktif sesudah judul terisi dan susunan pedoman dipilih.
+            </p>
+          )}
         </div>
         {pernahCoba && !hasil && (
           <p className="mt-3 text-xs text-ink-500">
-            Perangkat ini sudah pernah memakai uji coba tamu. Percobaan berikutnya lewat server
-            akan diarahkan untuk masuk dengan kunci gratis.
+            Perangkat ini sudah pernah memakai uji coba tamu. Jatahnya dua kali per
+            jaringan; sesudah habis, server mengarahkan untuk masuk dengan kunci gratis.
           </p>
         )}
         {galat && (
@@ -272,6 +336,18 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
             onContextMenu={kunciSalin}
             aria-label="Hasil uji coba terkunci"
           >
+            <p className="mb-4 rounded-lg bg-parchment-100 px-3 py-2 text-xs leading-relaxed text-ink-600">
+              Langkah 3 · Hasil menurut susunan{" "}
+              <strong className="text-ink-900">
+                {hasil.pedoman === "mangkoso"
+                  ? "Ma'had Aly DDI Mangkoso"
+                  : hasil.pedoman === "asadiyah"
+                    ? "Ma'had Aly As'adiyah Sengkang"
+                    : "umum"}
+              </strong>
+              {typeof hasil.sisaJatah === "number" &&
+                ` · Sisa jatah uji coba dari jaringan ini: ${hasil.sisaJatah} kali.`}
+            </p>
             <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">
               Kalimat kunci
             </h3>

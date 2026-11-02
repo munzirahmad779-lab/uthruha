@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { panggilKolam } from "@/lib/server/kolam";
 import { cariRujukanTamu, type RujukanTamu } from "@/lib/server/rujukan";
@@ -17,7 +18,38 @@ export const runtime = "nodejs";
  *     dua kali,
  *  4. perangkat yang sudah mencoba SEKALI diblokir pada percobaan kedua
  *     (penanda perangkat dari klien + catatan server) → wajib login gratis.
+ *
+ * Pembaruan pemilik 3 Nov 2026: jatah resmi kini DUA kali per IP dan
+ * dicatat PERSISTEN di server (koleksi ipUji, IP disimpan sebagai sidik
+ * hash, bukan alamat mentah). Penanda perangkat tetap dicatat dan ikut
+ * dibatasi dua kali; membersihkan peramban tidak lagi mengembalikan
+ * jatah karena hitungan IP yang berlaku. Tamu juga memilih susunan
+ * pedoman (Mangkoso / As'adiyah) di langkah 2, dan susunan itu memandu
+ * generasi Bab 1 serta diteruskan menjadi proyek sesudah ia masuk.
  */
+
+/** Jatah uji coba tamu per IP dan per perangkat (perintah pemilik). */
+const BATAS_UJI = 2;
+
+/** Konteks susunan Bab 1 per pedoman, dari template permanen kampus. */
+const PEDOMAN_UJI: Record<string, { label: string; konteks: string }> = {
+  mangkoso: {
+    label: "Ma'had Aly DDI Mangkoso",
+    konteks:
+      "Ikuti Pedoman Penulisan Risalah Ma'had Aly DDI Mangkoso: Bab 1 memuat latar belakang (pengantar topik, batasan penelitian, alasan memilih topik, tujuan dan manfaat), rumusan masalah, tujuan, manfaat, penelitian terdahulu, definisi judul, metode, dan sistematika. Khalfiyah harus menyentuh pengantar topik, batasan, alasan memilih topik, serta tujuan dan manfaat penelitian.",
+  },
+  asadiyah: {
+    label: "Ma'had Aly As'adiyah Sengkang",
+    konteks:
+      "Ikuti Pedoman Penulisan Risalah Ma'had Aly As'adiyah Sengkang: Bab 1 memuat latar belakang, rumusan masalah, definisi judul yang berdiri sendiri, penelitian terdahulu, metodologi, tujuan, dan urgensi penelitian. Khalfiyah harus menyentuh latar belakang, urgensi penelitian, dan gambaran metodologi secara ringkas.",
+  },
+};
+
+/** Sidik samaran IP: cukup untuk mengenali IP yang sama, tanpa menyimpan alamat mentahnya. */
+function sidikIp(ip: string): string {
+  const garam = process.env.UTH_SESI_SECRET?.trim() || "kitabah-uji-coba";
+  return createHash("sha256").update(`${garam}|${ip}`).digest("hex").slice(0, 32);
+}
 
 const SISTEM = `Anda adalah asisten penulisan akademik berbahasa Arab untuk mahasiswa Indonesia. Dari JUDUL penelitian, hasilkan HANYA JSON valid tanpa markdown:
 {"kalimatKunci":["...","...","..."],"khalfiyah":["paragraf 1","paragraf 2","paragraf 3"],"isykaliyat":["..."],"ahdaf":["..."]}
@@ -61,18 +93,38 @@ export async function POST(req: Request) {
   const global = bolehLaju("uji-coba:global", 300, 3_600_000);
   if (!global.boleh) return balasanLaju(global.ulangDetik, "Uji coba sedang ramai. Coba lagi sebentar.");
 
-  const body = (await req.json().catch(() => null)) as { judul?: string; perangkatId?: string } | null;
+  const body = (await req.json().catch(() => null)) as { judul?: string; perangkatId?: string; pedoman?: string } | null;
   const judul = body?.judul?.trim().slice(0, 300) ?? "";
   const perangkatId = body?.perangkatId?.trim().slice(0, 80) ?? "";
+  const pedoman = body?.pedoman && PEDOMAN_UJI[body.pedoman] ? body.pedoman : "umum";
   if (judul.length < 10) return NextResponse.json({ error: "Judul terlalu pendek (minimal 10 karakter)." }, { status: 400 });
   if (!perangkatId) return NextResponse.json({ error: "Penanda perangkat tidak ada." }, { status: 400 });
 
-  // Rem perangkat: percobaan kedua dari perangkat sama → wajib login.
-  const perangkat = await ambil("perangkat", perangkatId);
-  if (perangkat && Number(perangkat.percobaan ?? 0) >= 1) {
+  // Rem IP persisten: jatah DUA kali per IP, tercatat di server. Percobaan
+  // sesudahnya ditolak dan penolakannya ikut dicatat untuk laporan admin.
+  const ipSidik = sidikIp(ip);
+  const catatanIp = await ambil("ipUji", ipSidik);
+  if (catatanIp && Number(catatanIp.percobaan ?? 0) >= BATAS_UJI) {
+    await simpan("ipUji", {
+      ...catatanIp,
+      ditolak: Number(catatanIp.ditolak ?? 0) + 1,
+      terakhir: new Date().toISOString(),
+    });
     return NextResponse.json(
       {
-        error: "Perangkat ini sudah memakai jatah uji coba tamu. Silakan masuk gratis untuk melanjutkan tanpa batas uji coba.",
+        error: `Jaringan ini sudah memakai ${BATAS_UJI} kali jatah uji coba tamu. Silakan masuk gratis untuk melanjutkan tanpa batas uji coba.`,
+        kode: "WAJIB_LOGIN",
+      },
+      { status: 403 },
+    );
+  }
+
+  // Rem perangkat: jatah yang sama per perangkat.
+  const perangkat = await ambil("perangkat", perangkatId);
+  if (perangkat && Number(perangkat.percobaan ?? 0) >= BATAS_UJI) {
+    return NextResponse.json(
+      {
+        error: `Perangkat ini sudah memakai ${BATAS_UJI} kali jatah uji coba tamu. Silakan masuk gratis untuk melanjutkan tanpa batas uji coba.`,
         kode: "WAJIB_LOGIN",
       },
       { status: 403 },
@@ -83,7 +135,7 @@ export async function POST(req: Request) {
   // bila mesin generasi/pencarian rujukan berubah (v2: pencarian multi-frasa
   // + label kecocokan bergradasi; v3: verifikasi DOI dari Crossref langsung
   // dipercaya + label gambaran umum, 29 Okt 2026).
-  const kunciJudul = "v3|" + judul.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
+  const kunciJudul = "v3|" + pedoman + "|" + judul.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
   const tembolok = await ambil("tembolok", kunciJudul);
 
   let generasi: HasilGenerasi;
@@ -101,7 +153,8 @@ export async function POST(req: Request) {
   } else {
     let mentah;
     try {
-      mentah = await panggilKolam({ sistem: SISTEM, pengguna: `JUDUL: ${judul}`, maksToken: 2200, json: true });
+      const sistem = pedoman === "umum" ? SISTEM : `${SISTEM}\n${PEDOMAN_UJI[pedoman]!.konteks}`;
+      mentah = await panggilKolam({ sistem, pengguna: `JUDUL: ${judul}`, maksToken: 2200, json: true });
     } catch (e) {
       const percobaan = (e as { percobaan?: unknown }).percobaan;
       console.error("[uji-coba] kolam gagal", percobaan);
@@ -126,6 +179,8 @@ export async function POST(req: Request) {
     id: sesiId,
     judul,
     perangkatId,
+    ipSidik,
+    pedoman,
     generasi,
     refs,
     dikembangkan: false,
@@ -141,10 +196,22 @@ export async function POST(req: Request) {
     percobaan: Number(perangkat?.percobaan ?? 0) + 1,
     terakhir: new Date().toISOString(),
   });
+  const percobaanIpBaru = Number(catatanIp?.percobaan ?? 0) + 1;
+  const perangkatTerlihat = Array.isArray(catatanIp?.perangkatIds) ? (catatanIp.perangkatIds as string[]) : [];
+  await simpan("ipUji", {
+    id: ipSidik,
+    percobaan: percobaanIpBaru,
+    ditolak: Number(catatanIp?.ditolak ?? 0),
+    pertama: typeof catatanIp?.pertama === "string" ? catatanIp.pertama : new Date().toISOString(),
+    terakhir: new Date().toISOString(),
+    perangkatIds: [...new Set([...perangkatTerlihat, perangkatId])].slice(-10),
+  });
 
   return NextResponse.json({
     sesiId,
     judul,
+    pedoman,
+    sisaJatah: Math.max(0, BATAS_UJI - percobaanIpBaru),
     ...generasi,
     refs,
     dariTembolok,

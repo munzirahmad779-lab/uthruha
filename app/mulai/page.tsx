@@ -28,7 +28,8 @@ const LANGKAH = [
   { id: 2, label: "Metode", ar: "المنهج" },
   { id: 3, label: "Data penelitian", ar: "بيانات البحث" },
   { id: 4, label: "Pedoman", ar: "الدليل" },
-  { id: 5, label: "Rumusan masalah", ar: "أسئلة البحث" },
+  { id: 5, label: "Titik mulai", ar: "نقطة البداية" },
+  { id: 6, label: "Rumusan masalah", ar: "أسئلة البحث" },
 ];
 
 /** Label singkat pilihan template di wizard, sejajar TEMPLATE_PEDOMAN. */
@@ -57,6 +58,9 @@ export default function MulaiPage() {
   // TEMPLATE_PEDOMAN untuk template permanen, atau "sendiri" untuk
   // pedoman kampus lain yang disusun belakangan di ruang kerja.
   const [pedomanIdx, setPedomanIdx] = useState<number | "sendiri" | null>(null);
+  // Titik mulai (perintah pemilik, 3 Nov 2026): id sub-bab template yang
+  // dinyatakan sudah dikerjakan di luar Kitabah. Kosong = mulai dari awal.
+  const [diLuar, setDiLuar] = useState<string[]>([]);
   const [membuat, setMembuat] = useState(false);
   // Batas lapis ditampilkan DI AWAL (audit Joseph 30 Okt 2026): akun gratis
   // yang sudah punya 1 proyek server langsung melihat penjelasannya di sini,
@@ -73,6 +77,20 @@ export default function MulaiPage() {
   }, []);
 
   const bidang = useMemo(() => BIDANG.find((b) => b.id === bidangId) ?? BIDANG[0], [bidangId]);
+  // Daftar isi pratinjau dari template terpilih: sumber daftar centang
+  // langkah Titik mulai, dan bentuk akhirnya sama dengan yang dipasang
+  // selesai() ke proyek.
+  const daftarIsiTpl = useMemo(
+    () => (typeof pedomanIdx === "number" ? strukturKeDaftarIsi(TEMPLATE_PEDOMAN[pedomanIdx]!) : null),
+    [pedomanIdx],
+  );
+  const alihkanDiLuar = (id: string) =>
+    setDiLuar((lama) => (lama.includes(id) ? lama.filter((x) => x !== id) : [...lama, id]));
+  const presetDiLuar = (sampaiBab: number) => {
+    if (!daftarIsiTpl) return;
+    if (sampaiBab <= 0) return setDiLuar([]);
+    setDiLuar(daftarIsiTpl.slice(0, sampaiBab).flatMap((b) => b.sections.map((s) => s.id)));
+  };
   const bisaLanjut =
     (langkah !== 3 || topikAr.trim().length > 2) &&
     (langkah !== 4 || pedomanIdx !== null);
@@ -98,6 +116,14 @@ export default function MulaiPage() {
       // struktur + daftar isi proyek sejak awal. "Pedoman Sendiri" tidak
       // mengisi apa pun: struktur disusun dari panel Pedoman kampus.
       ...(tpl ? { strukturPedoman: tpl, daftarIsi: strukturKeDaftarIsi(tpl) } : {}),
+      // Titik mulai: hanya id yang benar-benar ada di daftar isi template.
+      ...(tpl && diLuar.length > 0
+        ? {
+            bagianDiLuar: diLuar.filter((id) =>
+              strukturKeDaftarIsi(tpl).some((b) => b.sections.some((s) => s.id === id)),
+            ),
+          }
+        : {}),
     });
     // DATA DULU, BARU SUSUN (keputusan pemilik 29 Okt 2026): draf Bab I
     // langsung disusun otomatis dari data wizard saat proyek dibuat, supaya
@@ -112,7 +138,11 @@ export default function MulaiPage() {
         strukturProyek(p).chapters.flatMap((c) => c.sections.map((s) => s.id)),
       );
       const drafAwal: Record<string, string> = {};
+      const setDiLuar = new Set(p.bagianDiLuar ?? []);
       for (const id of ["khalfiya", "masalah", "ahdaf", "fawaid", "hudud", "mustalahat"]) {
+        // Bagian yang dinyatakan selesai di luar tidak disusun otomatis:
+        // isinya milik mahasiswa dari pekerjaannya di luar Kitabah.
+        if (setDiLuar.has(id)) continue;
         if (idBagian.has(id)) drafAwal[id] = composeSection(p, id).markdown;
       }
       if (Object.keys(drafAwal).length > 0) p.draf = { ...p.draf, ...drafAwal };
@@ -185,7 +215,7 @@ export default function MulaiPage() {
               Siapkan konteks penelitian Anda
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-ink-600">
-              Enam langkah singkat. Semua jawaban bisa diubah lagi di ruang kerja.
+              Tujuh langkah singkat. Semua jawaban bisa diubah lagi di ruang kerja.
             </p>
           </div>
           <Link href="/proyek" className="btn-quiet shrink-0">
@@ -481,6 +511,79 @@ export default function MulaiPage() {
 
           {langkah === 5 && (
             <div>
+              <h2 className="text-lg font-bold text-ink-900">Mulai dari mana?</h2>
+              <p className="mt-1 text-[13px] text-ink-600">
+                Tidak semua orang mulai dari nol. Tandai bagian yang <strong>sudah Anda kerjakan
+                di luar Kitabah</strong> (misalnya Bab 1 selesai dari proposal yang disetujui):
+                bagian itu tidak akan dituntut lagi, tidak disusun otomatis, dan ruang kerja
+                langsung mengikuti titik mulai Anda. Web menyesuaikannya sendiri dari template
+                pedoman, tanpa proses tambahan.
+              </p>
+              {!daftarIsiTpl ? (
+                <p className="mt-5 rounded-xl border border-ink-900/10 bg-parchment-100/70 p-4 text-[12.5px] leading-relaxed text-ink-700">
+                  Anda memilih Pedoman Sendiri, jadi belum ada susunan template untuk ditandai.
+                  Proyek dimulai dari struktur bawaan Kitabah; titik mulai mengikuti susunan
+                  yang Anda buat belakangan dari panel Pedoman kampus di ruang kerja.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => presetDiLuar(0)} className="btn-quiet">
+                      Mulai dari awal
+                    </button>
+                    {daftarIsiTpl.map((b, i) =>
+                      i + 1 < daftarIsiTpl.length ? (
+                        <button key={b.id} type="button" onClick={() => presetDiLuar(i + 1)} className="btn-quiet">
+                          Mulai dari Bab {i + 2} (Bab {i + 1} selesai di luar)
+                        </button>
+                      ) : null,
+                    )}
+                  </div>
+                  <div className="mt-5 space-y-4">
+                    {daftarIsiTpl.map((b) => (
+                      <fieldset key={b.id} className="rounded-xl border border-ink-900/10 bg-white/60 p-4">
+                        <legend className="px-1 text-[12px] font-bold text-ink-900">
+                          {b.labelId} <span className="font-arabic font-semibold text-ink-500" dir="rtl">{b.labelAr}</span>
+                        </legend>
+                        <div className="grid gap-1.5 sm:grid-cols-2">
+                          {b.sections.map((s) => {
+                            const on = diLuar.includes(s.id);
+                            return (
+                              <label
+                                key={s.id}
+                                className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-[12.5px] transition ${
+                                  on ? "border-gold-500 bg-gold-100/50" : "border-ink-900/10 hover:border-ink-900/25"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={on}
+                                  onChange={() => alihkanDiLuar(s.id)}
+                                  className="mt-0.5 accent-gold-600"
+                                />
+                                <span>
+                                  <span className="block font-semibold text-ink-900">{s.labelId}</span>
+                                  <span className="block font-arabic text-[11.5px] text-ink-500" dir="rtl">{s.labelAr}</span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </fieldset>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-[11px] font-medium text-ink-500">
+                    {diLuar.length === 0
+                      ? "Belum ada yang ditandai: proyek mulai dari awal, semua bagian dikerjakan di Kitabah."
+                      : `${diLuar.length} bagian ditandai selesai di luar. Sisanya yang menjadi pekerjaan Anda di Kitabah.`}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {langkah === 6 && (
+            <div>
               <h2 className="text-lg font-bold text-ink-900">Rumusan masalah</h2>
               <p className="mt-1 text-[13px] text-ink-600">
                 Satu pertanyaan per baris, dalam bahasa Arab. Kosongkan bila masih ragu — aplikasi
@@ -523,6 +626,14 @@ export default function MulaiPage() {
                   </p>
                 </div>
               </div>
+              {typeof pedomanIdx === "number" && (
+                <p className="mt-3 text-[12px] leading-relaxed text-ink-600">
+                  <strong className="text-ink-900">Titik mulai:</strong>{" "}
+                  {diLuar.length === 0
+                    ? "dari awal, semua bagian dikerjakan di Kitabah."
+                    : `${diLuar.length} bagian ditandai selesai di luar Kitabah dan tidak dituntut lagi.`}
+                </p>
+              )}
               <p className="mt-3 text-[12px] leading-relaxed text-ink-600">
                 Begitu proyek dibuat, <strong className="text-ink-900">draf Bab I langsung
                 tersusun otomatis dari data ini</strong> — latar belakang dari topik dan fenomena

@@ -58,6 +58,14 @@ export interface Project {
    */
   daftarIsi?: BabKustom[] | null;
   /**
+   * Titik mulai (perintah pemilik, 3 Nov 2026): id sub-bab daftar isi yang
+   * dinyatakan mahasiswa SUDAH dikerjakan di luar Kitabah (misalnya Bab 1
+   * selesai dari proposal yang disetujui). Bagian ini tidak dituntut oleh
+   * penanda kesesuaian template, tidak disusun otomatis dari data wizard,
+   * dan tetap tampil di struktur dengan tanda "selesai di luar".
+   */
+  bagianDiLuar?: string[];
+  /**
    * Set kalimat kunci hasil KURASI mahasiswa per bab (kunci = id bab atau
    * "umum"): kolam kata kunci terpilih + tepat 3 kalimat kunci berperan.
    * Set inilah yang menjalankan pencarian rujukan — bukan ekstrak otomatis.
@@ -370,6 +378,9 @@ export function migrasiProyek(mentah: unknown): Project {
     jawaban: p.jawaban ?? {},
     draf: p.draf ?? {},
     daftarIsi: sanitasiDaftarIsi(p.daftarIsi),
+    bagianDiLuar: Array.isArray(p.bagianDiLuar)
+      ? p.bagianDiLuar.filter((x): x is string => typeof x === "string" && x.length > 0)
+      : undefined,
     kunciPencarian: sanitasiKunciPencarian(p.kunciPencarian),
     temuan: sanitasiTemuan(p.temuan),
   };
