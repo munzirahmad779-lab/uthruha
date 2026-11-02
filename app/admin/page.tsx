@@ -26,7 +26,16 @@ interface Laporan {
     total: number;
     premiumAktif: number;
     gratis: number;
-    terbaru: { nama: string; email: string; tier: string; dibuat: string }[];
+    nonaktif: number;
+    terbaru: {
+      id: string;
+      nama: string;
+      email: string;
+      tier: string;
+      premiumSampai: string;
+      nonaktif: boolean;
+      dibuat: string;
+    }[];
   };
   proyekServer: { total: number; terbaru: { judul: string; kategoriId: string; totalFootnote: number; dibuat: string }[] };
   pembayaran: { total: number; perStatus: Record<string, number>; terbaru: { id: string; email: string; jumlah: number; status: string; dibuat: string }[] };
@@ -57,24 +66,58 @@ function JudulBagian({ children }: { children: React.ReactNode }) {
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-500";
 const td = "px-3 py-2 align-top text-[12.5px] text-ink-800";
 
+type AksiPengguna = "nonaktifkan" | "aktifkan" | "premium";
+
 export default function AdminPage() {
   const [keadaan, setKeadaan] = useState<"memuat" | "tamu" | "bukan" | "siap" | "galat">("memuat");
   const [data, setData] = useState<Laporan | null>(null);
+  const [konfirmasi, setKonfirmasi] = useState<string | null>(null);
+  const [sibuk, setSibuk] = useState(false);
+  const [pesanAksi, setPesanAksi] = useState("");
+
+  async function muat() {
+    try {
+      const res = await fetch("/api/admin/laporan", { cache: "no-store" });
+      if (res.status === 401) return setKeadaan("tamu");
+      if (res.status === 403) return setKeadaan("bukan");
+      if (!res.ok) return setKeadaan("galat");
+      setData((await res.json()) as Laporan);
+      setKeadaan("siap");
+    } catch {
+      setKeadaan("galat");
+    }
+  }
 
   useEffect(() => {
-    void (async () => {
-      try {
-        const res = await fetch("/api/admin/laporan", { cache: "no-store" });
-        if (res.status === 401) return setKeadaan("tamu");
-        if (res.status === 403) return setKeadaan("bukan");
-        if (!res.ok) return setKeadaan("galat");
-        setData((await res.json()) as Laporan);
-        setKeadaan("siap");
-      } catch {
-        setKeadaan("galat");
-      }
-    })();
+    void muat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Tindakan per akun dua ketuk: ketuk pertama menyiapkan konfirmasi,
+   *  ketuk kedua pada tombol yang sama menjalankan tindakan di server. */
+  async function tindak(userId: string, aksi: AksiPengguna) {
+    const kunci = `${userId}:${aksi}`;
+    if (konfirmasi !== kunci) {
+      setKonfirmasi(kunci);
+      return;
+    }
+    setKonfirmasi(null);
+    setSibuk(true);
+    setPesanAksi("");
+    try {
+      const res = await fetch("/api/admin/pengguna", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, aksi }),
+      });
+      const j = (await res.json().catch(() => null)) as { error?: string; catatan?: string } | null;
+      setPesanAksi(!res.ok ? (j?.error ?? "Tindakan gagal.") : (j?.catatan ?? "Tindakan berhasil diterapkan."));
+      if (res.ok) await muat();
+    } catch {
+      setPesanAksi("Tindakan gagal: jaringan bermasalah.");
+    }
+    setSibuk(false);
+  }
 
   return (
     <div className="wrap py-10 sm:py-14">
@@ -167,32 +210,100 @@ export default function AdminPage() {
 
             <JudulBagian>Pengguna dan proyek</JudulBagian>
             <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Kartu label="Pengguna terdaftar" nilai={data.pengguna.total} />
+              <Kartu
+                label="Pengguna terdaftar"
+                nilai={data.pengguna.total}
+                ket={data.pengguna.nonaktif > 0 ? `${data.pengguna.nonaktif} akun dinonaktifkan` : undefined}
+              />
               <Kartu label="Premium aktif" nilai={data.pengguna.premiumAktif} />
               <Kartu label="Gratis" nilai={data.pengguna.gratis} />
               <Kartu label="Proyek terdaftar di server" nilai={data.proyekServer.total} />
             </div>
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-ink-900/10 bg-white/70">
+            <p className="mt-4 text-[12px] leading-relaxed text-ink-600">
+              Tindakan per akun (dua ketuk untuk memastikan): <strong>Nonaktifkan</strong> mengunci
+              akun di semua lapis termasuk premium, tanpa menghapus data;{" "}
+              <strong>Jadikan Premium</strong> menempelkan premium 30 hari langsung dari server,
+              penerima tidak perlu menempel kunci; <strong>Email</strong> membuka draf
+              pemberitahuan premium di aplikasi email Anda untuk dikirim ke akun itu.
+            </p>
+            {pesanAksi && (
+              <p className="mt-2 rounded-lg bg-parchment-100 px-3 py-2 text-[12.5px] font-medium text-ink-800">
+                {pesanAksi}
+              </p>
+            )}
+            <div className="mt-3 overflow-x-auto rounded-2xl border border-ink-900/10 bg-white/70">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-ink-900/10">
                     <th className={th}>Pengguna terbaru</th>
                     <th className={th}>Email</th>
                     <th className={th}>Lapis</th>
+                    <th className={th}>Status</th>
                     <th className={th}>Terdaftar</th>
+                    <th className={th}>Tindakan</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.pengguna.terbaru.map((x, i) => (
-                    <tr key={i} className="border-b border-ink-900/5 last:border-0">
-                      <td className={td}>{x.nama || "(tanpa nama)"}</td>
-                      <td className={td}>{x.email}</td>
-                      <td className={td}>{x.tier === "premium" ? "Premium" : "Gratis"}</td>
-                      <td className={td}>{formatWaktu(x.dibuat)}</td>
-                    </tr>
-                  ))}
+                  {data.pengguna.terbaru.map((x) => {
+                    const subjek = encodeURIComponent("Akun Kitabah Anda sudah Premium");
+                    const isi = encodeURIComponent(
+                      `Assalamu'alaikum ${x.nama || ""},\n\nAkun Kitabah Anda (${x.email}) sudah diaktifkan sebagai Premium oleh admin${x.premiumSampai ? ` sampai ${formatWaktu(x.premiumSampai)}` : ""}. Silakan masuk seperti biasa di https://www.kitabah.web.id/masuk — tidak perlu menempel kunci apa pun, premium sudah menempel di akun Anda.\n\nSelamat menulis.`,
+                    );
+                    const btn =
+                      "rounded-lg border px-2 py-1 text-[11px] font-semibold disabled:opacity-50 ";
+                    return (
+                      <tr key={x.id} className="border-b border-ink-900/5 last:border-0">
+                        <td className={td}>{x.nama || "(tanpa nama)"}</td>
+                        <td className={td}>{x.email}</td>
+                        <td className={td}>{x.tier === "premium" ? "Premium" : "Gratis"}</td>
+                        <td className={td}>{x.nonaktif ? "Nonaktif" : "Aktif"}</td>
+                        <td className={td}>{formatWaktu(x.dibuat)}</td>
+                        <td className={td}>
+                          <span className="flex flex-wrap gap-1">
+                            {x.nonaktif ? (
+                              <button
+                                type="button"
+                                disabled={sibuk}
+                                onClick={() => void tindak(x.id, "aktifkan")}
+                                className={btn + "border-emerald-600/40 text-emerald-700"}
+                              >
+                                {konfirmasi === `${x.id}:aktifkan` ? "Yakin aktifkan?" : "Aktifkan"}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={sibuk}
+                                onClick={() => void tindak(x.id, "nonaktifkan")}
+                                className={btn + "border-red-600/40 text-red-700"}
+                              >
+                                {konfirmasi === `${x.id}:nonaktifkan` ? "Yakin nonaktifkan?" : "Nonaktifkan"}
+                              </button>
+                            )}
+                            {x.tier !== "premium" && !x.nonaktif && (
+                              <button
+                                type="button"
+                                disabled={sibuk}
+                                onClick={() => void tindak(x.id, "premium")}
+                                className={btn + "border-gold-600/50 text-gold-700"}
+                              >
+                                {konfirmasi === `${x.id}:premium` ? "Yakin jadikan premium?" : "Jadikan Premium"}
+                              </button>
+                            )}
+                            {x.tier === "premium" && (
+                              <a
+                                href={`mailto:${x.email}?subject=${subjek}&body=${isi}`}
+                                className={btn + "inline-block border-ink-900/20 text-ink-700"}
+                              >
+                                Email premium
+                              </a>
+                            )}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {data.pengguna.terbaru.length === 0 && (
-                    <tr><td className={td} colSpan={4}>Belum ada pengguna terdaftar.</td></tr>
+                    <tr><td className={td} colSpan={6}>Belum ada pengguna terdaftar.</td></tr>
                   )}
                 </tbody>
               </table>

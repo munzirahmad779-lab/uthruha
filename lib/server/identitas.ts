@@ -42,6 +42,13 @@ export interface Pengguna {
   premiumSumber?: string;
   /** Kapan aktivasi premium terakhir diterapkan (ISO). */
   premiumDiaktifkanPada?: string;
+  /** Penonaktifan akun oleh pemilik lewat Super Admin (perintah pemilik,
+   *  3 Nov 2026): berlaku untuk semua lapis termasuk premium. Sesi akun
+   *  nonaktif ditolak di penggunaDariCookie, jadi seluruh API yang
+   *  memakai sesi langsung tertutup tanpa mengubah tier atau data. */
+  nonaktif?: boolean;
+  dinonaktifkanPada?: string | null;
+  dinonaktifkanOleh?: string | null;
 }
 
 let sudahPeringatkanRahasia = false;
@@ -147,7 +154,9 @@ export async function penggunaDariCookie(cookieHeader: string | null): Promise<P
   const userId = potong.join(".");
   if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) return null;
   if (!samaKonstan(sig, tanda(`${userId}.${exp}`))) return null;
-  return (await ambil("pengguna", userId)) as unknown as Pengguna | null;
+  const rec = (await ambil("pengguna", userId)) as unknown as Pengguna | null;
+  if (!rec || rec.nonaktif) return null; // akun dinonaktifkan pemilik: sesi mati
+  return rec;
 }
 
 /**
@@ -160,7 +169,7 @@ export async function penggunaDariRequest(req: Request): Promise<Pengguna | null
     if (uji === "UJI-GRATIS" || uji === "UJI-PREMIUM") {
       const semuaPengguna = await import("./store").then((m) => m.semua("pengguna"));
       const f = semuaPengguna.find((p) => p.namaUji === uji);
-      if (f) return f as unknown as Pengguna;
+      if (f && !(f as unknown as Pengguna).nonaktif) return f as unknown as Pengguna;
     }
   }
   return penggunaDariCookie(req.headers.get("cookie"));
