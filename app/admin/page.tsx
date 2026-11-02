@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 interface Laporan {
   dibuat: string;
   admin: string;
+  email: { siap: boolean; penyedia: string | null };
   ujiCoba: {
     jumlahPerangkat: number;
     jumlahIpUnik: number;
@@ -225,6 +226,11 @@ export default function AdminPage() {
               <strong>Jadikan Premium</strong> menempelkan premium 30 hari langsung dari server,
               penerima tidak perlu menempel kunci; <strong>Email</strong> membuka draf
               pemberitahuan premium di aplikasi email Anda untuk dikirim ke akun itu.
+            </p>
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-600">
+              {data.email.siap
+                ? `Pengirim email otomatis aktif lewat ${data.email.penyedia}: pemberitahuan premium terkirim sendiri dari server sesudah Anda menekan Jadikan Premium.`
+                : "Pengirim email otomatis belum terpasang di server (kunci penyedia belum diisi), jadi pemberitahuan premium belum terkirim sendiri. Memasang kuncinya cukup sekali di pengaturan Vercel."}
             </p>
             {pesanAksi && (
               <p className="mt-2 rounded-lg bg-parchment-100 px-3 py-2 text-[12.5px] font-medium text-ink-800">

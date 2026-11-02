@@ -13,6 +13,7 @@
  */
 import { NextResponse } from "next/server";
 import { apakahAdmin } from "@/lib/server/admin";
+import { kirimEmail } from "@/lib/server/email";
 import { penggunaDariRequest, tierEfektif, type Pengguna } from "@/lib/server/identitas";
 import { ambil, perbarui } from "@/lib/server/store";
 
@@ -86,5 +87,30 @@ export async function POST(req: Request) {
     premiumSumber: "admin",
     premiumDiaktifkanPada: new Date().toISOString(),
   });
-  return NextResponse.json({ ok: true, userId, premiumSampai: sampai });
+  // Pemberitahuan otomatis ke email akun (best-effort: gagal kirim tidak
+  // membatalkan premium yang sudah menempel). Isi email TANPA kunci
+  // premium mentah, karena premium menempel langsung dari server.
+  const sampaiTeks = new Date(sampai).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const hasil = await kirimEmail({
+    ke: target.email,
+    subjek: "Akun Kitabah Anda sudah Premium",
+    teks:
+      `Assalamu'alaikum ${target.nama || ""},\n\n` +
+      `Akun Kitabah Anda (${target.email}) sudah diaktifkan sebagai Premium oleh admin sampai ${sampaiTeks}. ` +
+      `Silakan masuk seperti biasa di https://www.kitabah.web.id/masuk — tidak perlu menempel kunci apa pun, ` +
+      `premium sudah menempel di akun Anda.\n\nSelamat menulis.`,
+  });
+  return NextResponse.json({
+    ok: true,
+    userId,
+    premiumSampai: sampai,
+    emailTerkirim: hasil.terkirim,
+    catatan: hasil.terkirim
+      ? `Premium aktif sampai ${sampaiTeks}. Email pemberitahuan terkirim ke ${target.email}.`
+      : `Premium aktif sampai ${sampaiTeks}, tetapi email pemberitahuan tidak terkirim (${hasil.alasan ?? "penyedia belum siap"}). Premiumnya sendiri sudah menempel.`,
+  });
 }

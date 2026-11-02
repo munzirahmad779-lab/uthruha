@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { apakahAdmin } from "@/lib/server/admin";
 import { penggunaDariRequest, tierEfektif, type Pengguna } from "@/lib/server/identitas";
+import { statusEmail } from "@/lib/server/email";
 import { statusKolam } from "@/lib/server/kolam";
 import { semua, type Rekam } from "@/lib/server/store";
 
@@ -45,6 +46,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     dibuat: new Date().toISOString(),
+    email: statusEmail(),
     admin: u.email,
     ujiCoba: {
       jumlahPerangkat: perangkat.length,
