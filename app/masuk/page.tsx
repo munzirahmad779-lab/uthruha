@@ -45,28 +45,65 @@ export default function MasukPage() {
           <MasukForm googleAktif={googleAktif} />
           <div className="mt-6 border-t border-ink-900/10 pt-5">
             <p className="text-[13px] font-semibold text-ink-900">
-              Belum punya kunci? Minta lewat WhatsApp
+              Belum punya kunci? Pilih lapisnya, lalu minta lewat WhatsApp
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-ink-500">
               Pesan sudah disiapkan otomatis. Tinggal isi nama dan kampus Anda,
               lalu kirim.
             </p>
-            <div className="mt-3 flex gap-2">
+
+            <div className="mt-3 rounded-xl border border-ink-900/10 p-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[13px] font-bold text-ink-900">Gratis</p>
+                <p className="text-[13px] font-bold text-ink-900">Rp0</p>
+              </div>
+              <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-ink-700">
+                <li>✓ 1 proyek penulisan</li>
+                <li>✓ Pencarian rujukan kitab dan jurnal tanpa batas</li>
+                <li>✓ Maksimal 3 footnote dalam satu paragraf</li>
+                <li>✓ Ekspor naskah ke Word (.docx)</li>
+                <li>✓ Ruang lingkup terkunci sesudah footnote pertama terpasang</li>
+              </ul>
               <a
                 href={tautanWa(PESAN_WA_GRATIS)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-center text-[13px] font-semibold text-white transition hover:bg-emerald-700"
+                className="mt-3 block rounded-lg bg-emerald-600 px-3 py-2.5 text-center text-[13px] font-semibold text-white transition hover:bg-emerald-700"
               >
-                Minta kunci gratis
+                Minta kunci gratis lewat WhatsApp
               </a>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-gold-300/70 bg-parchment-50 p-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[13px] font-bold text-ink-900">
+                  Premium{" "}
+                  <span className="ml-1 rounded-full bg-gold-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    Diskon
+                  </span>
+                </p>
+                <p className="text-[13px] font-bold text-ink-900">
+                  <s className="mr-1 font-semibold text-ink-400">Rp50.000</s>
+                  Rp10.000
+                  <span className="font-semibold text-ink-500"> / bulan</span>
+                </p>
+              </div>
+              <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-ink-700">
+                <li>✓ Proyek tanpa batas jumlah</li>
+                <li>✓ Footnote tanpa batas dalam satu paragraf</li>
+                <li>✓ Generate footnote otomatis: AI menyusun rujukan dari paragraf Anda dan menanam footnote langsung</li>
+                <li>✓ Chat agen AI instan di dalam web</li>
+                <li>✓ Bebas ganti ruang lingkup lewat proyek baru, proyek lama tetap ada</li>
+                <li>✓ Proyek gratis lama Anda ikut terbuka fitur premiumnya</li>
+                <li>✓ Jaminan admin: kendala distandarkan beres paling lambat 6 jam; kegagalan sistem yang terbukti berarti dana kembali penuh</li>
+              </ul>
               <a
                 href={tautanWa(PESAN_WA_PREMIUM)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-center text-[13px] font-semibold text-white transition hover:bg-emerald-700"
+                className="mt-3 block rounded-lg bg-emerald-600 px-3 py-2.5 text-center text-[13px] font-semibold text-white transition hover:bg-emerald-700"
               >
-                Minta kunci premium
+                Minta kunci premium lewat WhatsApp
               </a>
             </div>
           </div>
