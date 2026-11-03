@@ -17,6 +17,7 @@ import {
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 import { penggunaDariCookie, tierEfektif } from "@/lib/server/identitas";
 import { aktifkanPremiumDariKunci } from "@/lib/server/lapis";
+import { catatDanBeritahuLogin } from "@/lib/server/notif-login";
 import { pesanBatasPerangkat, saringPerangkatAkun } from "@/lib/server/perangkat-akun";
 import { simpan } from "@/lib/server/store";
 
@@ -108,6 +109,8 @@ async function masukViaIdentitas(req: Request, ingat: boolean, perangkatId: unkn
       { status: 403 },
     );
   }
+
+  await catatDanBeritahuLogin(pengguna, req);
 
   const res = NextResponse.json({ ok: true, ingat, jenis, via: "identitas" });
   res.headers.set("Cache-Control", "no-store");
@@ -219,6 +222,8 @@ export async function POST(req: Request) {
       );
     }
   }
+
+  if (terbaru) await catatDanBeritahuLogin(terbaru, req);
 
   const res = NextResponse.json({ ok: true, ingat, jenis });
   res.headers.set("Cache-Control", "no-store");

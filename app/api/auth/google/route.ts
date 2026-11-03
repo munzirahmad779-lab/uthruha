@@ -8,6 +8,7 @@ import {
 } from "@/lib/server/identitas";
 import { cookieSecure, loginGoogleAktif } from "@/lib/security/akses";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
+import { catatDanBeritahuLogin } from "@/lib/server/notif-login";
 
 export const runtime = "nodejs";
 
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
   if (!g) return NextResponse.json({ error: "Token Google tidak sah/kedaluwarsa." }, { status: 401 });
 
   const pengguna = await cariAtauBuatPengguna(g);
+  await catatDanBeritahuLogin(pengguna, req);
   const res = NextResponse.json({
     pengguna: { id: pengguna.id, email: pengguna.email, nama: pengguna.nama, foto: pengguna.foto },
     tier: tierEfektif(pengguna),

@@ -56,6 +56,8 @@ export interface Pengguna {
    *  lib/server/perangkat-akun.ts. Diatur ulang lewat aksi admin
    *  "reset-perangkat". */
   perangkatAkun?: { sidik: string; pertama: string; terakhir: string; label?: string }[];
+  /** Cap waktu masuk terakhir (login Google / masuk identitas), untuk notif admin. */
+  loginTerakhir?: string;
 }
 
 let sudahPeringatkanRahasia = false;

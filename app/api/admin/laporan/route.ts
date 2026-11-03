@@ -102,6 +102,7 @@ export async function GET(req: Request) {
           terakhir: teks(d.terakhir, 40),
         })),
         dibuat: teks(x.dibuat, 40),
+        loginTerakhir: teks(x.loginTerakhir, 40),
       })),
     },
     proyekServer: {

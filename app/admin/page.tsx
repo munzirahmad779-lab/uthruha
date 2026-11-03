@@ -38,6 +38,7 @@ interface Laporan {
       jumlahPerangkat: number;
       perangkatDaftar: { sidik: string; label: string; pertama: string; terakhir: string }[];
       dibuat: string;
+      loginTerakhir?: string;
     }[];
   };
   proyekServer: { total: number; terbaru: { judul: string; kategoriId: string; totalFootnote: number; dibuat: string }[] };
@@ -284,7 +285,14 @@ export default function AdminPage() {
                             </span>
                           )}
                         </td>
-                        <td className={td}>{formatWaktu(x.dibuat)}</td>
+                        <td className={td}>
+                          {formatWaktu(x.dibuat)}
+                          {x.loginTerakhir && (
+                            <span className="block text-[11px] text-ink-400">
+                              masuk terakhir {formatWaktu(x.loginTerakhir)}
+                            </span>
+                          )}
+                        </td>
                         <td className={td}>
                           <span className="flex flex-wrap gap-1">
                             {x.nonaktif ? (
