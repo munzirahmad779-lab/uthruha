@@ -1,7 +1,13 @@
 import type { Metadata } from "next";
 import { MasukForm } from "@/components/masuk-form";
 import { loginGoogleAktif } from "@/lib/security/akses";
-import { EMAIL_KONTAK } from "@/lib/legal";
+import { EMAIL_KONTAK, tautanWa } from "@/lib/legal";
+
+/** Teks pesan WA yang sudah terisi untuk permintaan kunci (pemilik, 3 Nov 2026). */
+const PESAN_WA_GRATIS =
+  "Assalamu'alaikum, saya ingin meminta kunci gratis Kitabah.\nNama: \nKampus: ";
+const PESAN_WA_PREMIUM =
+  "Assalamu'alaikum, saya ingin meminta kunci premium Kitabah.\nNama: \nKampus: ";
 
 export const metadata: Metadata = {
   title: "Masuk — Kitabah",
@@ -37,9 +43,36 @@ export default function MasukPage() {
             )}
           </p>
           <MasukForm googleAktif={googleAktif} />
+          <div className="mt-6 border-t border-ink-900/10 pt-5">
+            <p className="text-[13px] font-semibold text-ink-900">
+              Belum punya kunci? Minta lewat WhatsApp
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-500">
+              Pesan sudah disiapkan otomatis. Tinggal isi nama dan kampus Anda,
+              lalu kirim.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <a
+                href={tautanWa(PESAN_WA_GRATIS)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-center text-[13px] font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Minta kunci gratis
+              </a>
+              <a
+                href={tautanWa(PESAN_WA_PREMIUM)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 rounded-lg bg-emerald-600 px-3 py-2.5 text-center text-[13px] font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Minta kunci premium
+              </a>
+            </div>
+          </div>
           <p className="mt-6 text-[11px] leading-relaxed text-ink-500">
-            Belum punya kunci, atau lupa kunci? Kunci tidak bisa dipulihkan dari
-            halaman ini. Minta kunci gratis atau kunci pengganti lewat email ke{" "}
+            Kunci tidak bisa dipulihkan dari halaman ini. Selain lewat WhatsApp,
+            kunci gratis atau kunci pengganti juga bisa diminta lewat email ke{" "}
             <a
               href={`mailto:${EMAIL_KONTAK}`}
               className="font-semibold text-gold-700 underline underline-offset-2"
