@@ -55,7 +55,7 @@ export interface Pengguna {
    *  daftar adalah urutan pendaftaran; penegakan di
    *  lib/server/perangkat-akun.ts. Diatur ulang lewat aksi admin
    *  "reset-perangkat". */
-  perangkatAkun?: { sidik: string; pertama: string; terakhir: string }[];
+  perangkatAkun?: { sidik: string; pertama: string; terakhir: string; label?: string }[];
 }
 
 let sudahPeringatkanRahasia = false;

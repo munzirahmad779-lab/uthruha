@@ -87,6 +87,15 @@ export async function GET(req: Request) {
         jumlahPerangkat: Array.isArray((x as { perangkatAkun?: unknown }).perangkatAkun)
           ? ((x as { perangkatAkun?: unknown }).perangkatAkun as unknown[]).length
           : 0,
+        perangkatDaftar: (Array.isArray((x as { perangkatAkun?: unknown }).perangkatAkun)
+          ? ((x as { perangkatAkun?: unknown }).perangkatAkun as { sidik?: unknown; pertama?: unknown; terakhir?: unknown; label?: unknown }[])
+          : []
+        ).map((d) => ({
+          sidik: teks(d.sidik, 8),
+          label: teks(d.label, 60) || "Perangkat tidak dikenal",
+          pertama: teks(d.pertama, 40),
+          terakhir: teks(d.terakhir, 40),
+        })),
         dibuat: teks(x.dibuat, 40),
       })),
     },

@@ -45,6 +45,38 @@ export type HasilSaringPerangkat =
   | { ok: true }
   | { ok: false; batas: number; tier: string };
 
+/**
+ * Label perangkat yang bisa dibaca pemilik di panel admin, diturunkan
+ * dari User-Agent peramban: sistem operasi + peramban. Bukan sidik
+ * jari; hanya ringkasan untuk mengenali perangkat (mis. HP Android
+ * vs laptop Windows).
+ */
+export function labelPerangkat(agenPengguna: string | null | undefined): string {
+  const ua = (agenPengguna ?? "").toLowerCase();
+  if (!ua) return "Perangkat tidak dikenal";
+  const os = ua.includes("android")
+    ? "Android"
+    : ua.includes("iphone") || ua.includes("ipad")
+      ? "iPhone/iPad"
+      : ua.includes("windows")
+        ? "Windows"
+        : ua.includes("macintosh") || ua.includes("mac os")
+          ? "Mac"
+          : ua.includes("linux")
+            ? "Linux"
+            : "Perangkat lain";
+  const peramban = ua.includes("edg/")
+    ? "Edge"
+    : ua.includes("firefox")
+      ? "Firefox"
+      : ua.includes("chrome") || ua.includes("crios")
+        ? "Chrome"
+        : ua.includes("safari")
+          ? "Safari"
+          : "peramban lain";
+  return `${os} · ${peramban}`;
+}
+
 export function pesanBatasPerangkat(tier: string, batas: number): string {
   if (tier === "premium") {
     return (
@@ -61,6 +93,7 @@ export function pesanBatasPerangkat(tier: string, batas: number): string {
 export async function saringPerangkatAkun(
   pengguna: Pengguna,
   perangkatId: unknown,
+  agenPengguna?: string | null,
 ): Promise<HasilSaringPerangkat> {
   if (apakahAdmin(pengguna)) return { ok: true };
   if (
@@ -80,7 +113,11 @@ export async function saringPerangkatAkun(
   const idx = daftar.findIndex((d) => d.sidik === sidik);
   if (idx >= 0) {
     if (idx >= batas) return { ok: false, batas, tier };
-    daftar[idx] = { ...daftar[idx], terakhir: kini };
+    daftar[idx] = {
+      ...daftar[idx],
+      terakhir: kini,
+      label: daftar[idx].label ?? labelPerangkat(agenPengguna),
+    };
     await simpan("pengguna", {
       ...pengguna,
       perangkatAkun: daftar,
@@ -88,7 +125,7 @@ export async function saringPerangkatAkun(
     return { ok: true };
   }
   if (daftar.length >= batas) return { ok: false, batas, tier };
-  daftar.push({ sidik, pertama: kini, terakhir: kini });
+  daftar.push({ sidik, pertama: kini, terakhir: kini, label: labelPerangkat(agenPengguna) });
   await simpan("pengguna", {
     ...pengguna,
     perangkatAkun: daftar,

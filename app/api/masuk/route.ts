@@ -101,7 +101,7 @@ async function masukViaIdentitas(req: Request, ingat: boolean, perangkatId: unkn
 
   // Batas perangkat per akun (gratis 1, premium 2): pemulihan sesi di
   // perangkat yang tidak terdaftar dan di luar jatah ditolak di sini.
-  const saring = await saringPerangkatAkun(pengguna, perangkatId);
+  const saring = await saringPerangkatAkun(pengguna, perangkatId, req.headers.get("user-agent"));
   if (!saring.ok) {
     return NextResponse.json(
       { error: pesanBatasPerangkat(saring.tier, saring.batas), kode: "BATAS_PERANGKAT" },
@@ -211,7 +211,7 @@ export async function POST(req: Request) {
   // Tanpa identitas Google tidak ada akun yang bisa diikat, jadi
   // pemeriksaan ini khusus mode identitas.
   if (terbaru) {
-    const saring = await saringPerangkatAkun(terbaru, body.perangkatId);
+    const saring = await saringPerangkatAkun(terbaru, body.perangkatId, req.headers.get("user-agent"));
     if (!saring.ok) {
       return NextResponse.json(
         { error: pesanBatasPerangkat(saring.tier, saring.batas), kode: "BATAS_PERANGKAT" },

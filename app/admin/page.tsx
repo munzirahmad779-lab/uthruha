@@ -36,6 +36,7 @@ interface Laporan {
       premiumSampai: string;
       nonaktif: boolean;
       jumlahPerangkat: number;
+      perangkatDaftar: { sidik: string; label: string; pertama: string; terakhir: string }[];
       dibuat: string;
     }[];
   };
@@ -267,7 +268,22 @@ export default function AdminPage() {
                         <td className={td}>{x.email}</td>
                         <td className={td}>{x.tier === "premium" ? "Premium" : "Gratis"}</td>
                         <td className={td}>{x.nonaktif ? "Nonaktif" : "Aktif"}</td>
-                        <td className={td}>{x.jumlahPerangkat}</td>
+                        <td className={td}>
+                          {x.jumlahPerangkat === 0 ? (
+                            "0"
+                          ) : (
+                            <span className="block space-y-1">
+                              {x.perangkatDaftar.map((d) => (
+                                <span key={d.sidik} className="block whitespace-nowrap text-[11px] leading-snug">
+                                  <span className="font-semibold text-ink-800">{d.label}</span>
+                                  <span className="text-ink-500">
+                                    {" "}· terakhir {formatWaktu(d.terakhir)}
+                                  </span>
+                                </span>
+                              ))}
+                            </span>
+                          )}
+                        </td>
                         <td className={td}>{formatWaktu(x.dibuat)}</td>
                         <td className={td}>
                           <span className="flex flex-wrap gap-1">
