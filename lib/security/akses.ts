@@ -244,20 +244,23 @@ export function bolehMasuk(
  * suatu saat terlewat (matcher berubah, berkas hilang), rute yang membakar
  * kunci LLM tidak ikut terbuka diam-diam.
  *
- * Bila gerbang tidak aktif, fungsi ini meloloskan (perilaku pengembangan
- * lokal tidak berubah) TETAPI di produksi meninggalkan jejak console.error
- * yang keras di log server — gerbang mati di produksi tidak lagi senyap.
+ * Bila gerbang tidak aktif: di pengembangan lokal fungsi ini
+ * meloloskan, tetapi di PRODUKSI ia menolak (fail-closed, pengencangan
+ * 3 Nov 2026 B-2) sambil meninggalkan console.error keras di log.
  * Keberadaan UTH_ACCESS_KEY di dashboard Vercel tetap hanya bisa
  * dipastikan pemilik.
  */
 export function sesiSahDariRequest(req: Request): boolean {
   if (!gerbangAktif()) {
     if (process.env.NODE_ENV === "production") {
+      // Pengencangan 3 Nov 2026 (B-2): fail-closed. Gerbang mati di
+      // produksi berarti rute sensitif MENOLAK, bukan meloloskan.
       console.error(
-        "[akses] PERINGATAN N-01: gerbang akses TIDAK AKTIF di produksi " +
-          "(UTH_ACCESS_KEY kosong/<16 karakter). Rute sensitif berjalan " +
-          "tanpa gerbang sampai env itu diisi di dashboard Vercel.",
+        "[akses] N-01: gerbang akses TIDAK AKTIF di produksi " +
+          "(UTH_ACCESS_KEY kosong/<16 karakter). Rute sensitif ditolak " +
+          "sampai env itu diisi di dashboard Vercel.",
       );
+      return false;
     }
     return true;
   }

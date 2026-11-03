@@ -11,6 +11,7 @@
 // rute menolak semua panggilan alih-alih berjalan terbuka, karena
 // kelolaBank melakukan penghapusan rekam.
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { kelolaBank } from "@/lib/server/bank-rujukan";
 
@@ -26,7 +27,11 @@ export async function GET(req: NextRequest) {
     );
   }
   const auth = req.headers.get("authorization") ?? "";
-  if (auth !== `Bearer ${rahasia}`) {
+  // Pengencangan 3 Nov 2026 (R-1): banding waktu-konstan lewat hash
+  // kedua sisi, bukan perbandingan string biasa.
+  const hashA = createHash("sha256").update(auth).digest();
+  const hashB = createHash("sha256").update(`Bearer ${rahasia}`).digest();
+  if (!timingSafeEqual(hashA, hashB)) {
     return NextResponse.json({ error: "Tidak berwenang." }, { status: 401 });
   }
   const hasil = await kelolaBank();

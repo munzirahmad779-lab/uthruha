@@ -62,6 +62,15 @@ let sudahPeringatkanRahasia = false;
 function rahasiaSesi(): string {
   const khusus = process.env.UTH_SESI_SECRET?.trim();
   if (khusus) return khusus;
+  // Pengencangan 3 Nov 2026 (B-1): di produksi TIDAK ada jalan jatuh
+  // ke kunci akses bersama atau nilai bawaan. Tanpa secret khusus,
+  // penandatanganan sesi menolak berjalan (fail-closed) agar cookie
+  // sesi tidak bisa ditempa pemegang kunci bersama.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "UTH_SESI_SECRET belum terpasang di produksi. Isi secret acak khusus di env server; sesi ditolak sampai terpasang.",
+    );
+  }
   if (!sudahPeringatkanRahasia) {
     sudahPeringatkanRahasia = true;
     if (process.env.UTH_ACCESS_KEY?.trim()) {
@@ -106,9 +115,15 @@ export async function verifikasiGoogle(
     if (!res.ok) return null;
     const j = (await res.json()) as Record<string, string>;
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
-    if (clientId && j.aud !== clientId) return null;
+    // Pengencangan 3 Nov 2026 (B-4): aud wajib cocok persis dengan
+    // Client ID aplikasi ini, dan email wajib terverifikasi persis.
+    // Client ID kosong di produksi berarti token ditolak, bukan
+    // pemeriksaan dilewati.
+    if (!clientId) {
+      if (process.env.NODE_ENV === "production") return null;
+    } else if (j.aud !== clientId) return null;
     if (!j.sub || !j.email) return null;
-    if (j.email_verified === "false") return null;
+    if (j.email_verified !== "true") return null;
     return { sub: j.sub, email: j.email, nama: j.name ?? "", foto: j.picture ?? "" };
   } catch {
     return null;
@@ -171,7 +186,10 @@ export async function penggunaDariCookie(cookieHeader: string | null): Promise<P
  * → cookie sesi. Mengembalikan null untuk tamu.
  */
 export async function penggunaDariRequest(req: Request): Promise<Pengguna | null> {
-  if (process.env.UTH_MODE_UJI === "1") {
+  // Pengencangan 3 Nov 2026 (B-3): mode uji MATI di produksi apa pun
+  // env-nya; header x-uji-user tidak pernah menjadi identitas di
+  // server produksi.
+  if (process.env.UTH_MODE_UJI === "1" && process.env.NODE_ENV !== "production") {
     const uji = req.headers.get("x-uji-user")?.trim();
     if (uji === "UJI-GRATIS" || uji === "UJI-PREMIUM") {
       const semuaPengguna = await import("./store").then((m) => m.semua("pengguna"));

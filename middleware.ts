@@ -179,7 +179,19 @@ function tujuanAman(nilai: string | null): string {
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
-  if (!gerbangAktif()) return NextResponse.next();
+  if (!gerbangAktif()) {
+    // Pengencangan 3 Nov 2026 (B-2): fail-closed di produksi. Bila
+    // kunci akses hilang dari env, jalur bebas tetap hidup (beranda,
+    // masuk, webhook, kron) tetapi semua jalur lain menjawab 503,
+    // bukan terbuka untuk internet.
+    if (process.env.NODE_ENV === "production" && !JALUR_BEBAS.has(pathname)) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Layanan sedang tidak tersedia." }, { status: 503 });
+      }
+      return new NextResponse("Layanan sedang tidak tersedia.", { status: 503 });
+    }
+    return NextResponse.next();
+  }
   if (JALUR_BEBAS.has(pathname)) return NextResponse.next();
 
   const sesi = req.cookies.get(COOKIE_AKSES)?.value;

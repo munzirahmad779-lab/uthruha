@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { panggilKolam } from "@/lib/server/kolam";
 import { cariRujukanTamu, type RujukanTamu } from "@/lib/server/rujukan";
-import { ambil, simpan } from "@/lib/server/store";
+import { ambil, hapus, simpan } from "@/lib/server/store";
 import { idAcak } from "@/lib/server/store";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
@@ -131,6 +131,42 @@ export async function POST(req: Request) {
     );
   }
 
+  // Pengencangan 3 Nov 2026 (S-5): kuota DIPESAN di sini, sebelum
+  // generasi, bukan lagi ditulis di akhir handler. Sebelumnya,
+  // permintaan paralel dari satu IP/perangkat bisa sama-sama lolos
+  // karena hitungan baru naik sesudah generasi selesai. Kegagalan
+  // generasi mengembalikan jatah lewat batalkanKuota(), agar tamu
+  // tidak kehilangan jatah hanya karena mesin AI sedang mati.
+  const percobaanIpBaru = Number(catatanIp?.percobaan ?? 0) + 1;
+  const perangkatTerlihatAwal = Array.isArray(catatanIp?.perangkatIds)
+    ? (catatanIp.perangkatIds as string[])
+    : [];
+  await simpan("perangkat", {
+    id: perangkatId,
+    percobaan: Number(perangkat?.percobaan ?? 0) + 1,
+    terakhir: new Date().toISOString(),
+  });
+  await simpan("ipUji", {
+    id: ipSidik,
+    percobaan: percobaanIpBaru,
+    ditolak: Number(catatanIp?.ditolak ?? 0),
+    pertama: typeof catatanIp?.pertama === "string" ? catatanIp.pertama : new Date().toISOString(),
+    terakhir: new Date().toISOString(),
+    perangkatIds: [...new Set([...perangkatTerlihatAwal, perangkatId])].slice(-10),
+  });
+  const batalkanKuota = async () => {
+    if (perangkat) {
+      await simpan("perangkat", perangkat).catch(() => undefined);
+    } else {
+      await hapus("perangkat", perangkatId).catch(() => undefined);
+    }
+    if (catatanIp) {
+      await simpan("ipUji", catatanIp).catch(() => undefined);
+    } else {
+      await hapus("ipUji", ipSidik).catch(() => undefined);
+    }
+  };
+
   // Tembolok per judul ternormalisasi. Prefiks versi membuang hasil lama
   // bila mesin generasi/pencarian rujukan berubah (v2: pencarian multi-frasa
   // + label kecocokan bergradasi; v3: verifikasi DOI dari Crossref langsung
@@ -148,6 +184,7 @@ export async function POST(req: Request) {
       refs = sesiLama.refs as unknown as RujukanTamu[];
       dariTembolok = true;
     } else {
+      await batalkanKuota();
       return NextResponse.json({ error: "Tembolok rusak; coba lagi." }, { status: 500 });
     }
   } else {
@@ -158,6 +195,7 @@ export async function POST(req: Request) {
     } catch (e) {
       const percobaan = (e as { percobaan?: unknown }).percobaan;
       console.error("[uji-coba] kolam gagal", percobaan);
+      await batalkanKuota();
       return NextResponse.json(
         {
           error: "Mesin AI sedang tidak tersedia. Coba lagi beberapa saat lagi.",
@@ -169,7 +207,10 @@ export async function POST(req: Request) {
       );
     }
     const hasil = parseGenerasi(mentah.teks);
-    if (!hasil) return NextResponse.json({ error: "Hasil AI tidak terbaca. Coba lagi." }, { status: 502 });
+    if (!hasil) {
+      await batalkanKuota();
+      return NextResponse.json({ error: "Hasil AI tidak terbaca. Coba lagi." }, { status: 502 });
+    }
     generasi = hasil;
     refs = await cariRujukanTamu(judul, generasi.kalimatKunci);
   }
@@ -191,21 +232,8 @@ export async function POST(req: Request) {
   if (!dariTembolok) {
     await simpan("tembolok", { id: kunciJudul, sesiId, dibuat: new Date().toISOString() });
   }
-  await simpan("perangkat", {
-    id: perangkatId,
-    percobaan: Number(perangkat?.percobaan ?? 0) + 1,
-    terakhir: new Date().toISOString(),
-  });
-  const percobaanIpBaru = Number(catatanIp?.percobaan ?? 0) + 1;
-  const perangkatTerlihat = Array.isArray(catatanIp?.perangkatIds) ? (catatanIp.perangkatIds as string[]) : [];
-  await simpan("ipUji", {
-    id: ipSidik,
-    percobaan: percobaanIpBaru,
-    ditolak: Number(catatanIp?.ditolak ?? 0),
-    pertama: typeof catatanIp?.pertama === "string" ? catatanIp.pertama : new Date().toISOString(),
-    terakhir: new Date().toISOString(),
-    perangkatIds: [...new Set([...perangkatTerlihat, perangkatId])].slice(-10),
-  });
+  // Hitungan kuota perangkat + IP sudah ditulis pada pemesanan di
+  // awal handler (lihat S-5), tidak lagi di sini.
 
   return NextResponse.json({
     sesiId,
