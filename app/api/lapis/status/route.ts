@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apakahAdmin } from "@/lib/server/admin";
 import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
 import { proyekPengguna } from "@/lib/server/lapis";
 import { statusKolam } from "@/lib/server/kolam";
@@ -25,6 +26,9 @@ export async function GET(req: Request) {
       terkunciRuangLingkup: p.terkunciRuangLingkup,
       totalFootnote: p.totalFootnote,
     })),
-    kolam: await statusKolam(),
+    // Pengencangan 3 Nov 2026 (S-6): keadaan kolam kunci (jumlah dan
+    // kesehatan kunci, termasuk premium) hanya untuk admin. Panel
+    // admin membacanya lewat /api/admin/laporan, bukan dari sini.
+    kolam: apakahAdmin(u) ? await statusKolam() : null,
   });
 }

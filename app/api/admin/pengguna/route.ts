@@ -12,6 +12,8 @@
  * menonaktifkan akunnya sendiri agar tidak terkunci keluar.
  */
 import { NextResponse } from "next/server";
+import { tolakTanpaSesi } from "@/lib/security/akses";
+import { asalSah } from "@/lib/security/laju";
 import { apakahAdmin } from "@/lib/server/admin";
 import { kirimEmail } from "@/lib/server/email";
 import { penggunaDariRequest, tierEfektif, type Pengguna } from "@/lib/server/identitas";
@@ -24,6 +26,12 @@ const AKSI = ["nonaktifkan", "aktifkan", "premium", "reset-perangkat"] as const;
 type Aksi = (typeof AKSI)[number];
 
 export async function POST(req: Request) {
+  // Pengencangan 3 Nov 2026 (S-7): lapis kedua yang sama seperti rute
+  // LLM (cookie gerbang diperiksa di handler + pemeriksaan asal),
+  // agar rute paling berkuasa ini tidak bertumpu pada middleware saja.
+  const tolak = tolakTanpaSesi(req);
+  if (tolak) return tolak;
+  if (!asalSah(req)) return NextResponse.json({ error: "Asal tidak dikenal." }, { status: 403 });
   const u = await penggunaDariRequest(req);
   if (!u) return NextResponse.json({ error: "Belum masuk." }, { status: 401 });
   if (!apakahAdmin(u)) {

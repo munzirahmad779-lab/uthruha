@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { tolakTanpaSesi } from "@/lib/security/akses";
 import { apakahAdmin } from "@/lib/server/admin";
 import { penggunaDariRequest, tierEfektif, type Pengguna } from "@/lib/server/identitas";
 import { statusEmail } from "@/lib/server/email";
@@ -20,6 +21,10 @@ const angka = (v: unknown): number => (typeof v === "number" && Number.isFinite(
 const urutBaru = (a: Rekam, b: Rekam) => (teks(b.dibuat) < teks(a.dibuat) ? -1 : 1);
 
 export async function GET(req: Request) {
+  // Pengencangan 3 Nov 2026 (S-7): lapis kedua cookie gerbang di
+  // handler, pola yang sama seperti rute LLM.
+  const tolak = tolakTanpaSesi(req);
+  if (tolak) return tolak;
   const u = await penggunaDariRequest(req);
   if (!u) return NextResponse.json({ error: "Belum masuk." }, { status: 401 });
   if (!apakahAdmin(u)) return NextResponse.json({ error: "Halaman ini khusus pemilik layanan." }, { status: 403 });

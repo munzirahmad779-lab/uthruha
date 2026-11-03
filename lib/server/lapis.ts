@@ -49,6 +49,16 @@ export async function buatProyekServer(
   if (masukan.id && milik.some((p) => p.id === masukan.id)) {
     return { ok: true, data: milik.find((p) => p.id === masukan.id)! };
   }
+  // Pengencangan 3 Nov 2026 (S-1, IDOR tulis): id dari klien yang sudah
+  // ada milik pengguna LAIN tidak boleh jatuh ke pembuatan record,
+  // karena simpan() menulis dengan upsert dan akan menimpa record
+  // pemilik aslinya. Tolak tegas.
+  if (masukan.id?.trim()) {
+    const sudahAda = (await ambil("proyek", masukan.id.trim())) as { userId?: unknown } | null;
+    if (sudahAda && sudahAda.userId !== u.id) {
+      return { ok: false, kode: "ID_TIDAK_SAH", pesan: "ID proyek tidak sah." };
+    }
+  }
   if (tier === "gratis" && milik.length >= MAKS_PROYEK_GRATIS) {
     return {
       ok: false,
