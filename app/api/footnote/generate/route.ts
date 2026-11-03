@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { tolakTanpaSesi } from "@/lib/security/akses";
 import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
+import { bolehLajuServer } from "@/lib/server/laju-server";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 import { generateFootnoteUntukParagraf } from "@/lib/server/generate-footnote";
 
@@ -36,7 +37,9 @@ export async function POST(req: NextRequest) {
   if (!perIp.boleh) {
     return balasanLaju(perIp.ulangDetik, `Terlalu banyak permintaan. Coba lagi dalam ${perIp.ulangDetik} detik.`);
   }
-  const global = bolehLaju("generate-footnote:global", MAKS_GLOBAL, JENDELA_MS);
+  // Pengencangan 3 Nov 2026 (T-2): batas global persisten lintas
+  // instance, bukan lagi hitungan memori proses.
+  const global = await bolehLajuServer("generate-footnote:global", MAKS_GLOBAL, JENDELA_MS);
   if (!global.boleh) {
     return balasanLaju(global.ulangDetik, "Server sedang sibuk. Coba lagi sebentar.");
   }
@@ -56,6 +59,11 @@ export async function POST(req: NextRequest) {
       },
       { status: 403 },
     );
+  }
+
+  const perUser = await bolehLajuServer(`generate-footnote:user:${pengguna.id}`, 10, JENDELA_MS);
+  if (!perUser.boleh) {
+    return balasanLaju(perUser.ulangDetik, "Jatah akun Anda untuk Generate Footnote tercapai. Coba lagi sebentar.");
   }
 
   const body = await req.json().catch(() => null);

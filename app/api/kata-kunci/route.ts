@@ -14,6 +14,7 @@
 // - Semua key dibaca dari environment variable server (Vercel / .env.local),
 //   tidak pernah dari request body dan tidak pernah dikirim ke client.
 
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   PROMPT_KALIMAT,
@@ -25,6 +26,8 @@ import {
 } from "@/lib/engine/kata-kunci-server";
 import { tolakTanpaSesi } from "@/lib/security/akses";
 import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
+import { bolehLajuServer } from "@/lib/server/laju-server";
+import { ambil, simpan } from "@/lib/server/store";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -144,9 +147,10 @@ async function panggilLLMMentah(system: string, user: string, maksToken: number,
 
 // Rate limit memakai pola aman bersama lib/security/laju.ts (N-02, audit
 // menyeluruh 27 Okt): IP dari ipKlien() — BUKAN x-forwarded-for elemen
-// pertama yang bisa ditulis bebas oleh klien — plus pemeriksaan Origin
-// dan batas global, sama seperti /api/masuk, /api/khalfiyah, /api/refs.
-// (Memori proses: di serverless ini per-instance; cukup untuk skala awal.)
+// pertama yang bisa ditulis bebas oleh klien — plus pemeriksaan Origin.
+// Sejak pengencangan 3 Nov 2026: batas per akun dan batas global memakai
+// penghitung persisten lib/server/laju-server.ts (berlaku lintas
+// instance), dan rute ini wajib sesi identitas (lihat POST).
 const JENDELA_MS = 60_000;
 const MAKS_PER_IP = 10; // maks 10 request / menit / IP (sama seperti sebelumnya)
 const MAKS_GLOBAL = 300; // batas lidah global per menit
@@ -161,6 +165,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Asal permintaan tidak dikenal." }, { status: 403 });
   }
 
+  // Pengencangan 3 Nov 2026 (T-1): rute ini membakar kolam LLM, jadi
+  // wajib sesi identitas Google. Cookie gerbang dari kunci bersama
+  // saja tidak cukup lagi, agar kuota tidak bisa dikuras tanpa akun.
+  const penggunaSesi = await penggunaDariRequest(req);
+  if (!penggunaSesi) {
+    return NextResponse.json(
+      { error: "Masuk dengan Google dulu untuk memakai fitur ini.", kode: "WAJIB_LOGIN" },
+      { status: 401 },
+    );
+  }
+  // Pemanggil Premium memakai kolam khusus premium lebih dulu.
+  const premium = tierEfektif(penggunaSesi) === "premium";
+
+  const body = await req.json().catch(() => null);
+  const teks = typeof body?.teks === "string" ? body.teks.trim().slice(0, 2000) : "";
+  if (teks.length < 10) {
+    return NextResponse.json({ error: "Teks terlalu pendek untuk diekstrak kata kuncinya." }, { status: 400 });
+  }
+
+  // Tembolok hasil: masukan yang sama (per lapis) tidak membakar LLM
+  // dua kali. Yang disimpan hanya keluaran AI, bukan fallback lokal.
+  const tahapKunci = typeof body?.tahap === "string" ? body.tahap : "";
+  const judulKunci = tahapKunci === "kalimat" && typeof body?.judul === "string" ? body.judul.trim().slice(0, 300) : "";
+  const kataKunciKunci: string[] =
+    tahapKunci === "kalimat" && Array.isArray(body?.kata)
+      ? body.kata.filter((x: unknown) => typeof x === "string").slice(0, 12)
+      : [];
+  const idCache = `kk:${createHash("sha256")
+    .update([tahapKunci || "utama", premium ? "premium" : "gratis", teks, judulKunci, kataKunciKunci.join("، ")].join("|"))
+    .digest("hex")
+    .slice(0, 32)}`;
+  const cache = (await ambil("tembolok", idCache).catch(() => null)) as { hasil?: Record<string, unknown> } | null;
+  if (cache?.hasil) return NextResponse.json({ ...cache.hasil, dariTembolok: true });
+
   const ip = ipKlien(req);
   const perIp = bolehLaju(`kata-kunci:ip:${ip}`, MAKS_PER_IP, JENDELA_MS);
   if (!perIp.boleh) {
@@ -169,32 +207,30 @@ export async function POST(req: NextRequest) {
       `Terlalu banyak permintaan. Coba lagi dalam ${perIp.ulangDetik} detik.`,
     );
   }
-  const global = bolehLaju("kata-kunci:global", MAKS_GLOBAL, JENDELA_MS);
+  const perUser = await bolehLajuServer(`kata-kunci:user:${penggunaSesi.id}`, 20, JENDELA_MS);
+  if (!perUser.boleh) {
+    return balasanLaju(perUser.ulangDetik, "Jatah akun Anda untuk fitur ini tercapai. Coba lagi sebentar.");
+  }
+  const global = await bolehLajuServer("kata-kunci:global", MAKS_GLOBAL, JENDELA_MS);
   if (!global.boleh) {
     return balasanLaju(global.ulangDetik, "Server sedang sibuk. Coba lagi sebentar.");
   }
 
-  // Pemanggil Premium memakai kolam khusus premium lebih dulu.
-  const penggunaSesi = await penggunaDariRequest(req);
-  const premium = penggunaSesi ? tierEfektif(penggunaSesi) === "premium" : false;
-
-  const body = await req.json().catch(() => null);
-  const teks = typeof body?.teks === "string" ? body.teks.trim().slice(0, 2000) : "";
-  if (teks.length < 10) {
-    return NextResponse.json({ error: "Teks terlalu pendek untuk diekstrak kata kuncinya." }, { status: 400 });
-  }
-
+  const keluaran = await (async (): Promise<{ json: Record<string, unknown>; ai: boolean }> => {
   // ── Tahap kurasi v2 ──────────────────────────────────────────────────────
   const tahap = typeof body?.tahap === "string" ? body.tahap : "";
   if (tahap === "kata") {
     const mentah = await panggilLLMMentah(PROMPT_KATA, teks, 500, premium);
     const kata = mentah ? parseKata(mentah.isi) : null;
-    if (kata) return NextResponse.json({ sumber: mentah!.sumber, kata });
-    return NextResponse.json({
-      sumber: "tanpa-ai",
-      kata: kataTanpaAI(teks),
-      catatan: "Provider AI tidak tersedia — kata kunci disaring dari teks Anda sendiri; periksa dan edit sebelum menyusun kalimat.",
-    });
+    if (kata) return { json: { sumber: mentah!.sumber, kata }, ai: true };
+    return {
+      json: {
+        sumber: "tanpa-ai",
+        kata: kataTanpaAI(teks),
+        catatan: "Provider AI tidak tersedia — kata kunci disaring dari teks Anda sendiri; periksa dan edit sebelum menyusun kalimat.",
+      },
+      ai: false,
+    };
   }
   if (tahap === "kalimat") {
     const judul = typeof body?.judul === "string" ? body.judul.trim().slice(0, 300) : teks;
@@ -204,12 +240,15 @@ export async function POST(req: NextRequest) {
     const user = `JUDUL: ${judul}\nKATA KUNCI TERPILIH: ${kataPilihan.join("، ") || "(belum ada — ambil dari judul)"}`;
     const mentah = await panggilLLMMentah(PROMPT_KALIMAT, user, 800, premium);
     const kalimat = mentah ? parseKalimat(mentah.isi) : null;
-    if (kalimat) return NextResponse.json({ sumber: mentah!.sumber, kalimat });
-    return NextResponse.json({
-      sumber: "tanpa-ai",
-      kalimat: kalimatTanpaAI(judul, kataPilihan),
-      catatan: "Provider AI tidak tersedia — kalimat berupa templat per peran; edit sebelum mencari.",
-    });
+    if (kalimat) return { json: { sumber: mentah!.sumber, kalimat }, ai: true };
+    return {
+      json: {
+        sumber: "tanpa-ai",
+        kalimat: kalimatTanpaAI(judul, kataPilihan),
+        catatan: "Provider AI tidak tersedia — kalimat berupa templat per peran; edit sebelum mencari.",
+      },
+      ai: false,
+    };
   }
 
   // Provider 1 — Groq (Qwen). Key: GROQ_API_KEY (console.groq.com, gratis, tanpa kartu).
@@ -220,7 +259,7 @@ export async function POST(req: NextRequest) {
       model: process.env.GROQ_MODEL ?? "qwen/qwen3.8-27b",
       teks,
     }).catch(() => null);
-    if (hasil) return NextResponse.json({ sumber: "groq", ...hasil });
+    if (hasil) return { json: { sumber: "groq", ...hasil }, ai: true };
   }
 
   // Provider 2 — Cloudflare Workers AI. Key: CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID.
@@ -233,15 +272,26 @@ export async function POST(req: NextRequest) {
       model: process.env.CLOUDFLARE_MODEL ?? "@cf/meta/llama-3.1-8b-instruct",
       teks,
     }).catch(() => null);
-    if (hasil) return NextResponse.json({ sumber: "cloudflare", ...hasil });
+    if (hasil) return { json: { sumber: "cloudflare", ...hasil }, ai: true };
   }
 
   // Fallback tanpa AI — pencarian CrossRef tetap jalan dengan teks apa adanya.
-  return NextResponse.json({
-    sumber: "tanpa-ai",
-    arab: [],
-    indonesia: [teks.slice(0, 120)],
-    inggris: [],
-    catatan: "Provider AI tidak tersedia/kuota habis. Query memakai teks asli pengguna.",
-  });
+  return {
+    json: {
+      sumber: "tanpa-ai",
+      arab: [],
+      indonesia: [teks.slice(0, 120)],
+      inggris: [],
+      catatan: "Provider AI tidak tersedia/kuota habis. Query memakai teks asli pengguna.",
+    },
+    ai: false,
+  };
+  })();
+
+  if (keluaran.ai) {
+    await simpan("tembolok", { id: idCache, hasil: keluaran.json, dibuat: new Date().toISOString() }).catch(
+      () => undefined,
+    );
+  }
+  return NextResponse.json(keluaran.json);
 }

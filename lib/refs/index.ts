@@ -111,6 +111,7 @@ export async function cariRujukan(req: SearchRequest): Promise<SearchResponse> {
         const llm = await istilahDariParagraf(teksParagraf, {
           hanya: req.penyediaLLM,
           kunci: req.kunciLLM,
+          premium: req.premium,
         });
         if (!llm.gagal && llm.istilah.length > 0) {
           konsep = llm.istilah;

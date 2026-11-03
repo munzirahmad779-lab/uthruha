@@ -25,7 +25,8 @@ export type Koleksi =
   | "tembolok"
   | "sesiUji"
   | "perangkat"
-  | "ipUji";
+  | "ipUji"
+  | "laju";
 
 export type Rekam = Record<string, unknown> & { id: string };
 

@@ -3,6 +3,8 @@ import { cariRujukan, kemampuanSumber } from "@/lib/refs";
 import { statusPenyedia } from "@/lib/refs/llm/penyedia";
 import { BATAS, type SearchRequest, type SourceId } from "@/lib/refs/types";
 import { tolakTanpaSesi } from "@/lib/security/akses";
+import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
+import { bolehLajuServer } from "@/lib/server/laju-server";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -15,7 +17,11 @@ const MAKS_PER_IP = 30;
 const MAKS_GLOBAL = 600;
 
 /** Kemampuan sumber apa adanya - dipakai UI untuk menjelaskan mode. */
-export async function GET() {
+export async function GET(req: Request) {
+  // Pengencangan 3 Nov 2026 (R-7): status kesiapan penyedia tidak lagi
+  // terbuka untuk anonim; cukup cookie gerbang seperti rute lainnya.
+  const tolak = tolakTanpaSesi(req);
+  if (tolak) return tolak;
   return NextResponse.json({
     sumber: kemampuanSumber(),
     batas: BATAS,
@@ -41,6 +47,17 @@ export async function POST(req: Request) {
     );
   }
 
+  // Pengencangan 3 Nov 2026 (S-2): mode konsep membakar LLM server,
+  // jadi rute ini wajib sesi identitas, dengan batas per akun dan
+  // batas global persisten (lintas instance).
+  const u = await penggunaDariRequest(req);
+  if (!u) {
+    return NextResponse.json(
+      { error: "Masuk dengan Google dulu untuk memakai pencarian rujukan.", kode: "WAJIB_LOGIN" },
+      { status: 401 },
+    );
+  }
+
   const ip = ipKlien(req);
 
   const perIp = bolehLaju(`refs:ip:${ip}`, MAKS_PER_IP, JENDELA_MS);
@@ -50,7 +67,11 @@ export async function POST(req: Request) {
       `Terlalu banyak permintaan. Batas ${MAKS_PER_IP} per menit. Coba lagi dalam ${perIp.ulangDetik} detik.`,
     );
   }
-  const global = bolehLaju("refs:global", MAKS_GLOBAL, JENDELA_MS);
+  const perUser = await bolehLajuServer(`refs:user:${u.id}`, MAKS_PER_IP, JENDELA_MS);
+  if (!perUser.boleh) {
+    return balasanLaju(perUser.ulangDetik, "Jatah akun Anda untuk pencarian ini tercapai. Coba lagi sebentar.");
+  }
+  const global = await bolehLajuServer("refs:global", MAKS_GLOBAL, JENDELA_MS);
   if (!global.boleh) {
     return balasanLaju(global.ulangDetik, "Server sedang sibuk. Coba lagi sebentar.");
   }
@@ -87,7 +108,12 @@ export async function POST(req: Request) {
 
   try {
     const mode = body.mode === "konsep" ? "konsep" : "kata";
-    const penyediaLLM = Array.isArray(body.penyediaLLM)
+    const kunciLLM = typeof body.kunciLLM === "string" ? body.kunciLLM.trim() : undefined;
+    // Pilihan penyedia dari klien hanya dihormati bila klien membawa
+    // kunci LLM-nya sendiri (BYOK). Untuk kunci server, urutan selalu
+    // kolam lebih dulu (panggilLLM di lib/refs/llm/penyedia.ts) dan
+    // klien tidak bisa melompat langsung ke penyedia env tertentu.
+    const penyediaLLM = kunciLLM && Array.isArray(body.penyediaLLM)
       ? body.penyediaLLM.filter((p): p is string => typeof p === "string").slice(0, 9)
       : undefined;
     const hasil = await cariRujukan({
@@ -97,7 +123,8 @@ export async function POST(req: Request) {
       mode,
       tanpaLLM: body.tanpaLLM === true,
       penyediaLLM,
-      kunciLLM: typeof body.kunciLLM === "string" ? body.kunciLLM.trim() : undefined,
+      kunciLLM,
+      premium: tierEfektif(u) === "premium",
       konsepKustom: Array.isArray(body.konsepKustom)
         ? body.konsepKustom.filter((s) => typeof s === "string" && s.trim())
         : undefined,

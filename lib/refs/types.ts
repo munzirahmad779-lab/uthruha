@@ -98,6 +98,8 @@ export interface SearchRequest {
   kunciLLM?: string;
   /** Konsep kustom yang dipilih/ditulis pengguna langsung dari UI. */
   konsepKustom?: string[];
+  /** Diisi SERVER dari sesi (bukan dari klien): pemanggil Premium terverifikasi. */
+  premium?: boolean;
 }
 
 export interface SearchResponse {

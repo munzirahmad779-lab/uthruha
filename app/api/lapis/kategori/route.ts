@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
 import { gantiKategori, profilKategoriKustom, type KategoriKustom } from "@/lib/server/lapis";
 import { tolakTanpaSesi } from "@/lib/security/akses";
+import { bolehLajuServer } from "@/lib/server/laju-server";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -28,6 +29,15 @@ export async function POST(req: Request) {
     kustom?: string;
   } | null;
   if (!body) return NextResponse.json({ error: "Badan permintaan kosong." }, { status: 400 });
+
+  // Pengencangan 3 Nov 2026 (S-4): jalur kustom memanggil kolam LLM
+  // dan terbuka untuk akun gratis, jadi diberi batas per akun
+  // persisten. Jalur ganti kategori biasa tidak memanggil LLM dan
+  // tidak ikut dibatasi di sini.
+  if (body.kustom?.trim()) {
+    const perUser = await bolehLajuServer(`lapis-kategori:user:${u.id}`, 10, 60_000);
+    if (!perUser.boleh) return balasanLaju(perUser.ulangDetik, "Jatah akun Anda untuk menyusun kategori tercapai. Coba lagi sebentar.");
+  }
 
   if (body.kustom?.trim() && !body.proyekId) {
     const { profil, dariAI } = await profilKategoriKustom(body.kustom, tierEfektif(u) === "premium");

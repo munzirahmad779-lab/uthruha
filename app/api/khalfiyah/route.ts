@@ -1,6 +1,10 @@
-﻿import { NextResponse } from "next/server";
+﻿import { createHash } from "node:crypto";
+import { NextResponse } from "next/server";
 import { susunKhalfiyah } from "@/lib/engine/khalfiyah-workflow";
 import { tolakTanpaSesi } from "@/lib/security/akses";
+import { penggunaDariRequest } from "@/lib/server/identitas";
+import { bolehLajuServer } from "@/lib/server/laju-server";
+import { ambil, simpan } from "@/lib/server/store";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -56,18 +60,15 @@ export async function POST(req: Request) {
     );
   }
 
-  const ip = ipKlien(req);
-
-  const perIp = bolehLaju(`khalfiyah:ip:${ip}`, MAKS_PER_IP, JENDELA_MS);
-  if (!perIp.boleh) {
-    return balasanLaju(
-      perIp.ulangDetik,
-      `Terlalu banyak permintaan. Batas ${MAKS_PER_IP} per jam. Coba lagi dalam ${perIp.ulangDetik} detik.`,
+  // Pengencangan 3 Nov 2026 (S-3): proses terberat di situs ini
+  // (30-60 detik, LLM + puluhan fetch luar) wajib sesi identitas,
+  // dengan batas per akun dan global persisten.
+  const u = await penggunaDariRequest(req);
+  if (!u) {
+    return NextResponse.json(
+      { error: "Masuk dengan Google dulu untuk menyusun khalfiyah.", kode: "WAJIB_LOGIN" },
+      { status: 401 },
     );
-  }
-  const global = bolehLaju("khalfiyah:global", MAKS_GLOBAL, JENDELA_MS);
-  if (!global.boleh) {
-    return balasanLaju(global.ulangDetik, "Server sedang sibuk. Coba lagi sebentar.");
   }
 
   let body: { judul?: unknown };
@@ -100,8 +101,41 @@ export async function POST(req: Request) {
     );
   }
 
+  // Tembolok per sidik judul ternormalisasi: judul yang sama (mis.
+  // satu kelas memakai judul yang sama) tidak menjalankan ulang
+  // proses 30-60 detik dan tidak menguras kuota.
+  const idCache = `kh:${createHash("sha256")
+    .update(judul.toLowerCase().replace(/\s+/g, " "))
+    .digest("hex")
+    .slice(0, 32)}`;
+  const cache = (await ambil("tembolok", idCache).catch(() => null)) as { hasil?: unknown } | null;
+  if (cache?.hasil) {
+    return NextResponse.json(cache.hasil as Record<string, unknown>, {
+      headers: { "Cache-Control": "public, max-age=86400" },
+    });
+  }
+
+  const ip = ipKlien(req);
+
+  const perIp = bolehLaju(`khalfiyah:ip:${ip}`, MAKS_PER_IP, JENDELA_MS);
+  if (!perIp.boleh) {
+    return balasanLaju(
+      perIp.ulangDetik,
+      `Terlalu banyak permintaan. Batas ${MAKS_PER_IP} per jam. Coba lagi dalam ${perIp.ulangDetik} detik.`,
+    );
+  }
+  const perUser = await bolehLajuServer(`khalfiyah:user:${u.id}`, 5, JENDELA_MS);
+  if (!perUser.boleh) {
+    return balasanLaju(perUser.ulangDetik, "Jatah akun Anda untuk penyusunan khalfiyah tercapai. Coba lagi nanti.");
+  }
+  const global = await bolehLajuServer("khalfiyah:global", MAKS_GLOBAL, JENDELA_MS);
+  if (!global.boleh) {
+    return balasanLaju(global.ulangDetik, "Server sedang sibuk. Coba lagi sebentar.");
+  }
+
   try {
     const hasil = await susunKhalfiyah(judul);
+    await simpan("tembolok", { id: idCache, hasil, dibuat: new Date().toISOString() }).catch(() => undefined);
     return NextResponse.json(hasil, {
       headers: { "Cache-Control": "public, max-age=86400" },
     });

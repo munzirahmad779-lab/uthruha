@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { panggilKolam } from "@/lib/server/kolam";
 import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
 import { tolakTanpaSesi } from "@/lib/security/akses";
+import { bolehLajuServer } from "@/lib/server/laju-server";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 
 export const runtime = "nodejs";
@@ -33,6 +34,14 @@ export async function POST(req: Request) {
       { status: 403 },
     );
   }
+
+  // Pengencangan 3 Nov 2026 (S-4): kolam premium hanya berisi sedikit
+  // kunci, jadi selain batas per IP ada batas per akun dan global
+  // persisten. Berganti IP tidak lagi menambah jatah akun.
+  const perUser = await bolehLajuServer(`agen:user:${u.id}`, 20, 60_000);
+  if (!perUser.boleh) return balasanLaju(perUser.ulangDetik, "Jatah akun Anda untuk chat tercapai. Coba lagi sebentar.");
+  const global = await bolehLajuServer("agen:global", 240, 60_000);
+  if (!global.boleh) return balasanLaju(global.ulangDetik, "Agen sedang sibuk. Coba lagi sebentar.");
 
   const body = (await req.json().catch(() => null)) as { pesan?: string } | null;
   const pesan = body?.pesan?.trim().slice(0, 2000) ?? "";
