@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
+import { generateFootnoteUntukParagraf } from "@/lib/server/generate-footnote";
 import { panggilKolam } from "@/lib/server/kolam";
 import { cariRujukanTamu, type RujukanTamu } from "@/lib/server/rujukan";
 import { ambil, hapus, simpan } from "@/lib/server/store";
@@ -30,6 +31,16 @@ export const runtime = "nodejs";
 
 /** Jatah uji coba tamu per IP dan per perangkat (perintah pemilik). */
 const BATAS_UJI = 2;
+
+/**
+ * Uji coba PREMIUM (perintah pemilik 3 Nov 2026 malam, persiapan
+ * publish): tombol kedua di panel yang sama. Bedanya dari mode gratis:
+ * generasi lewat kolam premium, dan hasilnya ditambah DEMO Generate
+ * Footnote otomatis untuk paragraf pertama (fitur premium unggulan).
+ * Jatahnya lebih ketat, SATU kali per IP dan per perangkat, dicatat
+ * pada catatan terpisah agar tidak mengurangi jatah gratis.
+ */
+const BATAS_UJI_PREMIUM = 1;
 
 /** Konteks susunan Bab 1 per pedoman, dari template permanen kampus. */
 const PEDOMAN_UJI: Record<string, { label: string; konteks: string }> = {
@@ -93,18 +104,22 @@ export async function POST(req: Request) {
   const global = bolehLaju("uji-coba:global", 300, 3_600_000);
   if (!global.boleh) return balasanLaju(global.ulangDetik, "Uji coba sedang ramai. Coba lagi sebentar.");
 
-  const body = (await req.json().catch(() => null)) as { judul?: string; perangkatId?: string; pedoman?: string } | null;
+  const body = (await req.json().catch(() => null)) as { judul?: string; perangkatId?: string; pedoman?: string; mode?: string } | null;
   const judul = body?.judul?.trim().slice(0, 300) ?? "";
   const perangkatId = body?.perangkatId?.trim().slice(0, 80) ?? "";
   const pedoman = body?.pedoman && PEDOMAN_UJI[body.pedoman] ? body.pedoman : "umum";
+  const premium = body?.mode === "premium";
+  const batas = premium ? BATAS_UJI_PREMIUM : BATAS_UJI;
   if (judul.length < 10) return NextResponse.json({ error: "Judul terlalu pendek (minimal 10 karakter)." }, { status: 400 });
   if (!perangkatId) return NextResponse.json({ error: "Penanda perangkat tidak ada." }, { status: 400 });
 
-  // Rem IP persisten: jatah DUA kali per IP, tercatat di server. Percobaan
-  // sesudahnya ditolak dan penolakannya ikut dicatat untuk laporan admin.
-  const ipSidik = sidikIp(ip);
+  // Rem IP persisten: jatah per mode, tercatat di server pada catatan
+  // terpisah (sidik premium dibedakan) agar kedua mode tidak saling
+  // mengurangi. Percobaan sesudah jatah ditolak dan penolakannya ikut
+  // dicatat untuk laporan admin.
+  const ipSidik = premium ? sidikIp(`${ip}|premium`) : sidikIp(ip);
   const catatanIp = await ambil("ipUji", ipSidik);
-  if (catatanIp && Number(catatanIp.percobaan ?? 0) >= BATAS_UJI) {
+  if (catatanIp && Number(catatanIp.percobaan ?? 0) >= batas) {
     await simpan("ipUji", {
       ...catatanIp,
       ditolak: Number(catatanIp.ditolak ?? 0) + 1,
@@ -112,19 +127,21 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(
       {
-        error: `Jaringan ini sudah memakai ${BATAS_UJI} kali jatah uji coba tamu. Silakan masuk gratis untuk melanjutkan tanpa batas uji coba.`,
+        error: `Jaringan ini sudah memakai ${batas} kali jatah uji coba ${premium ? "premium" : "tamu"}. Silakan masuk gratis untuk melanjutkan tanpa batas uji coba.`,
         kode: "WAJIB_LOGIN",
       },
       { status: 403 },
     );
   }
 
-  // Rem perangkat: jatah yang sama per perangkat.
-  const perangkat = await ambil("perangkat", perangkatId);
-  if (perangkat && Number(perangkat.percobaan ?? 0) >= BATAS_UJI) {
+  // Rem perangkat: jatah yang sama per perangkat, catatan premium
+  // dibedakan dengan awalan prem:.
+  const idPerangkat = premium ? `prem:${perangkatId}` : perangkatId;
+  const perangkat = await ambil("perangkat", idPerangkat);
+  if (perangkat && Number(perangkat.percobaan ?? 0) >= batas) {
     return NextResponse.json(
       {
-        error: `Perangkat ini sudah memakai ${BATAS_UJI} kali jatah uji coba tamu. Silakan masuk gratis untuk melanjutkan tanpa batas uji coba.`,
+        error: `Perangkat ini sudah memakai ${batas} kali jatah uji coba ${premium ? "premium" : "tamu"}. Silakan masuk gratis untuk melanjutkan tanpa batas uji coba.`,
         kode: "WAJIB_LOGIN",
       },
       { status: 403 },
@@ -142,7 +159,7 @@ export async function POST(req: Request) {
     ? (catatanIp.perangkatIds as string[])
     : [];
   await simpan("perangkat", {
-    id: perangkatId,
+    id: idPerangkat,
     percobaan: Number(perangkat?.percobaan ?? 0) + 1,
     terakhir: new Date().toISOString(),
   });
@@ -158,7 +175,7 @@ export async function POST(req: Request) {
     if (perangkat) {
       await simpan("perangkat", perangkat).catch(() => undefined);
     } else {
-      await hapus("perangkat", perangkatId).catch(() => undefined);
+      await hapus("perangkat", idPerangkat).catch(() => undefined);
     }
     if (catatanIp) {
       await simpan("ipUji", catatanIp).catch(() => undefined);
@@ -171,17 +188,19 @@ export async function POST(req: Request) {
   // bila mesin generasi/pencarian rujukan berubah (v2: pencarian multi-frasa
   // + label kecocokan bergradasi; v3: verifikasi DOI dari Crossref langsung
   // dipercaya + label gambaran umum, 29 Okt 2026).
-  const kunciJudul = "v3|" + pedoman + "|" + judul.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
+  const kunciJudul = (premium ? "v3p|" : "v3|") + pedoman + "|" + judul.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
   const tembolok = await ambil("tembolok", kunciJudul);
 
   let generasi: HasilGenerasi;
   let refs: RujukanTamu[];
   let dariTembolok = false;
+  let footnoteDemo: { ketemu: boolean; teks?: string; kalimatIdx?: number; catatan?: string } | null = null;
   if (tembolok?.sesiId) {
     const sesiLama = await ambil("sesiUji", String(tembolok.sesiId));
     if (sesiLama?.generasi && sesiLama?.refs) {
       generasi = sesiLama.generasi as unknown as HasilGenerasi;
       refs = sesiLama.refs as unknown as RujukanTamu[];
+      footnoteDemo = (sesiLama.footnoteDemo as typeof footnoteDemo) ?? null;
       dariTembolok = true;
     } else {
       await batalkanKuota();
@@ -191,7 +210,7 @@ export async function POST(req: Request) {
     let mentah;
     try {
       const sistem = pedoman === "umum" ? SISTEM : `${SISTEM}\n${PEDOMAN_UJI[pedoman]!.konteks}`;
-      mentah = await panggilKolam({ sistem, pengguna: `JUDUL: ${judul}`, maksToken: 2200, json: true });
+      mentah = await panggilKolam({ sistem, pengguna: `JUDUL: ${judul}`, maksToken: 2200, json: true, premium });
     } catch (e) {
       const percobaan = (e as { percobaan?: unknown }).percobaan;
       console.error("[uji-coba] kolam gagal", percobaan);
@@ -213,6 +232,28 @@ export async function POST(req: Request) {
     }
     generasi = hasil;
     refs = await cariRujukanTamu(judul, generasi.kalimatKunci);
+
+    // Demo Premium: jalankan mesin Generate Footnote yang sama dengan
+    // ruang kerja premium pada paragraf pertama hasil susunan. Satu
+    // panggilan tambahan per judul baru; judul yang sama berikutnya
+    // membaca dari tembolok. Gagalnya demo tidak menggagalkan uji coba.
+    if (premium && generasi.khalfiyah[0]) {
+      try {
+        const g = await generateFootnoteUntukParagraf({ paragraf: generasi.khalfiyah[0], judulProyek: judul });
+        if (g.ketemu && g.sumber) {
+          const s = g.sumber;
+          footnoteDemo = {
+            ketemu: true,
+            teks: `${s.penulis}, ${s.judul}${s.jilid ? `, jilid ${s.jilid}` : ""}${s.halaman ? `, hlm. ${s.halaman}` : ", hlm. …"}${s.tahun ? ` (${s.tahun})` : ""}`,
+            kalimatIdx: g.kalimatIdx,
+          };
+        } else {
+          footnoteDemo = { ketemu: false, catatan: g.catatan };
+        }
+      } catch {
+        footnoteDemo = null;
+      }
+    }
   }
 
   const sesiId = idAcak("uji-");
@@ -222,6 +263,8 @@ export async function POST(req: Request) {
     perangkatId,
     ipSidik,
     pedoman,
+    mode: premium ? "premium" : "gratis",
+    footnoteDemo,
     generasi,
     refs,
     dikembangkan: false,
@@ -239,7 +282,9 @@ export async function POST(req: Request) {
     sesiId,
     judul,
     pedoman,
-    sisaJatah: Math.max(0, BATAS_UJI - percobaanIpBaru),
+    mode: premium ? "premium" : "gratis",
+    footnoteDemo,
+    sisaJatah: Math.max(0, batas - percobaanIpBaru),
     ...generasi,
     refs,
     dariTembolok,
