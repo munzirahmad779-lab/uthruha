@@ -49,6 +49,13 @@ export interface Pengguna {
   nonaktif?: boolean;
   dinonaktifkanPada?: string | null;
   dinonaktifkanOleh?: string | null;
+  /** Perangkat yang terikat ke akun ini (batas perangkat per lapis,
+   *  perintah pemilik 3 Nov 2026: gratis 1, premium 2). Hanya sidik
+   *  (hash) ID perangkat yang disimpan, bukan ID mentahnya. Urutan
+   *  daftar adalah urutan pendaftaran; penegakan di
+   *  lib/server/perangkat-akun.ts. Diatur ulang lewat aksi admin
+   *  "reset-perangkat". */
+  perangkatAkun?: { sidik: string; pertama: string; terakhir: string }[];
 }
 
 let sudahPeringatkanRahasia = false;

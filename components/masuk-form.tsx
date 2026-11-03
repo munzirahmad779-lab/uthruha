@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { muatGIS } from "@/lib/engine/gis";
+import { ambilPerangkatId } from "@/lib/perangkat-klien";
 
 interface StatusIdentitas {
   pengguna: { id: string; email: string; nama: string; foto: string } | null;
@@ -135,7 +136,7 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
       const res = await fetch("/api/masuk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "identitas", ingat }),
+        body: JSON.stringify({ mode: "identitas", ingat, perangkatId: ambilPerangkatId() }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -176,7 +177,7 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
       const res = await fetch("/api/masuk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kunci, ingat }),
+        body: JSON.stringify({ kunci, ingat, perangkatId: ambilPerangkatId() }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {

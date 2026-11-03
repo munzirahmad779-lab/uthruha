@@ -84,6 +84,9 @@ export async function GET(req: Request) {
         tier: tierEfektif(x as unknown as Pengguna),
         premiumSampai: teks((x as { premiumSampai?: unknown }).premiumSampai, 40),
         nonaktif: (x as { nonaktif?: unknown }).nonaktif === true,
+        jumlahPerangkat: Array.isArray((x as { perangkatAkun?: unknown }).perangkatAkun)
+          ? ((x as { perangkatAkun?: unknown }).perangkatAkun as unknown[]).length
+          : 0,
         dibuat: teks(x.dibuat, 40),
       })),
     },

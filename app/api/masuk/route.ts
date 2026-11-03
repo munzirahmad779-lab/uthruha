@@ -17,6 +17,7 @@ import {
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 import { penggunaDariCookie, tierEfektif } from "@/lib/server/identitas";
 import { aktifkanPremiumDariKunci } from "@/lib/server/lapis";
+import { pesanBatasPerangkat, saringPerangkatAkun } from "@/lib/server/perangkat-akun";
 import { simpan } from "@/lib/server/store";
 
 export const runtime = "nodejs";
@@ -64,7 +65,7 @@ function terbitkanCookie(res: NextResponse, jenis: JenisKunci, ingat: boolean) {
  *  - sidik kunci gratis tersimpan cocok dengan UTH_KUNCI_GRATIS saat ini.
  * Selain itu ditolak jujur dengan kode WAJIB_KUNCI.
  */
-async function masukViaIdentitas(req: Request, ingat: boolean) {
+async function masukViaIdentitas(req: Request, ingat: boolean, perangkatId: unknown) {
   const pengguna = await penggunaDariCookie(req.headers.get("cookie"));
   if (!pengguna) {
     return NextResponse.json(
@@ -94,6 +95,16 @@ async function masukViaIdentitas(req: Request, ingat: boolean) {
           "Akun Google ini belum terverifikasi kunci akses. Masukkan kunci akses Anda sekali untuk melanjutkan.",
         kode: "WAJIB_KUNCI",
       },
+      { status: 403 },
+    );
+  }
+
+  // Batas perangkat per akun (gratis 1, premium 2): pemulihan sesi di
+  // perangkat yang tidak terdaftar dan di luar jatah ditolak di sini.
+  const saring = await saringPerangkatAkun(pengguna, perangkatId);
+  if (!saring.ok) {
+    return NextResponse.json(
+      { error: pesanBatasPerangkat(saring.tier, saring.batas), kode: "BATAS_PERANGKAT" },
       { status: 403 },
     );
   }
@@ -132,9 +143,9 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { kunci?: unknown; ingat?: unknown; mode?: unknown };
+  let body: { kunci?: unknown; ingat?: unknown; mode?: unknown; perangkatId?: unknown };
   try {
-    body = (await req.json()) as { kunci?: unknown; ingat?: unknown; mode?: unknown };
+    body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "Badan permintaan bukan JSON." }, { status: 400 });
   }
@@ -142,7 +153,7 @@ export async function POST(req: Request) {
   const ingat = body.ingat !== false; // default: ingat perangkat
 
   if (body.mode === "identitas") {
-    return masukViaIdentitas(req, ingat);
+    return masukViaIdentitas(req, ingat, body.perangkatId);
   }
 
   const dikirim = typeof body.kunci === "string" ? body.kunci.trim() : "";
@@ -180,15 +191,32 @@ export async function POST(req: Request) {
   //  - premium → premium 30 hari menempel ke identitas (sumber
   //    "kunci-premium"; mengulang saat aktif TIDAK memperpanjang);
   //  - gratis  → sidik kunci gratis dicatat pada identitas.
+  let terbaru = pengguna;
   if (pengguna && jenis === "premium") {
-    await aktifkanPremiumDariKunci(pengguna);
+    terbaru = await aktifkanPremiumDariKunci(pengguna);
   } else if (pengguna && jenis === "gratis") {
     const sidik = sidikKunciGratisAktif();
     if (sidik && pengguna.sidikKunciGratis !== sidik) {
+      terbaru = { ...pengguna, sidikKunciGratis: sidik };
       await simpan("pengguna", {
-        ...pengguna,
-        sidikKunciGratis: sidik,
+        ...terbaru,
       } as unknown as Record<string, unknown> & { id: string });
+    }
+  }
+
+  // Batas perangkat per akun (gratis 1, premium 2), dinilai SESUDAH hak
+  // menempel agar lapis barunya yang menentukan jatah: kunci premium
+  // yang dimasukkan di perangkat kedua tetap lolos (jatah premium 2),
+  // sedangkan perangkat di luar jatah ditolak sebelum cookie terbit.
+  // Tanpa identitas Google tidak ada akun yang bisa diikat, jadi
+  // pemeriksaan ini khusus mode identitas.
+  if (terbaru) {
+    const saring = await saringPerangkatAkun(terbaru, body.perangkatId);
+    if (!saring.ok) {
+      return NextResponse.json(
+        { error: pesanBatasPerangkat(saring.tier, saring.batas), kode: "BATAS_PERANGKAT" },
+        { status: 403 },
+      );
     }
   }
 

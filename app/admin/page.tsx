@@ -35,6 +35,7 @@ interface Laporan {
       tier: string;
       premiumSampai: string;
       nonaktif: boolean;
+      jumlahPerangkat: number;
       dibuat: string;
     }[];
   };
@@ -67,7 +68,7 @@ function JudulBagian({ children }: { children: React.ReactNode }) {
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-500";
 const td = "px-3 py-2 align-top text-[12.5px] text-ink-800";
 
-type AksiPengguna = "nonaktifkan" | "aktifkan" | "premium";
+type AksiPengguna = "nonaktifkan" | "aktifkan" | "premium" | "reset-perangkat";
 
 export default function AdminPage() {
   const [keadaan, setKeadaan] = useState<"memuat" | "tamu" | "bukan" | "siap" | "galat">("memuat");
@@ -225,7 +226,9 @@ export default function AdminPage() {
               akun di semua lapis termasuk premium, tanpa menghapus data;{" "}
               <strong>Jadikan Premium</strong> menempelkan premium 30 hari langsung dari server,
               penerima tidak perlu menempel kunci; <strong>Email</strong> membuka draf
-              pemberitahuan premium di aplikasi email Anda untuk dikirim ke akun itu.
+              pemberitahuan premium di aplikasi email Anda untuk dikirim ke akun itu;{" "}
+              <strong>Reset perangkat</strong> mengosongkan ikatan perangkat akun (batas: gratis
+              1 perangkat, premium 2 perangkat), dipakai bila mahasiswa berganti perangkat.
             </p>
             <p className="mt-2 text-[12px] leading-relaxed text-ink-600">
               {data.email.siap
@@ -245,6 +248,7 @@ export default function AdminPage() {
                     <th className={th}>Email</th>
                     <th className={th}>Lapis</th>
                     <th className={th}>Status</th>
+                    <th className={th}>Perangkat</th>
                     <th className={th}>Terdaftar</th>
                     <th className={th}>Tindakan</th>
                   </tr>
@@ -263,6 +267,7 @@ export default function AdminPage() {
                         <td className={td}>{x.email}</td>
                         <td className={td}>{x.tier === "premium" ? "Premium" : "Gratis"}</td>
                         <td className={td}>{x.nonaktif ? "Nonaktif" : "Aktif"}</td>
+                        <td className={td}>{x.jumlahPerangkat}</td>
                         <td className={td}>{formatWaktu(x.dibuat)}</td>
                         <td className={td}>
                           <span className="flex flex-wrap gap-1">
@@ -303,13 +308,23 @@ export default function AdminPage() {
                                 Email premium
                               </a>
                             )}
+                            {x.jumlahPerangkat > 0 && (
+                              <button
+                                type="button"
+                                disabled={sibuk}
+                                onClick={() => void tindak(x.id, "reset-perangkat")}
+                                className={btn + "border-ink-900/25 text-ink-700"}
+                              >
+                                {konfirmasi === `${x.id}:reset-perangkat` ? "Yakin reset perangkat?" : "Reset perangkat"}
+                              </button>
+                            )}
                           </span>
                         </td>
                       </tr>
                     );
                   })}
                   {data.pengguna.terbaru.length === 0 && (
-                    <tr><td className={td} colSpan={6}>Belum ada pengguna terdaftar.</td></tr>
+                    <tr><td className={td} colSpan={7}>Belum ada pengguna terdaftar.</td></tr>
                   )}
                 </tbody>
               </table>

@@ -20,7 +20,7 @@ import { ambil, perbarui } from "@/lib/server/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const AKSI = ["nonaktifkan", "aktifkan", "premium"] as const;
+const AKSI = ["nonaktifkan", "aktifkan", "premium", "reset-perangkat"] as const;
 type Aksi = (typeof AKSI)[number];
 
 export async function POST(req: Request) {
@@ -67,6 +67,19 @@ export async function POST(req: Request) {
       dinonaktifkanOleh: null,
     });
     return NextResponse.json({ ok: true, userId, nonaktif: false });
+  }
+
+  // Kosongkan ikatan perangkat akun (batas perangkat per lapis:
+  // gratis 1, premium 2). Dipakai bila mahasiswa berganti perangkat;
+  // perangkat berikutnya yang masuk akan terdaftar sebagai yang baru.
+  if (aksi === "reset-perangkat") {
+    const jumlah = Array.isArray(target.perangkatAkun) ? target.perangkatAkun.length : 0;
+    await perbarui("pengguna", userId, { perangkatAkun: [] });
+    return NextResponse.json({
+      ok: true,
+      userId,
+      catatan: `Ikatan perangkat dikosongkan (${jumlah} perangkat terdaftar sebelumnya). Perangkat berikutnya yang masuk akan terdaftar ulang.`,
+    });
   }
 
   // aksi === "premium": tempel 30 hari dari server, tanpa kunci ditempel

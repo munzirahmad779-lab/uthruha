@@ -59,6 +59,7 @@ export default function MasukPage() {
               </div>
               <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-ink-700">
                 <li>✓ 1 proyek penulisan</li>
+                <li>✓ Hanya untuk 1 perangkat</li>
                 <li>✓ Pencarian rujukan kitab dan jurnal tanpa batas</li>
                 <li>✓ Maksimal 3 footnote dalam satu paragraf</li>
                 <li>✓ Ekspor naskah ke Word (.docx)</li>
@@ -90,6 +91,7 @@ export default function MasukPage() {
               </div>
               <ul className="mt-2 space-y-1 text-[12px] leading-relaxed text-ink-700">
                 <li>✓ Proyek tanpa batas jumlah</li>
+                <li>✓ Bisa dipakai sampai 2 perangkat</li>
                 <li>✓ Footnote tanpa batas dalam satu paragraf</li>
                 <li>✓ Generate footnote otomatis: AI menyusun rujukan dari paragraf Anda dan menanam footnote langsung</li>
                 <li>✓ Chat agen AI instan di dalam web</li>
