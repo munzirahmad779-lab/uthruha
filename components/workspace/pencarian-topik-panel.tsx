@@ -554,7 +554,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         ))}
       </div>
 
-      {mode === "lugawi" && <LugawiPanel online={online} />}
+      {mode === "lugawi" && <LugawiPanel online={online} bidangId={p.bidangId} judulProyek={p.judulAr} />}
 
       {mode !== "lugawi" && (
       <div className="flex flex-wrap items-start gap-2">

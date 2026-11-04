@@ -23,6 +23,37 @@ import {
 } from "@/lib/engine/lugawi";
 import { CopyButton, Note } from "@/components/ui";
 import { PetunjukCtrlF } from "@/components/workspace/ctrl-f";
+import { getBidang } from "@/lib/content/bidang";
+
+const PENANDA_BIDANG_LAIN = [
+  "التربية البدنية",
+  "علوم الرياضة",
+  "sport",
+  "علم النفس",
+  "psycholog",
+  "رواية",
+  "novel",
+  "الطب",
+  "kedokteran",
+  "medicine",
+];
+
+/** Normalisasi untuk pencocokan judul: buang harakat dan tatwil, samakan ة/ه dan ى/ي. */
+function normalisasiTeks(teks: string): string {
+  return teks
+    .toLowerCase()
+    .replace(/[ً-ٰٟۖ-ۭ]/g, "")
+    .replace(/ـ/g, "")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
+    .replace(/أ|إ|آ/g, "ا");
+}
+
+function memuatNormal(teks: string, potongan: string): boolean {
+  const p = normalisasiTeks(potongan).trim();
+  if (!p) return false;
+  return normalisasiTeks(teks).includes(p);
+}
 
 /**
  * Panel Lugawi & Istilahi — menjawab kesulitan mahasiswa mencari makna kamus
@@ -30,7 +61,14 @@ import { PetunjukCtrlF } from "@/components/workspace/ctrl-f";
  * istilah kontemporer non-Arab: dicek ke kitab, kamus/ensiklopedia terbuka,
  * dan jurnal; kesimpulan bertingkat; bila mentok, prompt siap salin ke Yusuf AI.
  */
-export function LugawiPanel({ online }: { online: boolean }) {
+export function LugawiPanel({
+  online,
+  bidangId,
+}: {
+  online: boolean;
+  bidangId?: string;
+  judulProyek?: string;
+}) {
   const [kata, setKata] = useState("");
   const [bentukArab, setBentukArab] = useState("");
   const [sibuk, setSibuk] = useState(false);
@@ -41,10 +79,12 @@ export function LugawiPanel({ online }: { online: boolean }) {
   const [hitsKitab, setHitsKitab] = useState<HitKitabMentah[]>([]);
   const [jurnal, setJurnal] = useState<Sumber[]>([]);
   const [kataKitabDipakai, setKataKitabDipakai] = useState("");
+  const [kataDicari, setKataDicari] = useState("");
 
   async function periksa() {
     const k = kata.trim();
     if (!k || sibuk) return;
+    setKataDicari(k);
     setSibuk(true);
     setSudahCari(false);
     try {
@@ -88,6 +128,27 @@ export function LugawiPanel({ online }: { online: boolean }) {
       })
     : null;
   const prompt = promptMuseLugawi(kata.trim() || "…");
+
+  const jurnalTersaring = (() => {
+    const kandidatKata = [kataDicari || kata.trim(), bentukArab.trim(), padanan ?? "", kataKitabDipakai].filter(Boolean);
+    const keywordsBidang = bidangId ? getBidang(bidangId).keywords : [];
+    const dinilai = jurnal.map((s, idx) => {
+      const memuatKata = kandidatKata.some((k) => memuatNormal(s.judul, k));
+      const asing = PENANDA_BIDANG_LAIN.some((penanda) => {
+        if (!memuatNormal(s.judul, penanda) && !memuatNormal(s.jurnal ?? "", penanda)) return false;
+        const termasukBidangProyek = keywordsBidang.some((kw) => {
+          const kwN = normalisasiTeks(kw);
+          const penN = normalisasiTeks(penanda);
+          return kwN === penN || kwN.includes(penN) || penN.includes(kwN);
+        });
+        return !termasukBidangProyek;
+      });
+      const peringkat = memuatKata && !asing ? 0 : memuatKata && asing ? 1 : 2;
+      return { s, idx, memuatKata, asing, peringkat };
+    });
+    dinilai.sort((a, b) => a.peringkat - b.peringkat || a.idx - b.idx);
+    return dinilai;
+  })();
 
   return (
     <div className="space-y-3">
@@ -192,9 +253,23 @@ export function LugawiPanel({ online }: { online: boolean }) {
       {sudahCari && jurnal.length > 0 && (
         <div className="space-y-1.5">
           <h4 className="text-[12px] font-bold text-ink-900">Pemakaian di jurnal ({jurnal.length})</h4>
-          {jurnal.slice(0, 8).map((s) => (
+          <p className="text-[11px] leading-relaxed text-ink-500">
+            Daftar ini disaring terhadap bidang proyek Anda dan kata pada judul: entri yang memuat kata pada
+            judul dan tidak terdeteksi di luar bidang tampil lebih dulu.
+          </p>
+          {jurnalTersaring.slice(0, 8).map(({ s, memuatKata, asing }) => (
             <p key={s.id} className="rounded-lg bg-white/60 px-2.5 py-1.5 text-[12px] text-ink-700">
               <span className="font-semibold text-ink-900">{s.judul}</span> — {s.jurnal} ({s.tahun})
+              {asing && (
+                <span className="ml-2 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                  di luar bidang proyek Anda
+                </span>
+              )}
+              {!memuatKata && (
+                <span className="ml-2 inline-block rounded bg-ink-900/5 px-1.5 py-0.5 text-[10px] font-semibold text-ink-500">
+                  kata tidak muncul di judul, periksa isinya
+                </span>
+              )}
             </p>
           ))}
         </div>

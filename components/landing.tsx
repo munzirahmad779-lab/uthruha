@@ -500,6 +500,22 @@ export function StrukturSection() {
 
 const CONTOH_FRASA = ["khalfiya-02", "masalah-01", "munazara-02", "khulasah-01"];
 
+const CONTOH_ISIAN_FRASA: Record<string, string> = {
+  topik: "تعليم اللغة العربية",
+  fenomena: "ضعف مهارة الكلام لدى الطلاب",
+  lokasi: "المعاهد الإسلامية",
+  bidang: "تعليم اللغة",
+  metode: "المنهج الوصفي التحليلي",
+  populasi: "طلاب المعاهد الإسلامية",
+  teori: "نظرية التعلم الاجتماعي",
+  data: "نتائج الملاحظة والمقابلات",
+  hasil: "وجود أثر واضح",
+};
+
+function isiContohFrasa(teks: string): string {
+  return teks.replace(/\{\{(topik|fenomena|lokasi|bidang|metode|populasi|teori|data|hasil)\}\}/g, (_m, kunci: string) => CONTOH_ISIAN_FRASA[kunci] ?? _m);
+}
+
 export function FrasaPreview() {
   const contoh = CONTOH_FRASA.map((id) => FRASA.find((f) => f.id === id)).filter(Boolean);
   return (
@@ -532,16 +548,21 @@ export function FrasaPreview() {
         </div>
 
         <div className="space-y-3">
-          {contoh.map((f) => (
+          {contoh.map((f, i) => (
             <figure key={f!.id} className="card p-5">
               <blockquote dir="rtl" className="font-naskh text-[16px] leading-loose text-ink-900">
-                {f!.ar}
+                {isiContohFrasa(f!.ar)}
               </blockquote>
               <figcaption className="mt-3 border-t border-dashed border-ink-900/10 pt-3 text-[12px] leading-relaxed text-ink-600">
                 <span className="font-semibold uppercase tracking-wider text-gold-700">
                   {f!.section}
                 </span>
                 : {f!.arti}
+                {i === 0 && (
+                  <span className="mt-1 block text-[11px] text-ink-500">
+                    Pola kalimat di atas ditampilkan dengan contoh isian, bukan templat mentah.
+                  </span>
+                )}
               </figcaption>
             </figure>
           ))}
