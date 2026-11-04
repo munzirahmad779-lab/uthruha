@@ -134,7 +134,8 @@ function kunciSalin(e: React.SyntheticEvent) {
 }
 
 export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
-  const [mode, setMode] = useState<"gratis" | "premium">("gratis");
+  // Perintah pemilik 4 Nov 2026: panel uji coba publik hanya mode gratis.
+  const mode = "gratis" as const;
   const [judul, setJudul] = useState("");
   const [pedomanPilihan, setPedomanPilihan] = useState<PedomanUjiId | null>(null);
   const [memuat, setMemuat] = useState(false);
@@ -251,48 +252,11 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
           Dua langkah singkat: tulis judul, lalu pilih susunan pedoman kampus Anda.
           Kitabah menyusun kalimat kunci, khalfiyah tiga paragraf, isykaliyat, dan ahdaf
           mengikuti susunan itu, lalu mencarikan rujukan asli yang bisa diverifikasi.
-          Jatah uji coba gratis dua kali per jaringan, uji coba premium satu kali
-          per jaringan. Teks susunan hasil uji coba{" "}
+          Jatah uji coba gratis dua kali per jaringan. Teks susunan hasil uji coba{" "}
           <strong>terkunci</strong> (tidak bisa disalin), tetapi daftar rujukannya bisa
           Anda salin dan periksa sendiri. Untuk menyusun, mengedit, dan memasang
           footnote, masuk dengan kunci gratis (minta lewat email di halaman masuk).
         </p>
-
-        <p className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
-          Jenis uji coba
-        </p>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setMode("gratis")}
-            className={`rounded-xl border p-4 text-left transition ${
-              mode === "gratis"
-                ? "border-gold-500 bg-gold-100/50 shadow-card"
-                : "border-ink-900/10 bg-white/60 hover:border-ink-900/25"
-            }`}
-          >
-            <span className="block text-[13.5px] font-bold text-ink-900">Uji Coba Gratis</span>
-            <span className="mt-1 block text-[12px] leading-relaxed text-ink-700">
-              Kalimat kunci, khalfiyah, isykaliyat, ahdaf, dan rujukan terverifikasi.
-              Jatah 2 kali per jaringan.
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("premium")}
-            className={`rounded-xl border p-4 text-left transition ${
-              mode === "premium"
-                ? "border-gold-500 bg-gold-100/50 shadow-card"
-                : "border-ink-900/10 bg-white/60 hover:border-ink-900/25"
-            }`}
-          >
-            <span className="block text-[13.5px] font-bold text-ink-900">Uji Coba Premium</span>
-            <span className="mt-1 block text-[12px] leading-relaxed text-ink-700">
-              Semua isi gratis, disusun mesin premium, ditambah demo Generate
-              Footnote otomatis untuk paragraf pertama. Jatah 1 kali per jaringan.
-            </span>
-          </button>
-        </div>
 
         <p className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
           Langkah 1 · Judul penelitian
@@ -336,7 +300,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
             disabled={memuat || !pedomanPilihan || judul.trim().length < 10}
             className="btn-primary disabled:opacity-60"
           >
-            {memuat ? "Menyusun…" : mode === "premium" ? "Mulai Uji Coba Premium" : "Mulai Uji Coba Gratis"}
+            {memuat ? "Menyusun…" : "Mulai Uji Coba Gratis"}
           </button>
           {(!pedomanPilihan || judul.trim().length < 10) && (
             <p className="mt-2 text-xs text-ink-500">
@@ -385,7 +349,7 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
                     ? "Ma'had Aly As'adiyah Sengkang"
                     : "umum"}
               </strong>
-              {hasil.mode === "premium" ? " · Mode Premium" : " · Mode Gratis"}
+              {" · Mode Gratis"}
               {typeof hasil.sisaJatah === "number" &&
                 ` · Sisa jatah uji coba dari jaringan ini: ${hasil.sisaJatah} kali.`}
             </p>
@@ -469,41 +433,6 @@ export function UjiCobaTamu({ googleAktif }: { googleAktif: boolean }) {
             </div>
 
           </div>
-
-          {hasil.mode === "premium" && hasil.footnoteDemo && (
-            <div className="mt-6 rounded-2xl border border-gold-400/70 bg-gold-100/40 p-4">
-              <h3 className="text-sm font-bold uppercase tracking-wide text-gold-700">
-                Demo Premium · Generate Footnote Otomatis
-              </h3>
-              {hasil.footnoteDemo.ketemu ? (
-                <>
-                  <p className="mt-2 text-xs leading-relaxed text-ink-600">
-                    Mesin premium memilih satu rujukan dari hasil pencarian di
-                    bawah dan menyusunnya menjadi footnote untuk
-                    {typeof hasil.footnoteDemo.kalimatIdx === "number"
-                      ? ` kalimat ke-${hasil.footnoteDemo.kalimatIdx + 1}`
-                      : " salah satu kalimat"}{" "}
-                    paragraf pertama khalfiyah Anda:
-                  </p>
-                  <p className="mt-2 rounded-lg bg-white/80 px-3 py-2 text-sm leading-relaxed text-ink-900">
-                    {hasil.footnoteDemo.teks}
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-ink-500">
-                    Di akun Premium penuh, footnote seperti ini terpasang
-                    langsung ke paragraf di ruang kerja dan tersusun otomatis
-                    ke seluruh naskah, bukan hanya satu contoh.
-                  </p>
-                </>
-              ) : (
-                <p className="mt-2 text-xs leading-relaxed text-ink-600">
-                  {hasil.footnoteDemo.catatan ??
-                    "Mesin belum menemukan rujukan yang cukup relevan untuk paragraf pertama judul ini."}{" "}
-                  Di akun Premium penuh Anda tetap bisa memasang footnote lewat
-                  pencarian rujukan manual di ruang kerja.
-                </p>
-              )}
-            </div>
-          )}
 
           <div className="mt-6">
             <h3 className="text-sm font-bold uppercase tracking-wide text-ink-500">

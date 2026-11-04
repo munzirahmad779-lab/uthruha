@@ -108,7 +108,10 @@ export async function POST(req: Request) {
   const judul = body?.judul?.trim().slice(0, 300) ?? "";
   const perangkatId = body?.perangkatId?.trim().slice(0, 80) ?? "";
   const pedoman = body?.pedoman && PEDOMAN_UJI[body.pedoman] ? body.pedoman : "umum";
-  const premium = body?.mode === "premium";
+  // Perintah pemilik 4 Nov 2026: uji coba publik GRATIS saja, sesuai
+  // ketentuan awal. Mode premium yang mungkin dikirim klien lama diabaikan;
+  // generasi selalu lewat kolam gratis dan tanpa demo footnote premium.
+  const premium = false;
   const batas = premium ? BATAS_UJI_PREMIUM : BATAS_UJI;
   if (judul.length < 10) return NextResponse.json({ error: "Judul terlalu pendek (minimal 10 karakter)." }, { status: 400 });
   if (!perangkatId) return NextResponse.json({ error: "Penanda perangkat tidak ada." }, { status: 400 });

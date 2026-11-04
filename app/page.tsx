@@ -14,6 +14,8 @@ import {
 import { LapisSection } from "@/components/landing/lapis";
 import { FRASA } from "@/lib/content/frasa";
 import { JURNAL } from "@/lib/content/jurnal";
+import { UjiCobaTamu } from "@/components/uji-coba";
+import { loginGoogleAktif } from "@/lib/security/akses";
 
 
 const FAQ = [
@@ -43,7 +45,7 @@ const FAQ = [
   },
   {
     q: "Apakah aplikasi ini gratis?",
-    a: "Ada lapis gratis dan lapis Premium. Gratis memakai kunci akses gratis (diminta lewat email, lihat halaman /masuk; masuknya dengan Google lalu kunci itu): satu proyek, pencarian rujukan tanpa batas, dan maksimal tiga footnote dalam satu paragraf. Premium (Rp10.000/bulan, harga promo pembuka) membuka proyek dan footnote tanpa batas dan chat agen AI. Aturan lengkapnya ada di Ketentuan Layanan (/ketentuan).",
+    a: "Ada lapis gratis dan lapis Premium. Gratis memakai kunci akses gratis (diminta lewat email, lihat halaman /masuk; masuknya dengan Google lalu kunci itu): satu proyek, pencarian rujukan tanpa batas, dan maksimal tiga footnote dalam satu paragraf. Premium (Rp10.000/bulan, harga promo pembuka) membuka proyek dan footnote tanpa batas dan chat agen AI. Uji coba gratis di halaman ini tidak memerlukan akun sama sekali. Aturan lengkapnya ada di Ketentuan Layanan (/ketentuan).",
   },
   {
     q: "Apakah tersedia pilihan bahasa selain Arab?",
@@ -55,6 +57,8 @@ export default function HomePage() {
   return (
     <>
       <Hero />
+      {/* googleAktif meneruskan flag TAHAN LOGIN GOOGLE ke CTA uji coba. */}
+      <UjiCobaTamu googleAktif={loginGoogleAktif()} />
       <Masalah />
       <CaraKerja />
       <Fitur />
