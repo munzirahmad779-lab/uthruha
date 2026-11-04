@@ -8,8 +8,12 @@
  *  - "premium": premium 30 hari ditempel langsung dari server
  *    (premiumSumber "admin", kaidah sama dengan kunci premium bersama:
  *    premium yang masih aktif tidak ditumpuk dan tidak diperpanjang).
+ *  - "hapus-akun": catatan akun dihapus dari dashboard beserta kunci
+ *    API pribadi dan keadaan kolam pribadinya (perintah pemilik
+ *    4 Nov 2026 sore). Email di daftar mahasiswa TIDAK ikut terhapus.
  * Hanya sesi pemilik (daftar email admin) yang boleh; admin tidak bisa
- * menonaktifkan akunnya sendiri agar tidak terkunci keluar.
+ * menonaktifkan atau menghapus akunnya sendiri agar tidak terkunci
+ * keluar.
  */
 import { NextResponse } from "next/server";
 import { tolakTanpaSesi } from "@/lib/security/akses";
@@ -17,12 +21,12 @@ import { asalSah } from "@/lib/security/laju";
 import { apakahAdmin } from "@/lib/server/admin";
 import { kirimEmail } from "@/lib/server/email";
 import { penggunaDariRequest, tierEfektif, type Pengguna } from "@/lib/server/identitas";
-import { ambil, perbarui } from "@/lib/server/store";
+import { ambil, hapus, perbarui } from "@/lib/server/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const AKSI = ["nonaktifkan", "aktifkan", "premium", "reset-perangkat", "mahasiswa", "bukan-mahasiswa"] as const;
+const AKSI = ["nonaktifkan", "aktifkan", "premium", "reset-perangkat", "mahasiswa", "bukan-mahasiswa", "hapus-akun"] as const;
 type Aksi = (typeof AKSI)[number];
 
 export async function POST(req: Request) {
@@ -104,6 +108,31 @@ export async function POST(req: Request) {
   if (aksi === "bukan-mahasiswa") {
     await perbarui("pengguna", userId, { mahasiswa: false });
     return NextResponse.json({ ok: true, userId, catatan: "Tanda mahasiswa dicabut." });
+  }
+
+  // Hapus akun dari dashboard: catatan pengguna, kunci API pribadi,
+  // dan keadaan kolam pribadinya dibuang sekaligus. Akun pemilik
+  // terlindungi. Email di daftar mahasiswa sengaja dipertahankan
+  // (pencabutannya lewat rute mahasiswa), jadi orangnya tetap bisa
+  // masuk lagi dan tercipta akun baru yang bersih.
+  if (aksi === "hapus-akun") {
+    if (target.id === u.id || apakahAdmin(target)) {
+      return NextResponse.json(
+        { error: "Akun pemilik tidak bisa dihapus." },
+        { status: 400 },
+      );
+    }
+    const adaKunci = (await ambil("kunciPribadi", userId)) !== null;
+    if (adaKunci) await hapus("kunciPribadi", userId);
+    for (const label of [`gemini-pribadi-${userId}`, `groq-pribadi-${userId}`]) {
+      if ((await ambil("kolam", label)) !== null) await hapus("kolam", label);
+    }
+    await hapus("pengguna", userId);
+    return NextResponse.json({
+      ok: true,
+      userId,
+      catatan: `Akun ${target.email} dihapus dari dashboard${adaKunci ? " beserta kunci API pribadinya" : ""}. Emailnya tetap di daftar mahasiswa bila terdaftar, jadi ia bisa masuk lagi sebagai akun baru yang bersih.`,
+    });
   }
 
   // aksi === "premium": tempel 30 hari dari server, tanpa kunci ditempel

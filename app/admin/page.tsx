@@ -73,7 +73,7 @@ function JudulBagian({ children }: { children: React.ReactNode }) {
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-500";
 const td = "px-3 py-2 align-top text-[12.5px] text-ink-800";
 
-type AksiPengguna = "nonaktifkan" | "aktifkan" | "premium" | "reset-perangkat" | "mahasiswa" | "bukan-mahasiswa";
+type AksiPengguna = "nonaktifkan" | "aktifkan" | "premium" | "reset-perangkat" | "mahasiswa" | "bukan-mahasiswa" | "hapus-akun";
 
 export default function AdminPage() {
   const [keadaan, setKeadaan] = useState<"memuat" | "tamu" | "bukan" | "siap" | "galat">("memuat");
@@ -340,7 +340,11 @@ export default function AdminPage() {
               penerima tidak perlu menempel kunci; <strong>Email</strong> membuka draf
               pemberitahuan premium di aplikasi email Anda untuk dikirim ke akun itu;{" "}
               <strong>Reset perangkat</strong> mengosongkan ikatan perangkat akun (batas: gratis
-              1 perangkat, premium 2 perangkat), dipakai bila mahasiswa berganti perangkat.
+              1 perangkat, premium 2 perangkat), dipakai bila mahasiswa berganti perangkat.{" "}
+              <strong>Hapus akun</strong> membuang catatan akun dari dashboard beserta kunci API
+              pribadinya, misalnya akun lama yang terlanjur masuk sebelum pendaftaran kelas;
+              emailnya tetap di daftar mahasiswa bila terdaftar, jadi orangnya bisa masuk lagi
+              sebagai akun baru yang bersih. Akun pemilik tidak bisa dihapus.
             </p>
             <p className="mt-2 text-[12px] leading-relaxed text-ink-600">
               {data.email.siap
@@ -480,6 +484,14 @@ export default function AdminPage() {
                                   {konfirmasi === `${x.id}:mahasiswa` ? "Yakin jadikan mahasiswa?" : "Jadikan mahasiswa"}
                                 </button>
                               ))}
+                            <button
+                              type="button"
+                              disabled={sibuk}
+                              onClick={() => void tindak(x.id, "hapus-akun")}
+                              className={btn + "border-red-600/50 font-semibold text-red-700"}
+                            >
+                              {konfirmasi === `${x.id}:hapus-akun` ? "Yakin hapus akun ini?" : "Hapus akun"}
+                            </button>
                           </span>
                         </td>
                       </tr>
