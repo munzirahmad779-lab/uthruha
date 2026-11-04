@@ -574,6 +574,17 @@ export function RefFinder({
                           </p>
                         )}
 
+                        {h.relevansiRendah && (
+                          <p className="mt-1.5">
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800">
+                              Kesesuaian rendah
+                            </span>
+                            {h.alasanRelevansi && (
+                              <span className="ms-1.5 text-[10.5px] leading-relaxed text-amber-800">{h.alasanRelevansi}</span>
+                            )}
+                          </p>
+                        )}
+
                         {h.perluVerifikasi && h.catatanVerifikasi && (
                           <p className="mt-1.5 text-[10.5px] leading-relaxed text-amber-800">! {h.catatanVerifikasi}</p>
                         )}

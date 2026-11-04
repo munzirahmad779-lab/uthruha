@@ -66,6 +66,13 @@ export interface RefCandidate {
   konsep_cocok?: string[];
   /** Dari cara pencarian mana skor ini berasal. */
   skor_jenis?: ModeCari;
+  /** Penilaian relevansi ringan sesudah hasil terkumpul (lib/refs/index):
+   *  judul kandidat hampir tidak menyentuh konsep atau kalimat pencarian.
+   *  Kandidat tetap tampil dengan skor apa adanya, hanya diberi label
+   *  dan diurutkan sesudah kandidat yang relevan. */
+  relevansiRendah?: boolean;
+  /** Alasan singkat relevansiRendah, ditampilkan pada kartu hasil. */
+  alasanRelevansi?: string;
 }
 
 /** Kandidat + konteks kalimat asal. */

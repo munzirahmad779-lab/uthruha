@@ -35,6 +35,13 @@ import {
   simpanSidikParagraf,
 } from "./bank-rujukan";
 import { idAcak } from "./store";
+import { getBidang } from "@/lib/content/bidang";
+import {
+  bidangMilikProyek,
+  deteksiBidangSumber,
+  nilaiRelevansi,
+  type KonteksProyek,
+} from "./gerbang-relevansi";
 import type { Sumber } from "@/lib/engine/cite";
 import { cari as cariTurath, cariKonsep as cariKonsepTurath } from "@/lib/refs/adapters/turath";
 import { cari as cariShamela } from "@/lib/refs/adapters/shamela";
@@ -340,12 +347,44 @@ export interface HasilGenerate {
   dariBank: boolean;
   dariSidik: boolean;
   catatan?: string;
+  /** Kandidat terbaik tertahan gerbang relevansi: klien menampilkan
+   *  alasannya dan menanyakan pengguna; pengguna memasang paksa dengan
+   *  mengirim ulang paksaKonfirmasi: true. */
+  perluKonfirmasi?: {
+    sumber: Sumber;
+    kalimatIdx: number;
+    bidangSumber: string;
+    bidangProyek: string;
+    alasan: string;
+  };
+  /** Penolakan gerbang yang dicatat selama mencoba kandidat, urut
+   *  pemeriksaan. Untuk audit dan pesan jujur ke pengguna. */
+  penolakan?: { judul: string; alasan: string }[];
+}
+
+/** Batas pemeriksaan gerbang per generate: kandidat maraji' yang dinilai
+ *  dibatasi agar satu klik tidak berubah menjadi belasan panggilan. */
+const MAKS_KANDIDAT_GERBANG = 5;
+/** Batas PENILAIAN MODEL per generate (ketetapan hemat panggilan):
+ *  hanya kandidat yang akan dipasang atau maraji' teratas yang dinilai
+ *  model; penolakan aturan keras tidak memakai jatah ini. */
+const MAKS_PENILAIAN_MODEL = 3;
+
+function apakahMasadir(r: RujukanTamu): boolean {
+  return r.asal === "turath" || r.asal === "shamela";
 }
 
 export async function generateFootnoteUntukParagraf(opsi: {
   paragraf: string;
   judulProyek?: string;
   kalimatKursor?: number;
+  /** Bidang proyek (id dari lib/content/bidang.ts) untuk gerbang relevansi. */
+  bidangId?: string;
+  /** Topik proyek berbahasa Arab untuk konteks gerbang relevansi. */
+  topikAr?: string;
+  /** Pengguna sudah melihat kandidat tertahan dan tetap memintanya
+   *  dipasang: kandidat dipasang dengan tanda perluVerifikasi. */
+  paksaKonfirmasi?: boolean;
   /** BYOK: kunci pribadi pemanggil (wajib untuk akun mahasiswa). */
   kolam?: OpsiKolamTerusan;
 }): Promise<HasilGenerate> {
@@ -400,8 +439,9 @@ export async function generateFootnoteUntukParagraf(opsi: {
     }
   }
 
-  const rujukan = pilihRujukan(daftar ?? [], paragraf, opsi.judulProyek);
-  if (!rujukan) {
+  const semua = daftar ?? [];
+  const pertama = pilihRujukan(semua, paragraf, opsi.judulProyek);
+  if (!pertama) {
     return {
       ketemu: false,
       kalimatKunci,
@@ -412,12 +452,154 @@ export async function generateFootnoteUntukParagraf(opsi: {
     };
   }
 
+  // Pilihan utama versi pilihRujukan adalah masadir (Turath/Shamela):
+  // sumber primer lintas bidang ini dikecualikan dari gerbang relevansi
+  // bidang dan langsung dipasang seperti sebelumnya.
+  if (apakahMasadir(pertama)) {
+    return {
+      ketemu: true,
+      sumber: rujukanKeSumber(pertama),
+      kalimatIdx: pilihKalimat(paragraf, pertama, kalimatKunci, opsi.kalimatKursor),
+      kalimatKunci,
+      dariBank,
+      dariSidik: Boolean(sidik),
+    };
+  }
+
+  // Jalur maraji' web: kandidat diperiksa gerbang relevansi satu per
+  // satu, urut pilihan utama lalu skor yang sudah ada. Yang tertolak
+  // dicatat alasannya, lalu kandidat berikutnya dicoba.
+  const bidang = opsi.bidangId ? getBidang(opsi.bidangId) : null;
+  const konteks: KonteksProyek = {
+    bidangId: opsi.bidangId ?? "",
+    bidangLabel: bidang ? `${bidang.labelId} (${bidang.labelAr})` : "",
+    judulProyek: opsi.judulProyek ?? "",
+    topik: opsi.topikAr ?? "",
+  };
+  const bidangProyekTampil = konteks.bidangLabel || konteks.bidangId || "proyek Anda";
+  const urutanMaraji = [
+    pertama,
+    ...semua.filter((r) => r !== pertama && !apakahMasadir(r)).sort((a, b) => b.skor - a.skor),
+  ].slice(0, MAKS_KANDIDAT_GERBANG);
+
+  const penolakan: { judul: string; alasan: string }[] = [];
+  let tertahan: { rujukan: RujukanTamu; bidangSumber: string; alasan: string } | null = null;
+  let penilaianModel = 0;
+
+  for (const kandidat of urutanMaraji) {
+    // Footnote jurnal tanpa halaman tidak boleh terpasang diam-diam:
+    // lewati selama masih ada kandidat lain; bila hanya dia yang
+    // tersisa, ia menjadi kandidat perluKonfirmasi di akhir.
+    if (kandidat.jenis === "jurnal" && !(kandidat.halaman ?? "").trim()) {
+      const bidangJurnalIni = deteksiBidangSumber(kandidat.judul, kandidat.wadah);
+      const asingJurnalIni = Boolean(bidangJurnalIni && !bidangMilikProyek(bidangJurnalIni, konteks));
+      const alasanJurnalIni = asingJurnalIni
+        ? `Judul atau nama jurnal menunjukkan bidang ${bidangJurnalIni}, sedangkan proyek ini bidang ${bidangProyekTampil}. Artikel ini juga tidak membawa nomor halaman.`
+        : "Artikel jurnal ini tidak membawa nomor halaman. Footnote tanpa halaman harus dikonfirmasi penulis sebelum dipasang.";
+      penolakan.push({ judul: kandidat.judul, alasan: alasanJurnalIni });
+      tertahan ??= {
+        rujukan: kandidat,
+        bidangSumber: bidangJurnalIni ?? "",
+        alasan: alasanJurnalIni,
+      };
+      continue;
+    }
+
+    // Hemat panggilan model: penolakan aturan keras tidak memakai
+    // jatah penilaian; kandidat bersih sesudah jatah habis tidak
+    // dinilai lagi pada generate ini.
+    const bidangKeras = deteksiBidangSumber(kandidat.judul, kandidat.wadah);
+    const kerasMenolak = Boolean(bidangKeras && !bidangMilikProyek(bidangKeras, konteks));
+    if (!kerasMenolak && penilaianModel >= MAKS_PENILAIAN_MODEL) break;
+    if (!kerasMenolak) penilaianModel += 1;
+
+    // Kalimat tujuan dinilai dari kandidat ini sendiri, bukan dari
+    // pilihan awal, agar penilaian model menempel pada kalimat yang
+    // benar untuk kandidat yang benar.
+    const kalimatIdxKandidat = pilihKalimat(paragraf, kandidat, kalimatKunci, opsi.kalimatKursor);
+    const kalimatTujuan = pecahKalimatServer(paragraf)[kalimatIdxKandidat] ?? paragraf;
+    const nilai = await nilaiRelevansi(
+      { judul: kandidat.judul, wadah: kandidat.wadah, jenis: kandidat.jenis },
+      konteks,
+      kalimatTujuan,
+      opsi.kolam,
+    );
+    if (nilai.lolos) {
+      return {
+        ketemu: true,
+        sumber: rujukanKeSumber(kandidat),
+        kalimatIdx: kalimatIdxKandidat,
+        kalimatKunci,
+        dariBank,
+        dariSidik: Boolean(sidik),
+        ...(penolakan.length > 0 ? { penolakan } : {}),
+      };
+    }
+    penolakan.push({ judul: kandidat.judul, alasan: nilai.alasan });
+    tertahan ??= { rujukan: kandidat, bidangSumber: nilai.bidangSumber, alasan: nilai.alasan };
+  }
+
+  // Tidak ada maraji' yang lolos. Bila ada masadir yang kuat, ia tetap
+  // lebih baik daripada memaksa maraji' tertahan (aturan pilihRujukan
+  // yang lama), selama tidak ada kandidat tertahan yang menunggu
+  // keputusan pengguna.
+  if (!tertahan) {
+    const masadirKuat = semua
+      .filter(apakahMasadir)
+      .sort((a, b) => b.skor - a.skor)[0];
+    if (masadirKuat && masadirKuat.skor >= 0.5) {
+      return {
+        ketemu: true,
+        sumber: rujukanKeSumber(masadirKuat),
+        kalimatIdx: pilihKalimat(paragraf, masadirKuat, kalimatKunci, opsi.kalimatKursor),
+        kalimatKunci,
+        dariBank,
+        dariSidik: Boolean(sidik),
+        ...(penolakan.length > 0 ? { penolakan } : {}),
+      };
+    }
+    const teratas = penolakan[0];
+    return {
+      ketemu: false,
+      kalimatKunci,
+      dariBank,
+      dariSidik: Boolean(sidik),
+      ...(penolakan.length > 0 ? { penolakan } : {}),
+      catatan: teratas
+        ? `Semua rujukan web tertolak gerbang relevansi. Penolakan teratas: "${teratas.judul}" karena ${teratas.alasan} Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.`
+        : "Belum ditemukan rujukan yang cukup relevan untuk paragraf ini. Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.",
+    };
+  }
+
+  // Kandidat terbaik tertahan gerbang: pengguna yang memutuskan.
+  const kalimatIdxTertahan = pilihKalimat(paragraf, tertahan.rujukan, kalimatKunci, opsi.kalimatKursor);
+  if (opsi.paksaKonfirmasi) {
+    const sumber = rujukanKeSumber(tertahan.rujukan);
+    sumber.perluVerifikasi = true;
+    return {
+      ketemu: true,
+      sumber,
+      kalimatIdx: kalimatIdxTertahan,
+      kalimatKunci,
+      dariBank,
+      dariSidik: Boolean(sidik),
+      penolakan,
+      catatan: `Dipasang atas konfirmasi Anda walau tertahan gerbang relevansi: ${tertahan.alasan} Sumber ditandai perlu verifikasi.`,
+    };
+  }
   return {
-    ketemu: true,
-    sumber: rujukanKeSumber(rujukan),
-    kalimatIdx: pilihKalimat(paragraf, rujukan, kalimatKunci, opsi.kalimatKursor),
+    ketemu: false,
+    perluKonfirmasi: {
+      sumber: rujukanKeSumber(tertahan.rujukan),
+      kalimatIdx: kalimatIdxTertahan,
+      bidangSumber: tertahan.bidangSumber,
+      bidangProyek: bidangProyekTampil,
+      alasan: tertahan.alasan,
+    },
     kalimatKunci,
     dariBank,
     dariSidik: Boolean(sidik),
+    penolakan,
+    catatan: `Rujukan teratas tertahan gerbang relevansi: ${tertahan.alasan} Periksa kandidatnya, lalu pasang paksa bila memang disengaja.`,
   };
 }

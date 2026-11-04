@@ -22,8 +22,9 @@ import * as turath from "@/lib/refs/adapters/turath";
 import * as shamela from "@/lib/refs/adapters/shamela";
 import * as ketabonline from "@/lib/refs/adapters/ketabonline";
 import * as usul from "@/lib/refs/adapters/usul";
-import { cariJurnal } from "@/lib/refs/adapters/jurnal";
+import { cariJurnal, apakahJudulPerangkatLunak } from "@/lib/refs/adapters/jurnal";
 import { cariArchive } from "@/lib/refs/adapters/archive";
+import { tokenkan } from "@/lib/refs/score";
 import type { OpsiAdapter } from "@/lib/refs/adapters/http";
 
 export const URUTAN: SourceId[] = ["turath", "shamela", "ketabonline", "usul"];
@@ -211,7 +212,49 @@ export async function cariRujukan(req: SearchRequest): Promise<SearchResponse> {
     st.pesan = "Tanpa akses API — hanya tautan buka manual.";
   }
 
-  hasil.sort((a, b) => b.skor - a.skor || (a.jilid ?? 0) - (b.jilid ?? 0));
+  // Saringan akhir (perbaikan dari laporan koreksi rekaman tutorial):
+  // 1) Kandidat perangkat lunak dari sumber MANA PUN dibuang. Adapter
+  //    jurnal dan archive sudah menyaring di sumbernya, tetapi kandidat
+  //    dari jalur lain tidak boleh lolos hanya karena tidak diperiksa.
+  // 2) Relevansi ringan per kandidat: tumpang-tindih token JUDUL
+  //    kandidat terhadap konsep atau kalimat pencarian. Di bawah ambang,
+  //    kandidat ditandai relevansiRendah dan diurutkan sesudah yang
+  //    relevan; skornya tetap ditampilkan apa adanya.
+  const AMBANG_RELEVANSI_RINGAN = 0.1;
+  let jumlahPerangkatLunak = 0;
+  for (let i = hasil.length - 1; i >= 0; i--) {
+    if (apakahJudulPerangkatLunak(hasil[i]!.kitab)) {
+      hasil.splice(i, 1);
+      jumlahPerangkatLunak += 1;
+    }
+  }
+  if (jumlahPerangkatLunak > 0) {
+    peringatan.push(
+      `${jumlahPerangkatLunak} hasil dibuang karena judulnya menunjukkan entri perangkat lunak atau rilisan program, bukan artikel atau kitab.`,
+    );
+  }
+  const tokenAcuan = new Set(tokenkan([...konsep, ...kalimatList].join(" ").toLowerCase()));
+  if (tokenAcuan.size > 0) {
+    for (const h of hasil) {
+      const judulBersih = h.kitab.replace(/^\[[^\]]*\]\s*/, "");
+      const tokenJudul = new Set(tokenkan(judulBersih.toLowerCase()));
+      if (tokenJudul.size === 0) continue;
+      let sama = 0;
+      for (const t of tokenJudul) if (tokenAcuan.has(t)) sama += 1;
+      const ringan = sama / tokenJudul.size;
+      if (ringan < AMBANG_RELEVANSI_RINGAN) {
+        h.relevansiRendah = true;
+        h.alasanRelevansi = "Judul kandidat tidak menyentuh konsep atau kalimat yang dicari.";
+      }
+    }
+  }
+
+  hasil.sort(
+    (a, b) =>
+      Number(a.relevansiRendah ?? false) - Number(b.relevansiRendah ?? false) ||
+      b.skor - a.skor ||
+      (a.jilid ?? 0) - (b.jilid ?? 0),
+  );
 
   const apiAktif = URUTAN.filter((id) => diminta.has(id) && MODUL[id].info.mode === "api");
   if (apiAktif.length === 0) {

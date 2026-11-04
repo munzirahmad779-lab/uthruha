@@ -85,11 +85,18 @@ export async function POST(req: NextRequest) {
     typeof body?.kalimatKursor === "number" && Number.isFinite(body.kalimatKursor)
       ? Math.max(0, Math.floor(body.kalimatKursor))
       : undefined;
+  // Konteks gerbang relevansi (opsional; klien lama tetap berjalan).
+  const bidangId = typeof body?.bidangId === "string" ? body.bidangId.trim().slice(0, 60) : undefined;
+  const topikAr = typeof body?.topikAr === "string" ? body.topikAr.trim().slice(0, 300) : undefined;
+  const paksaKonfirmasi = body?.paksaKonfirmasi === true;
 
   const hasil = await generateFootnoteUntukParagraf({
     paragraf,
     judulProyek,
     kalimatKursor,
+    bidangId,
+    topikAr,
+    paksaKonfirmasi,
     kolam: {
       pribadi: opsiP.pribadi,
       wajibPribadi: opsiP.wajibPribadi,

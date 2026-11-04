@@ -3,6 +3,7 @@
  */
 import type { RefCandidate } from "@/lib/refs/types";
 import { type OpsiAdapter } from "@/lib/refs/adapters/http";
+import { apakahJudulPerangkatLunak, skorTumpangTindihJudul } from "@/lib/refs/adapters/jurnal";
 
 interface ArchiveDoc {
   identifier: string;
@@ -50,6 +51,8 @@ export async function cariArchive(
 
         for (const d of docs) {
           if (!d.title) continue;
+          // Entri perangkat lunak atau rilisan bukan kitab atau artikel.
+          if (apakahJudulPerangkatLunak(d.title)) continue;
           if (out.some(x => x.url_sumber?.includes(d.identifier))) continue;
           out.push({
             source: "turath",
@@ -58,7 +61,9 @@ export async function cariArchive(
             tahun: d.year ? Number.parseInt(d.year, 10) || undefined : undefined,
             teks_kutipan: d.description ? d.description.slice(0, 220) : "نسخة إلكترونية مطبوعة/مخطوطة متوفرة في أرشيف المخطوطات والكتب.",
             url_sumber: `https://archive.org/details/${d.identifier}`,
-            skor: 0.84,
+            // Skor nyata per item dari tumpang-tindih token judul
+            // terhadap kueri; dulu konstan 0,84 untuk semua item.
+            skor: skorTumpangTindihJudul(d.title, kata),
             mode: "api",
             perluVerifikasi: false,
             catatanVerifikasi: "Tersedia naskah cetak/PDF lengkap di Internet Archive.",
