@@ -34,6 +34,12 @@
  *   intinya di lapis baca tanpa mengubah data, dan pengelompokan
  *   konflik memakai kunci inti yang sama; (R1) entri berpadanan
  *   kosong tidak membentuk konflik semu.
+ * - Perbaikan telaah ulang Tahap 9: (S1-b) partikel tumpuk dua
+ *   lapis tanpa alif lam (وبمناهج، وبسبب، فبسبب، ولسبب) terhitung
+ *   dasar, dengan pagar yang sama dan pengecualian token berawalan
+ *   لل terasimilasi yang tidak berubah; (R1 sisa) anggota grup
+ *   konflik yang dikembalikan tidak lagi memuat entri berpadanan
+ *   kosong.
  *
  * Jalankan: npx tsx scripts/test-tahap9-istilah.ts
  */
@@ -75,8 +81,9 @@ function hitungManual(teks: string, frasa: string): number {
 /** Pembanding manual sadar partikel, ditulis dengan cara yang
  *  BERBEDA dari mesin: seluruh teks ditulis ulang kata demi kata
  *  (tiap kata dilucuti partikel depannya dengan putaran huruf di
- *  sini: maks dua lapis, lapis kedua hanya pola partikel + alif lam,
- *  sisa kata minimal 3 huruf), lalu frasa dihitung sebagai substring
+ *  sini: maks dua lapis, lapis kedua hanya untuk preposisi ب/ل/ك
+ *  dan tidak untuk token berawalan لل terasimilasi, sisa kata
+ *  minimal 3 huruf), lalu frasa dihitung sebagai substring
  *  berlapis spasi pada teks hasil tulisan ulang itu. Mesin tidak
  *  menulis ulang teks; ia membandingkan jendela token terhadap
  *  himpunan bentuk tiap token, jadi kesepakatan keduanya bukan
@@ -91,7 +98,11 @@ function hitungManualPartikel(teks: string, frasa: string): number {
   const lucuti = (k: string): string => {
     if (k.length >= 4 && "وفبلك".includes(k[0])) {
       const sisa = k.slice(1);
-      if (sisa.length >= 4 && "بلك".includes(sisa[0]) && sisa[1] === "ا") {
+      if (
+        sisa.length >= 4 &&
+        "بلك".includes(sisa[0]) &&
+        !(k[0] === "ل" && sisa[0] === "ل")
+      ) {
         return sisa.slice(1);
       }
       return sisa;
@@ -464,6 +475,79 @@ async function main() {
       { id: "r4", id_label: "tafsir", ar: "التأويل" },
       { id: "r5", id_label: "Tafsir", ar: "" },
     ]).length === 1,
+  );
+
+  // M. Perbaikan telaah ulang S1-b: partikel tumpuk tanpa alif lam.
+  cek(
+    "M1 tumpuk و + ب tanpa alif lam terhitung dasar (fixture penelaah وبمناهج التفسير)",
+    hitungFrasa("اعتمد البحث وبمناهج التفسير في الجمع والترتيب", "مناهج التفسير").dasar === 1 &&
+      hitungManualPartikel("اعتمد البحث وبمناهج التفسير في الجمع والترتيب", "مناهج التفسير") === 1,
+  );
+  cek(
+    "M2 tumpuk و + ب pada kata pertama frasa terhitung dasar (fixture وبسبب النزول)",
+    hitungFrasa("وبسبب النزول ألف العلماء كتبا كثيرة", "سبب النزول").dasar === 1 &&
+      hitungManualPartikel("وبسبب النزول ألف العلماء كتبا كثيرة", "سبب النزول") === 1,
+  );
+  cek(
+    "M3 tumpuk ف + ب terhitung dasar (fixture فبسبب)",
+    hitungFrasa("فبسبب ذلك اختلف المتقدمون في الحكم", "سبب").dasar === 1 &&
+      hitungManualPartikel("فبسبب ذلك اختلف المتقدمون في الحكم", "سبب") === 1,
+  );
+  const PROSA_TUMPUK =
+    "إن سبب النزول مهم، وسبب النزول عند الزركشي مشهور، ولسبب النزول كتب خاصة";
+  cek(
+    "M4 fixture prosa penelaah: 3 dari 3 kemunculan سبب النزول terhitung (termasuk ولسبب)",
+    hitungFrasa(PROSA_TUMPUK, "سبب النزول").dasar === 3 &&
+      hitungManualPartikel(PROSA_TUMPUK, "سبب النزول") === 3,
+    `mesin=${hitungFrasa(PROSA_TUMPUK, "سبب النزول").dasar}`,
+  );
+  cek(
+    "M5 و akar pada posisi kedua tidak dilucuti: ووحدة terhitung sebagai وحدة, bukan حدة",
+    hitungFrasa("ووحدة الأمة مطلب أهلها", "وحدة").dasar === 1 &&
+      hitungFrasa("ووحدة الأمة مطلب أهلها", "حدة").dasar === 0 &&
+      hitungManualPartikel("ووحدة الأمة مطلب أهلها", "حدة") === 0,
+  );
+  cek(
+    "M6 batas terasimilasi tidak berubah: للمدرسة tetap 0 untuk bentuk tetap dan bentuk polosnya",
+    hitungFrasa("للمدرسة دور كبير في التربية", "المدرسة").dasar === 0 &&
+      hitungFrasa("للمدرسة دور كبير في التربية", "مدرسة").dasar === 0,
+  );
+  cek(
+    "M7 pola lama partikel + alif lam tetap terhitung (وبالعلم)",
+    hitungFrasa("وبالعلم يتقدم البحث", "العلم").dasar === 1,
+  );
+  const proyekTumpuk = newProject({
+    bidangId: "quran",
+    istilah: [{ id: "ist-t", id_label: "metode tafsir", ar: "مناهج التفسير" }],
+    draf: { "bab-1": "اعتمد البحث وبمناهج التفسير في الجمع والترتيب." },
+  }) as Project;
+  const analisisTumpuk = analisisIstilahProyek(proyekTumpuk);
+  cek(
+    "M8 istilah terdaftar yang hanya muncul bertumpuk partikel terbaca dipakai, bukan 0",
+    analisisTumpuk[0]?.munculAr === 1 && statusIstilah(analisisTumpuk[0]) === "dipakai",
+    `munculAr=${analisisTumpuk[0]?.munculAr}`,
+  );
+
+  // N. Perbaikan telaah ulang R1 sisa: anggota grup konflik bersih.
+  const grupR1 = konflikPadanan([
+    { id: "n1", id_label: "Tafsir", ar: "التفسير" },
+    { id: "n2", id_label: "tafsir", ar: "التأويل" },
+    { id: "n3", id_label: "Tafsir", ar: "" },
+  ]);
+  cek(
+    "N1 grup konflik yang dikembalikan tidak memuat anggota berpadanan kosong",
+    grupR1.length === 1 && grupR1[0].length === 2 && grupR1[0].every((x) => (x.ar ?? "").trim()),
+    `grup=${grupR1.length} anggota=${grupR1[0]?.length}`,
+  );
+  const grupR1b = konflikPadanan([
+    { id: "n4", id_label: "Tafsir", ar: "التفسير (الموضوعي)" },
+    { id: "n5", id_label: "tafsir", ar: "التأويل" },
+    { id: "n6", id_label: "Tafsir", ar: "   " },
+  ]);
+  cek(
+    "N2 anggota berpadanan spasi saja juga tersaring, termasuk di samping entri warisan",
+    grupR1b.length === 1 && grupR1b[0].length === 2,
+    `grup=${grupR1b.length} anggota=${grupR1b[0]?.length}`,
   );
 
   console.log(`\nHASIL: ${lulus} PASS, ${gagal} FAIL`);

@@ -25,21 +25,31 @@
  *   hanya cocok pada lapis longgar dilaporkan sebagai VARIAN bentuk,
  *   lengkap dengan kutipan teks drafnya, agar mahasiswa menyamakan
  *   sendiri ke bentuk tetap.
- * - PARTIKEL MENEMPEL (perbaikan telaah Tahap 9, S1): partikel
- *   konsonan tunggal Arab (و/ف/ب/ل/ك) yang menempel di awal kata
- *   bukan bagian kata itu, jadi token DRAF dicocokkan juga dalam
- *   bentuk terlunasi partikelnya: "والعلم" adalah "العلم" berawalan
- *   و, "بالعلم" adalah "العلم" berawalan ب. Tanpa ini kemunculan
- *   berpartikel lenyap dari kedua lapis dan istilah terbaca 0
- *   padahal dipakai. Aturannya dinyatakan dan dibatasi: pelucutan
- *   maksimal dua lapis, lapis kedua hanya pola partikel + alif lam
- *   (وبالعلم menjadi العلم); sisa kata sesudah dilucuti wajib
+ * - PARTIKEL MENEMPEL (perbaikan telaah Tahap 9, S1 dan S1-b):
+ *   partikel konsonan tunggal Arab (و/ف/ب/ل/ك) yang menempel di
+ *   awal kata bukan bagian kata itu, jadi token DRAF dicocokkan
+ *   juga dalam bentuk terlunasi partikelnya: "والعلم" adalah
+ *   "العلم" berawalan و, "بالعلم" adalah "العلم" berawalan ب.
+ *   Tanpa ini kemunculan berpartikel lenyap dari kedua lapis dan
+ *   istilah terbaca 0 padahal dipakai. Aturannya dinyatakan dan
+ *   dibatasi: pelucutan maksimal dua lapis; lapis kedua berlaku
+ *   untuk partikel kedua dari himpunan preposisi ب/ل/ك, baik
+ *   diikuti alif lam (وبالعلم menjadi العلم) maupun kata polos
+ *   (وبمناهج menjadi مناهج, وبسبب dan فبسبب menjadi سبب, ولسبب
+ *   menjadi سبب). و dan ف tidak pernah dilucuti pada lapis kedua:
+ *   keduanya kata sambung yang hanya membuka token, dan و/ف pada
+ *   posisi kedua sesudah pelucutan pertama adalah huruf akar kata
+ *   itu sendiri (وحدة tidak dilucuti menjadi حدة). Pengecualian
+ *   terasimilasi: token berawalan لل (ل + ال yang menyatu dalam
+ *   tulisan, mis. للعلم، للمدرسة) tidak dilucuti pada lapis
+ *   kedua, karena lam keduanya adalah lam alif lam yang menyatu,
+ *   bukan partikel; bentuk terasimilasi itu tetap tidak dilucuti
+ *   ke bentuk tetap. Sisa kata sesudah setiap pelucutan wajib
  *   minimal 3 huruf agar huruf akar tidak termakan (وضع، وصف، ورد
- *   tidak pernah dilucuti menjadi ضع، صف، رد); yang dilucuti hanya
- *   token draf, frasa yang dicari tidak pernah dilucuti, jadi beda
- *   alif lam tetap tidak cocok (frasa "علم" tidak cocok dengan
- *   "العلم"); dan bentuk yang alif lamnya terasimilasi dalam
- *   tulisan (للعلم، للمدرسة) tidak dilucuti ke bentuk tetap.
+ *   tidak pernah dilucuti menjadi ضع، صف، رد); yang dilucuti
+ *   hanya token draf, frasa yang dicari tidak pernah dilucuti,
+ *   jadi beda alif lam tetap tidak cocok (frasa "علم" tidak cocok
+ *   dengan "العلم").
  * - Hitungan padanan memakai BENTUK INTI dari ar tersimpan
  *   (perbaikan telaah Tahap 9, S2): istilah yang disimpan chip lama
  *   membawa string penuh berketerangan kurung; di lapis baca ia
@@ -137,7 +147,10 @@ export function kunciTeks(s: string): string {
 }
 
 const PARTIKEL_DEPAN = "وفبلك";
-const PARTIKEL_SEBELUM_LAM = "بلك";
+/** Partikel yang boleh menempati posisi kedua pada tumpukan dua
+ *  partikel: hanya preposisi ب/ل/ك. و/ف kata sambung pembuka, dan
+ *  و/ف di posisi kedua adalah huruf akar (lihat kepala berkas). */
+const PARTIKEL_LAPIS_KEDUA = "بلك";
 
 /**
  * Bentuk-bentuk satu token DRAF untuk pencocokan: token itu sendiri
@@ -150,7 +163,11 @@ function bentukTokenDraf(kata: string): string[] {
   if (kata.length >= 4 && PARTIKEL_DEPAN.includes(kata[0])) {
     const sisa = kata.slice(1);
     hasil.push(sisa);
-    if (sisa.length >= 4 && PARTIKEL_SEBELUM_LAM.includes(sisa[0]) && sisa[1] === "ا") {
+    if (
+      sisa.length >= 4 &&
+      PARTIKEL_LAPIS_KEDUA.includes(sisa[0]) &&
+      !(kata[0] === "ل" && sisa[0] === "ل")
+    ) {
       hasil.push(sisa.slice(1));
     }
   }
@@ -235,7 +252,11 @@ export function statusIstilah(a: AnalisisIstilah): StatusIstilah {
  * sebagai padanan yang sama, bukan konflik semu dan bukan luput.
  * Entri berpadanan kosong dilewati dari perbandingan (R1 telaah
  * Tahap 9): padanan yang hilang bukan padanan yang berbeda, jadi ia
- * tidak membentuk dan tidak ikut grup konflik.
+ * tidak membentuk dan tidak ikut grup konflik. Ia juga tidak ikut
+ * dikembalikan sebagai anggota grup yang terbentuk dari entri lain
+ * berlabel sama (sisa R1 telaah ulang): anggota grup yang
+ * dikembalikan hanya entri berpadanan tak-kosong, agar gabungan
+ * render peringatan di tab tidak berakhir ruas kosong menggantung.
  */
 export function konflikPadanan(istilah: Istilah[]): Istilah[][] {
   const grup = new Map<string, Istilah[]>();
@@ -243,12 +264,11 @@ export function konflikPadanan(istilah: Istilah[]): Istilah[][] {
     if (!(t.id_label ?? "").trim()) continue;
     const k = kunciTeks(t.id_label);
     if (!k) continue;
+    if (!kunciTeks(bentukIntiAr(t.ar ?? ""))) continue;
     grup.set(k, [...(grup.get(k) ?? []), t]);
   }
   return Array.from(grup.values()).filter((g) => {
-    const padananBerbeda = new Set(
-      g.map((x) => kunciTeks(bentukIntiAr(x.ar ?? ""))).filter((k) => k.length > 0),
-    );
+    const padananBerbeda = new Set(g.map((x) => kunciTeks(bentukIntiAr(x.ar ?? ""))));
     return padananBerbeda.size > 1;
   });
 }
