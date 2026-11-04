@@ -329,12 +329,15 @@ export function rujukanKeSumber(r: RujukanTamu): Sumber {
     // karya yang sama dari dua jalur kini ber-id sama dan penjaga
     // duplikat di titik tanam mengenalinya sebagai satu sumber.
     id: idStabilDariIdentitas(judul, r.penulis.join("، "), r.tahun ?? ""),
-    jenis: r.jenis === "jurnal" ? "artikel" : "kitab",
+    // Jenis disertasi dari indeks dipetakan ke skripsi (menutup R3
+    // telaah Tahap 7): dulu semua non-jurnal menjadi kitab, sehingga
+    // disertasi terformat sebagai buku, bukan format skripsi.
+    jenis: r.jenis === "jurnal" ? "artikel" : r.jenis === "disertasi" ? "skripsi" : "kitab",
     penulis: r.penulis.join("، "),
     penulisDaftar: r.penulis,
     tahun: r.tahun ?? "",
     judul,
-    penerbit: r.jenis === "buku" ? r.wadah || undefined : undefined,
+    penerbit: r.jenis === "buku" || r.jenis === "disertasi" ? r.wadah || undefined : undefined,
     jurnal: r.jenis === "jurnal" ? r.wadah || undefined : undefined,
     jilid: r.jilid || undefined,
     halaman: r.halaman || undefined,

@@ -148,7 +148,10 @@ export async function cariKajianDirasah(opsi: {
   penyedia?: PenyediaKajian;
 }): Promise<HasilCariDirasah> {
   const catatan: string[] = [];
-  const penyedia = opsi.penyedia ?? ((judul: string) => cariRujukanTamu(judul, [judul]));
+  // Jatah hasil khusus dirasah 8 (bawaan bersama jalur tamu dan
+  // Generate tetap 5): kajian terdahulu butuh pilihan lebih banyak
+  // dari satu pencarian, dan batas penilaian gerbang di bawah juga 8.
+  const penyedia = opsi.penyedia ?? ((judul: string) => cariRujukanTamu(judul, [judul], 8));
   const mentah = await penyedia(opsi.judulProyek);
 
   // Saring metadata memadai + dedupe per id sumber stabil.

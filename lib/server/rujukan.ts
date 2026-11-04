@@ -11,7 +11,7 @@ import { isbnSah, keISBN13, verifikasiISBN } from "./isbn";
 
 export interface RujukanTamu {
   id: string;
-  jenis: "jurnal" | "buku";
+  jenis: "jurnal" | "buku" | "disertasi";
   judul: string;
   penulis: string[];
   tahun: string;
@@ -152,10 +152,21 @@ interface Kandidat extends Omit<RujukanTamu, "id" | "skor" | "kecocokan" | "inti
   dariCrossref?: boolean;
 }
 
+/**
+ * @param batasHasil Batas jumlah hasil akhir. Nilai bawaan 5 adalah
+ *   perilaku lama untuk jalur tamu dan Generate Footnote dan TIDAK
+ *   berubah. Pemanggil boleh meminta jatah lebih besar untuk
+ *   kebutuhannya sendiri (pencarian dirasah meminta 8, menutup R2
+ *   telaah Tahap 7 pada tahap verifikasi menyeluruh): komposisi
+ *   tetap jurnal mendahului, minimal satu buku, lalu isi sampai
+ *   batas; hanya batasnya yang naik, urutan dan saringannya sama.
+ */
 export async function cariRujukanTamu(
   judulProyek: string,
   kalimatKunci: string[],
+  batasHasil = 5,
 ): Promise<RujukanTamu[]> {
+  const batas = Math.max(1, Math.floor(batasHasil) || 5);
   const kueriToken = tokenJudul([judulProyek, ...kalimatKunci].join(" "));
   const kueriUtama = (kalimatKunci[0] || judulProyek).slice(0, 200);
   const frasaToken = kalimatKunci.map((k) => tokenJudul(k)).filter((s) => s.size > 0);
@@ -209,7 +220,12 @@ export async function cariRujukanTamu(
     )?.field?.display_name;
     if (bidangUtama === "Health Sciences") continue;
     tambah({
-      jenis: (w.type as string) === "book" || (w.type as string) === "book-chapter" ? "buku" : "jurnal",
+      jenis:
+        (w.type as string) === "dissertation"
+          ? "disertasi"
+          : (w.type as string) === "book" || (w.type as string) === "book-chapter"
+            ? "buku"
+            : "jurnal",
       judul,
       penulis: ((w.authorships as { author?: { display_name?: string } }[]) ?? [])
         .map((a) => a.author?.display_name ?? "")
@@ -269,7 +285,7 @@ export async function cariRujukanTamu(
     if (!judul) continue;
     const doi = typeof it.DOI === "string" ? it.DOI : null;
     tambah({
-      jenis: it.type === "book" || it.type === "monograph" ? "buku" : "jurnal",
+      jenis: it.type === "dissertation" ? "disertasi" : it.type === "book" || it.type === "monograph" ? "buku" : "jurnal",
       judul,
       penulis: ((it.author as { given?: string; family?: string }[]) ?? [])
         .map((a) => `${a.given ?? ""} ${a.family ?? ""}`.trim())
@@ -278,7 +294,11 @@ export async function cariRujukanTamu(
       tahun: String(
         (it.published as { "date-parts"?: number[][] } | undefined)?.["date-parts"]?.[0]?.[0] ?? "",
       ),
-      wadah: Array.isArray(it["container-title"]) ? String(it["container-title"][0] ?? "") : "",
+      wadah: Array.isArray(it["container-title"])
+        ? String(it["container-title"][0] ?? "")
+        : it.type === "dissertation" && typeof it.publisher === "string"
+          ? it.publisher
+          : "",
       doi,
       isbn: Array.isArray(it.ISBN) ? String(it.ISBN[0] ?? "") || null : null,
       tautan: doi ? `https://doi.org/${doi}` : "",
@@ -389,7 +409,7 @@ export async function cariRujukanTamu(
       Number(b.inti) - Number(a.inti) ||
       b.skorMentah - a.skorMentah,
   );
-  const jurnal = lolos.filter((k) => k.jenis === "jurnal").slice(0, 4);
+  const jurnal = lolos.filter((k) => k.jenis === "jurnal").slice(0, Math.max(0, batas - 1));
   const buku = lolos.filter((k) => k.jenis === "buku");
   const bukuTerverifikasi = buku.find((k) => k.terverifikasi);
   const pilihan: Kandidat[] = [...jurnal];
@@ -397,11 +417,11 @@ export async function cariRujukanTamu(
   if (bukuTerverifikasi) pilihan.push(bukuTerverifikasi);
   else if (buku[0]) pilihan.push(buku[0]); // buku belum terverifikasi: tampil apa adanya dengan labelnya
   for (const k of lolos) {
-    if (pilihan.length >= 5) break;
+    if (pilihan.length >= batas) break;
     if (!pilihan.includes(k)) pilihan.push(k);
   }
 
-  return pilihan.slice(0, 5).map((k, i) => ({
+  return pilihan.slice(0, batas).map((k, i) => ({
     id: `ref-${i + 1}`,
     jenis: k.jenis,
     judul: k.judul,

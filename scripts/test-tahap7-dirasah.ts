@@ -452,6 +452,117 @@ async function main() {
     `${hasilM.belumDinilai}`,
   );
 
+  /* ============ N: jatah hasil dirasah (tutup R2 telaah Tahap 7) ============ */
+  // cariRujukanTamu diberi jatah khusus dirasah lewat parameter
+  // batas; bawaan bersama (tamu dan Generate) tetap 5. Fetch luar
+  // diganti fixture OpenAlex setempat; penyedia lain dikosongkan.
+  {
+    const { cariRujukanTamu } = await import("../lib/server/rujukan");
+    const karya = (i: number, jenis: string) => ({
+      doi: `https://doi.org/10.1/uji-${jenis}-${i}`,
+      title: `أصول الفقه المعاصر دراسة رقم ${i}`,
+      type: jenis === "buku" ? "book" : "article",
+      authorships: [{ author: { display_name: `باحث ${i}` } }],
+      publication_year: 2015 + i,
+      primary_location: { source: { display_name: "مجلة أصولية" } },
+      primary_topic: { field: { display_name: "Social Sciences" } },
+      id: `https://openalex.org/W-uji-${jenis}-${i}`,
+    });
+    const asliFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL) => {
+      const u = String(url);
+      const kosong = { ok: false, status: 404, json: async () => ({}) } as Response;
+      if (u.includes("api.openalex.org") && u.includes("filter=type:book")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ results: [karya(21, "buku"), karya(22, "buku"), karya(23, "buku")] }),
+        } as Response;
+      }
+      if (u.includes("api.openalex.org")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            results: Array.from({ length: 10 }, (_, i) => karya(i + 1, "jurnal")),
+          }),
+        } as Response;
+      }
+      if (u.includes("api.crossref.org")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ message: { items: [] } }),
+        } as Response;
+      }
+      return kosong;
+    }) as typeof fetch;
+    try {
+      const bawaan = await cariRujukanTamu("أصول الفقه المعاصر", ["أصول الفقه"]);
+      const jatahDirasah = await cariRujukanTamu("أصول الفقه المعاصر", ["أصول الفقه"], 8);
+      cek(
+        "N1 jatah bawaan bersama tetap 5 (jalur tamu dan Generate tidak berubah)",
+        bawaan.length === 5,
+        `${bawaan.length} hasil`,
+      );
+      cek(
+        "N2 jatah dirasah naik menjadi 8 dengan komposisi yang sama (ada buku)",
+        jatahDirasah.length === 8 && jatahDirasah.some((r) => r.jenis === "buku"),
+        `${jatahDirasah.length} hasil, buku ${jatahDirasah.filter((r) => r.jenis === "buku").length}`,
+      );
+    } finally {
+      globalThis.fetch = asliFetch;
+    }
+    // R3 telaah Tahap 7: tipe disertasi dari indeks terbawa sebagai
+    // jenis disertasi dan terpetakan ke skripsi saat menjadi Sumber.
+    globalThis.fetch = (async (url: string | URL) => {
+      const u = String(url);
+      if (u.includes("api.openalex.org")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ results: [karya(1, "jurnal")] }),
+        } as Response;
+      }
+      if (u.includes("api.crossref.org")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            message: {
+              items: [
+                {
+                  title: ["أصول الفقه المعاصر دراسة رقم 31"],
+                  DOI: "10.1/uji-disertasi-31",
+                  type: "dissertation",
+                  author: [{ given: "باحث", family: "الرسالة" }],
+                  published: { "date-parts": [[2022]] },
+                  publisher: "جامعة الاختبار",
+                },
+              ],
+            },
+          }),
+        } as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as Response;
+    }) as typeof fetch;
+    try {
+      const hasilDis = await cariRujukanTamu("أصول الفقه المعاصر", ["أصول الفقه"], 8);
+      const dis = hasilDis.find((r) => r.jenis === "disertasi");
+      const sumberDis = dis ? rujukanKeSumber(dis) : null;
+      cek(
+        "N3 disertasi indeks terpetakan ke skripsi dengan lembaga sebagai penerbit",
+        !!dis &&
+          dis.wadah === "جامعة الاختبار" &&
+          sumberDis?.jenis === "skripsi" &&
+          sumberDis?.penerbit === "جامعة الاختبار",
+        `${hasilDis.map((r) => r.jenis).join(",")}`,
+      );
+    } finally {
+      globalThis.fetch = asliFetch;
+    }
+  }
+
   /* ============ L: metadata dan penjaga statis ============ */
   cek("L1 metadataMemadai menuntut judul, penulis, tahun",
     metadataMemadai(ruj({ judul: "دراسة كاملة" })) === true &&
