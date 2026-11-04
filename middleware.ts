@@ -139,6 +139,15 @@ const JALUR_BEBAS = new Set([
   "/favicon.ico",
   "/robots.txt",
   "/sitemap.xml",
+  // Berkas merek statis harus tercapai tanpa cookie: perayap pratinjau
+  // tautan (WhatsApp, Facebook, X) mengambil og:image tanpa sesi, dan
+  // favicon pengunjung anonim tidak boleh dipantulkan ke /masuk. Isinya
+  // hanya logo dan gambar pratinjau publik, tanpa data pengguna.
+  "/og-image.png",
+  "/favicon.svg",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/apple-touch-icon.png",
   // Login Google kini terjadi DI halaman awal, SEBELUM kunci akses —
   // endpoint penukar id_token dan pembaca status identitas harus bisa
   // dicapai tanpa cookie gerbang. Keamanan keduanya BUKAN gerbang ini:

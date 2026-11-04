@@ -6,7 +6,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { AgenWidget } from "@/components/agen-widget";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://kitabah.web.id"),
+  metadataBase: new URL("https://www.kitabah.web.id"),
   title: {
     default: "كتابة Kitabah — Ruang Kerja Karya Ilmiah Berbahasa Arab",
     template: "%s · Kitabah",
