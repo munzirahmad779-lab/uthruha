@@ -12,8 +12,12 @@
  *     menahan kandidat, walau seluruh model AI mati.
  *  2. PENILAIAN MODEL (kolam premium, meneruskan opsi BYOK pemanggil):
  *     model menilai kesesuaian kandidat dengan kalimat tujuan dan bidang
- *     proyek. Bila model gagal total, statusnya "tidak-dinilai" dan skor
- *     TIDAK dikarang; keputusan kembali ke aturan keras saja.
+ *     proyek, dari isi atau abstrak kandidat bila sumber menyediakannya.
+ *     Bila model gagal total, statusnya "tidak-dinilai", skor TIDAK
+ *     dikarang, dan gerbang GAGAL TERTUTUP (Tahap 4, menutup temuan S1
+ *     telaah komit koreksi): kandidat ditahan sebagai perluKonfirmasi
+ *     dengan alasan terus terang, tidak lolos diam-diam hanya karena
+ *     aturan kerasnya bersih.
  *
  * Hasil tertahan bukan penolakan mutlak: pemanggil mengembalikannya
  * sebagai perluKonfirmasi agar pengguna bisa memutuskan sendiri, dan
@@ -47,6 +51,11 @@ export interface KandidatRelevansi {
   jurnal?: string;
   /** "jurnal" | "buku" | jenis lain dari pipeline rujukan. */
   jenis?: string;
+  /** Isi nyata kandidat dari sumbernya (abstrak artikel, atau cuplikan
+   *  teks kitab dari Turath/Shamela). Bila terisi, model menilai
+   *  dukungan isi terhadap kalimat tujuan, bukan hanya kemasan judul
+   *  (poin A8 audit kode). Tidak pernah diisi karangan pemanggil. */
+  isi?: string;
 }
 
 /** Opsi kolam yang diteruskan apa adanya ke panggilKolam (BYOK). */
@@ -240,8 +249,10 @@ Aturan:
 - Artikel dari bidang lain (mis. sosiologi umum, manajemen organisasi, pendidikan jasmani, kedokteran) yang hanya berbagi satu dua kata umum dengan kalimat tujuan dinilai sesuai: false dengan skor rendah.
 - "skor" adalah angka 0 sampai 100 untuk kekuatan kesesuaian, bukan persen keyakinan.
 - "bidangSumber" isi dengan nama bidang kandidat menurut bacaan Anda.
-- "alasan" satu kalimat Bahasa Indonesia yang menyebut bukti pada judul atau nama jurnal kandidat.
-- Jangan mengarang isi artikel di luar judul dan nama jurnal yang diberikan.`;
+- "alasan" satu kalimat Bahasa Indonesia yang menyebut bukti pada judul, nama jurnal, atau isi kandidat.
+- Bila isi atau abstrak kandidat diberikan, nilai dari ISI itu: apakah isi tersebut benar-benar mendukung makna kalimat tujuan, bukan sekadar berbagi kata umum. Isi yang tidak mendukung kalimat tujuan berarti sesuai: false walau judulnya terdengar dekat.
+- Bila makna kalimat tujuan menurut analisis konteks diberikan, pakai rumusan makna itu sebagai acuan utama, bukan bunyi kalimatnya saja.
+- Jangan mengarang isi artikel di luar yang diberikan.`;
 
 interface NilaiModelMentah {
   sesuai: boolean;
@@ -275,17 +286,25 @@ function parseNilaiModel(raw: string): NilaiModelMentah | null {
  *  1. Aturan keras bidang asing terdeteksi dan bukan bidang proyek:
  *     tertahan TANPA memanggil model (kasus Durkheim tertangkap di sini
  *     walau model mati, dan kuota model hemat).
- *  2. Model menilai. sesuai true dan skor >= AMBANG_SKOR_MODEL: lolos.
- *     Selain itu: tertahan sebagai perluKonfirmasi.
+ *  2. Model menilai (dari isi kandidat bila ada). sesuai true dan skor
+ *     >= AMBANG_SKOR_MODEL: lolos. Selain itu: tertahan sebagai
+ *     perluKonfirmasi.
  *  3. Model gagal total atau balasannya tidak terbaca: status
- *     "tidak-dinilai", skor tidak dikarang, kandidat lolos berdasarkan
- *     aturan keras yang bersih agar pemanggil memutuskan sendiri.
+ *     "tidak-dinilai", skor tidak dikarang, gerbang GAGAL TERTUTUP:
+ *     kandidat tertahan sebagai perluKonfirmasi dengan alasan terus
+ *     terang. Tidak ada kandidat yang terpasang tanpa penilaian.
  */
 export async function nilaiRelevansi(
   kandidat: KandidatRelevansi,
   konteks: KonteksProyek,
   kalimatTujuan: string,
   opsiKolam?: OpsiKolamGerbang,
+  opsi?: {
+    /** Rumusan makna kalimat tujuan dari analisis konteks paragraf
+     *  (klaim + dukungan yang dibutuhkan), agar model menilai makna,
+     *  bukan bunyi kalimat saja. */
+    maknaKalimat?: string;
+  },
 ): Promise<HasilGerbang> {
   const wadah = kandidat.wadah ?? kandidat.jurnal ?? "";
   const bidangKeras = deteksiBidangSumber(kandidat.judul, wadah);
@@ -304,9 +323,15 @@ export async function nilaiRelevansi(
     `Judul proyek: ${konteks.judulProyek || "(tidak diisi)"}`,
     `Topik proyek: ${konteks.topik || "(tidak diisi)"}`,
     `Kalimat tujuan tempat footnote menempel: ${kalimatTujuan.slice(0, 600)}`,
+    ...(opsi?.maknaKalimat
+      ? [`Makna kalimat tujuan menurut analisis konteks paragraf: ${opsi.maknaKalimat.slice(0, 600)}`]
+      : []),
     `Judul kandidat: ${kandidat.judul}`,
     `Jurnal atau wadah kandidat: ${wadah || "(tidak diketahui)"}`,
     `Jenis kandidat: ${kandidat.jenis || "(tidak diketahui)"}`,
+    ...(kandidat.isi
+      ? [`Isi kandidat dari sumbernya (abstrak atau cuplikan teks): ${kandidat.isi.slice(0, 1200)}`]
+      : []),
   ].join("\n");
 
   let nilai: NilaiModelMentah | null = null;
@@ -327,12 +352,15 @@ export async function nilaiRelevansi(
   }
 
   if (!nilai) {
+    // GAGAL TERTUTUP (Tahap 4): model yang tidak bisa menilai bukan
+    // alasan meloloskan. Kandidat ditahan dan keputusan diserahkan ke
+    // pengguna dengan alasan yang terus terang.
     return {
-      lolos: true,
-      perluKonfirmasi: false,
+      lolos: false,
+      perluKonfirmasi: true,
       bidangSumber: bidangKeras ?? "",
       alasan:
-        "Penilaian model tidak tersedia, sehingga kandidat hanya disaring aturan keras bidang dan aturan keras itu bersih. Periksa sendiri kesesuaian topiknya sebelum mengutip.",
+        "Penilaian model tidak tersedia (model gagal menjawab, misalnya kuota kunci habis atau layanan AI sedang terganggu), sehingga kandidat ini BELUM dinilai kesesuaiannya. Aturan keras bidang bersih bukan bukti sesuai. Periksa sendiri isi sumbernya, atau pasang paksa dengan tanggung jawab Anda.",
       statusPenilaian: "tidak-dinilai",
     };
   }
@@ -358,4 +386,63 @@ export async function nilaiRelevansi(
     skorModel: nilai.skor,
     statusPenilaian: "dinilai",
   };
+}
+
+/** Bentuk minimal kandidat Cari Rujukan yang dinilai gerbang. `kunci`
+ *  adalah kunci dedupe pemanggil: kandidat yang sama dari beberapa
+ *  kalimat berbagi satu putusan. */
+export interface BentukKandidatCari {
+  kunci: string;
+  judul: string;
+  wadah?: string;
+  jenis?: string;
+  /** Kalimat asal tempat kandidat ini akan dipasang. */
+  kalimat: string;
+}
+
+/**
+ * Nilai kandidat-kandidat Cari Rujukan dengan gerbang yang sama dengan
+ * Generate Footnote (Tahap 4, menutup temuan S3 telaah komit koreksi:
+ * jalur ini dulu tidak melewati penilaian bidang sama sekali).
+ *
+ * Kandidat dinilai unik per kunci dedupe, urut seperti diberikan
+ * pemanggil (pemanggil mengurutkan skor tertinggi lebih dulu), dibatasi
+ * `maksDinilai` penilaian agar satu pencarian tidak berubah menjadi
+ * belasan panggilan model. Kandidat di luar batas tidak mendapat
+ * putusan (pemanggil wajib menyatakannya sebagai belum dinilai, bukan
+ * menyembunyikannya). Aturan keras tidak memakai jatah penilaian model
+ * tetapi tetap dihitung sebagai putusan.
+ */
+export async function nilaiUntukCariRujukan(
+  daftar: BentukKandidatCari[],
+  konteks: KonteksProyek,
+  opsiKolam?: OpsiKolamGerbang,
+  maksDinilai = 6,
+): Promise<{ putusan: Map<string, HasilGerbang>; belumDinilai: number }> {
+  const putusan = new Map<string, HasilGerbang>();
+  const unik = new Map<string, BentukKandidatCari>();
+  for (const k of daftar) {
+    if (!unik.has(k.kunci)) unik.set(k.kunci, k);
+  }
+  let dinilai = 0;
+  let belumDinilai = 0;
+  for (const k of unik.values()) {
+    const bidangKeras = deteksiBidangSumber(k.judul, k.wadah ?? "");
+    const kerasMenolak = Boolean(bidangKeras && !bidangMilikProyek(bidangKeras, konteks));
+    if (!kerasMenolak && dinilai >= maksDinilai) {
+      belumDinilai += 1;
+      continue;
+    }
+    if (!kerasMenolak) dinilai += 1;
+    putusan.set(
+      k.kunci,
+      await nilaiRelevansi(
+        { judul: k.judul, wadah: k.wadah, jenis: k.jenis },
+        konteks,
+        k.kalimat,
+        opsiKolam,
+      ),
+    );
+  }
+  return { putusan, belumDinilai };
 }

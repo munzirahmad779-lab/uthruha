@@ -44,8 +44,14 @@ export function RefFinder({
 }: {
   p: Project;
   onSisip: (blok: string, sumber: Sumber[]) => void;
-  /** Pasang footnote terarah (pilih paragraf & kalimat) — disediakan tab Tulis. */
-  onPasang?: (sumber: Sumber, kutipan: string) => void;
+  /** Pasang footnote terarah (pilih paragraf & kalimat) — disediakan tab Tulis.
+   *  Argumen ketiga: putusan gerbang bidang bila kandidat ini tertahan
+   *  (Tahap 4); dialog wajib meminta konfirmasi sadar penulis. */
+  onPasang?: (
+    sumber: Sumber,
+    kutipan: string,
+    gerbangTertahan?: { bidangSumber: string; alasan: string },
+  ) => void;
   tutup: () => void;
 }) {
   const pedoman: PedomanRules = p.pedoman ?? pedomanDefault();
@@ -106,6 +112,12 @@ export function RefFinder({
           tanpaLLM: !pakaiLLM,
           kunciLLM: kunciPribadi.trim() || undefined,
           konsepKustom: overrideKonsep && overrideKonsep.length > 0 ? overrideKonsep : undefined,
+          // Konteks gerbang relevansi bidang (Tahap 4): server menilai
+          // kandidat teratas dengan gerbang yang sama seperti Generate
+          // Footnote. Judul lebih dulu, topik warisan hanya cadangan.
+          bidangId: p.bidangId,
+          judulProyek: p.judulAr ?? "",
+          topikAr: p.judulAr || p.topikAr,
         }),
       });
       const data = (await r.json()) as SearchResponse & { error?: string };
@@ -585,6 +597,24 @@ export function RefFinder({
                           </p>
                         )}
 
+                        {h.gerbang && !h.gerbang.lolos && (
+                          <p className="mt-1.5 rounded-lg bg-red-50 px-2 py-1.5">
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10.5px] font-semibold text-red-800">
+                              Tertahan gerbang bidang{h.gerbang.bidangSumber ? `: ${h.gerbang.bidangSumber}` : ""}
+                            </span>
+                            {h.gerbang.alasan && (
+                              <span className="ms-1.5 text-[10.5px] leading-relaxed text-red-800">{h.gerbang.alasan}</span>
+                            )}
+                          </p>
+                        )}
+                        {h.gerbang && h.gerbang.lolos && (
+                          <p className="mt-1.5">
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-800">
+                              Lolos gerbang bidang{h.gerbang.skorModel ? ` · skor ${h.gerbang.skorModel}` : ""}
+                            </span>
+                          </p>
+                        )}
+
                         {h.perluVerifikasi && h.catatanVerifikasi && (
                           <p className="mt-1.5 text-[10.5px] leading-relaxed text-amber-800">! {h.catatanVerifikasi}</p>
                         )}
@@ -607,7 +637,15 @@ export function RefFinder({
                           {onPasang && (
                             <button
                               type="button"
-                              onClick={() => onPasang(kandidatKeSumber(h), h.teks_kutipan)}
+                              onClick={() =>
+                                onPasang(
+                                  kandidatKeSumber(h),
+                                  h.teks_kutipan,
+                                  h.gerbang && !h.gerbang.lolos
+                                    ? { bidangSumber: h.gerbang.bidangSumber, alasan: h.gerbang.alasan }
+                                    : undefined,
+                                )
+                              }
                               className="btn-quiet !px-2 !py-1 !text-[11px]"
                             >
                               Pasang footnote

@@ -34,6 +34,13 @@ export interface RujukanTamu {
    * skor tokennya otomatis penuh, tetapi ia gambaran umum, bukan rujukan
    * inti. Label di klien menurunkannya dari "tinggi" (audit Cue 29 Okt). */
   umum: boolean;
+  /** Isi nyata dari sumbernya bila indeks menyediakannya: abstrak
+   *  OpenAlex/Crossref atau deskripsi Google Books untuk maraji', teks
+   *  kutipan halaman untuk masadir. Dipakai gerbang relevansi untuk
+   *  menilai dukungan isi (bukan hanya judul) dan ditampilkan ke
+   *  mahasiswa sebagai kalimat isi kandidat (Tahap 4). Kosong berarti
+   *  sumber memang tidak menyediakan isi — tidak pernah diisi karangan. */
+  cuplikan?: string;
   /** Jilid & halaman cetak — diisi jalur masadir (Turath/Shamela). */
   jilid?: string;
   halaman?: string;
@@ -70,6 +77,39 @@ export function tokenJudul(teks: string): Set<string> {
       .map(batangKata)
       .filter((t) => t.length >= 3),
   );
+}
+
+/** Susun ulang abstrak OpenAlex dari indeks kata terbaliknya
+ *  (abstract_inverted_index: kata → daftar posisi). Mengembalikan
+ *  undefined bila bentuknya tidak dikenal atau kosong. */
+export function teksDariIndeksTerbalik(indeks: unknown): string | undefined {
+  if (!indeks || typeof indeks !== "object" || Array.isArray(indeks)) return undefined;
+  const posisi = new Map<number, string>();
+  let maks = -1;
+  for (const [kata, daftar] of Object.entries(indeks as Record<string, unknown>)) {
+    if (!Array.isArray(daftar)) continue;
+    for (const p of daftar) {
+      if (typeof p === "number" && Number.isInteger(p) && p >= 0) {
+        posisi.set(p, kata);
+        if (p > maks) maks = p;
+      }
+    }
+  }
+  if (maks < 0) return undefined;
+  const kata: string[] = [];
+  for (let i = 0; i <= maks; i++) kata.push(posisi.get(i) ?? "");
+  const teks = kata.join(" ").replace(/\s+/g, " ").trim();
+  return teks ? teks.slice(0, 1200) : undefined;
+}
+
+/** Bersihkan abstrak Crossref (JATS/XML + tag HTML) menjadi teks biasa. */
+export function teksDariAbstrakMentah(mentah: unknown): string | undefined {
+  if (typeof mentah !== "string" || !mentah.trim()) return undefined;
+  const teks = mentah
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return teks ? teks.slice(0, 1200) : undefined;
 }
 
 function skorRelevansi(kueri: Set<string>, judul: string): number {
@@ -181,6 +221,7 @@ export async function cariRujukanTamu(
       isbn: null,
       tautan: doi ? `https://doi.org/${doi}` : typeof w.id === "string" ? w.id : "",
       terverifikasi: false,
+      cuplikan: teksDariIndeksTerbalik(w.abstract_inverted_index),
       skorMentah: skorRelevansi(kueriToken, judul),
     });
   }
@@ -210,6 +251,7 @@ export async function cariRujukanTamu(
       isbn: null,
       tautan: doi ? `https://doi.org/${doi}` : typeof w.id === "string" ? w.id : "",
       terverifikasi: false,
+      cuplikan: teksDariIndeksTerbalik(w.abstract_inverted_index),
       skorMentah: skorRelevansi(kueriToken, judul),
     });
   }
@@ -241,6 +283,7 @@ export async function cariRujukanTamu(
       isbn: Array.isArray(it.ISBN) ? String(it.ISBN[0] ?? "") || null : null,
       tautan: doi ? `https://doi.org/${doi}` : "",
       terverifikasi: false,
+      cuplikan: teksDariAbstrakMentah(it.abstract),
       dariCrossref: true,
       skorMentah: skorRelevansi(kueriToken, judul),
     });
@@ -265,6 +308,7 @@ export async function cariRujukanTamu(
       isbn: isbnMentah || null,
       tautan: typeof info.infoLink === "string" ? info.infoLink : "",
       terverifikasi: false,
+      cuplikan: teksDariAbstrakMentah(info.description),
       skorMentah: skorRelevansi(kueriToken, info.title),
     });
   }
@@ -368,6 +412,7 @@ export async function cariRujukanTamu(
     isbn: k.isbn,
     tautan: k.tautan,
     terverifikasi: k.terverifikasi,
+    ...(k.cuplikan ? { cuplikan: k.cuplikan } : {}),
     skor: Math.round(k.skorMentah * 100) / 100,
     kecocokan: k.frasa,
     inti: k.inti,

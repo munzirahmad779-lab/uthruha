@@ -1,12 +1,26 @@
 /**
  * Generate Footnote otomatis (fitur Premium, keputusan pemilik 30 Okt 2026).
  *
- * Mahasiswa menaruh kursor di paragraf, satu klik: AI menyusun kalimat
- * kunci dari paragraf itu, mencari rujukan baru di web (OpenAlex,
- * Crossref, Google Books, Open Library — pipeline yang sama dengan uji
- * coba tamu, lengkap dengan verifikasi DOI/ISBN), memilih rujukan dan
- * kalimat tempat footnote menempel, selesai. Tanpa dialog, tanpa memilih
- * paragraf/kalimat/rujukan sendiri.
+ * Dua alur:
+ *  1. ALUR SELEKSI (Tahap 4, perintah pemilik): mahasiswa MEMBLOK teks di
+ *     editor; teks itu utuh menjadi unit pencarian utama. Model lebih
+ *     dulu memahami makna kalimat dalam konteks paragrafnya, lalu
+ *     kandidat dicari dan dinilai gerbang relevansi. Hasilnya DAFTAR
+ *     kandidat (target minimal 3 yang lolos) beserta kalimat isi nyata
+ *     dari sumbernya; mahasiswa sendiri yang memilih yang dipasang.
+ *     Tidak ada pemasangan otomatis pada alur ini.
+ *  2. ALUR KURSOR (lama, tetap berjalan): mahasiswa menaruh kursor di
+ *     paragraf, satu klik: AI menyusun kalimat kunci dari paragraf itu,
+ *     mencari rujukan baru di web (OpenAlex, Crossref, Google Books,
+ *     Open Library — pipeline yang sama dengan uji coba tamu, lengkap
+ *     dengan verifikasi DOI/ISBN), memilih SATU rujukan yang lolos
+ *     gerbang dan kalimat tempat footnote menempel.
+ *
+ * Semua kandidat dari kedua jalur, maraji' maupun masadir, melewati
+ * gerbang relevansi yang sama, dan gerbang itu gagal tertutup: model
+ * yang tidak bisa menilai menahan kandidat, bukan meloloskannya.
+ * Kandidat tertahan hanya dipasang lewat pasangFootnoteDisetujui
+ * dengan sidik terbitan server untuk kandidat yang persis ditampilkan.
  *
  * Dua jalur rujukan: MARAJI' dari web umum (jurnal/buku modern, boleh
  * dari mana saja) dan MASADIR dari Turath.io + Shamela (kitab turath,
@@ -26,6 +40,7 @@
  * Pemanggilan AI selalu lewat kolam dengan premium: true — hanya kunci
  * kolam premium (lalu cadangan umum) yang dipakai di jalur ini.
  */
+import { createHash } from "node:crypto";
 import { panggilKolam } from "./kolam";
 import { cariRujukanTamu, tokenJudul, type RujukanTamu } from "./rujukan";
 import {
@@ -34,7 +49,7 @@ import {
   simpanKeBank,
   simpanSidikParagraf,
 } from "./bank-rujukan";
-import { idAcak } from "./store";
+import { ambil, idAcak, simpan } from "./store";
 import { getBidang } from "@/lib/content/bidang";
 import {
   bidangMilikProyek,
@@ -46,6 +61,7 @@ import type { Sumber } from "@/lib/engine/cite";
 import { cari as cariTurath, cariKonsep as cariKonsepTurath } from "@/lib/refs/adapters/turath";
 import { cari as cariShamela } from "@/lib/refs/adapters/shamela";
 import { ekstrakKonsep } from "@/lib/refs/konsep";
+import { bersihkanKutipan } from "@/lib/refs/score";
 import type { RefCandidate } from "@/lib/refs/types";
 
 /** Sama persis dengan pecahKalimatLokal di komponen dialog pasang footnote. */
@@ -113,6 +129,154 @@ async function kalimatKunciDariAI(paragraf: string, kolam?: OpsiKolamTerusan): P
   } catch {
     return null;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Analisis makna (Tahap 4, poin A8): model membaca paragraf dan        */
+/* kalimat yang DIBLOK penulis, merumuskan pokok bahasan paragraf,      */
+/* klaim kalimat itu, dan dukungan rujukan yang dibutuhkannya, lalu     */
+/* menyusun frasa pencarian DARI MAKNA tersebut. Unit pencarian utama   */
+/* tetap teks seleksi itu sendiri utuh (perintah pemilik), frasa makna  */
+/* hanya pendamping kueri. Bila model gagal, frasa makna kosong dan     */
+/* pencarian berjalan dengan seleksi apa adanya — dinyatakan jujur      */
+/* lewat maknaDariModel pada hasil.                                     */
+/* ------------------------------------------------------------------ */
+
+const SISTEM_MAKNA = `Anda adalah pemaham makna naskah akademik berbahasa Arab.
+Tugas Anda membaca SATU paragraf naskah dan SATU kalimat di dalamnya yang diblok penulis, lalu merumuskan makna dan kebutuhan rujukannya.
+Aturan:
+- Keluarkan HANYA JSON valid, tanpa penjelasan, tanpa markdown:
+  {"topikParagraf":"...","klaim":"...","kebutuhan":"...","arab":["..."],"indonesia":["..."],"inggris":["..."]}
+- "topikParagraf": pokok bahasan paragraf itu, satu frasa Bahasa Indonesia.
+- "klaim": apa yang sebenarnya dinyatakan kalimat yang diblok, satu sampai dua kalimat Bahasa Indonesia. Tangkap maknanya, jangan menyalin bunyi kalimatnya.
+- "kebutuhan": jenis dukungan rujukan yang dibutuhkan klaim itu (mis. data statistik, definisi istilah, pendapat ulama, hasil penelitian terdahulu, dasar hukum), satu kalimat Bahasa Indonesia.
+- "arab", "indonesia", "inggris": frasa pencarian 3-7 kata yang dirumuskan dari MAKNA klaim dan kebutuhannya (istilah akademik yang lazim dipakai literatur bidang itu), arab 2-3 frasa, indonesia 1-2, inggris 1-2. Bukan potongan kata dari kalimatnya.
+- Jangan mengarang nama penulis, judul, tahun, atau DOI. Hanya makna dan frasa dari teks pengguna.`;
+
+export interface AnalisisMakna {
+  topikParagraf: string;
+  klaim: string;
+  kebutuhan: string;
+  /** Frasa pencarian gabungan dari makna (Arab lebih dulu). */
+  frasa: string[];
+}
+
+interface MaknaMentah {
+  topikParagraf: string;
+  klaim: string;
+  kebutuhan: string;
+  arab: string[];
+  indonesia: string[];
+  inggris: string[];
+}
+
+function parseMakna(raw: string): MaknaMentah | null {
+  try {
+    const bersih = raw.replace(/```json|```/g, "").trim();
+    const json = JSON.parse(bersih.slice(bersih.indexOf("{"), bersih.lastIndexOf("}") + 1)) as Record<string, unknown>;
+    const teks = (v: unknown) => (typeof v === "string" ? v.trim().slice(0, 400) : "");
+    const arr = (v: unknown) =>
+      Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim()).slice(0, 4) : [];
+    const hasil: MaknaMentah = {
+      topikParagraf: teks(json.topikParagraf),
+      klaim: teks(json.klaim),
+      kebutuhan: teks(json.kebutuhan),
+      arab: arr(json.arab),
+      indonesia: arr(json.indonesia),
+      inggris: arr(json.inggris),
+    };
+    return hasil.klaim || hasil.arab.length || hasil.indonesia.length ? hasil : null;
+  } catch {
+    return null;
+  }
+}
+
+async function analisisMaknaDariAI(
+  paragraf: string,
+  seleksi: string,
+  kolam?: OpsiKolamTerusan,
+): Promise<AnalisisMakna | null> {
+  try {
+    const hasil = await panggilKolam({
+      sistem: SISTEM_MAKNA,
+      pengguna: `Paragraf:\n${paragraf.slice(0, 3000)}\n\nKalimat yang diblok penulis:\n${seleksi}`,
+      maksToken: 600,
+      json: true,
+      premium: true,
+      pribadi: kolam?.pribadi,
+      wajibPribadi: kolam?.wajibPribadi,
+      pinjaman: kolam?.pinjaman,
+    });
+    if (!hasil.teks) return null;
+    const m = parseMakna(hasil.teks);
+    if (!m) return null;
+    const gabung = [...m.arab.slice(0, 2), ...m.indonesia.slice(0, 1), ...m.inggris.slice(0, 1)];
+    const unik = [...new Set(gabung.map((x) => x.trim()).filter((x) => x.length >= 8))];
+    return {
+      topikParagraf: m.topikParagraf,
+      klaim: m.klaim,
+      kebutuhan: m.kebutuhan,
+      frasa: unik.slice(0, 4),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Kalimat isi kandidat: kalimat dari isi nyata sumber (abstrak atau
+ * cuplikan teks) yang paling menyentuh teks acuan. Yang ditampilkan
+ * selalu teks sumber apa adanya; fungsi ini hanya MEMILIH kalimatnya.
+ * Undefined bila sumber tidak menyediakan isi, atau tidak ada kalimat
+ * isinya yang menyentuh acuan sama sekali — kandidat lalu ditandai
+ * tanpa kalimat isi, tidak diisi karangan.
+ */
+export function pilihKalimatIsi(cuplikan: string | undefined, acuan: string): string | undefined {
+  const bersih = (cuplikan ?? "").replace(/\s+/g, " ").trim();
+  if (!bersih) return undefined;
+  if (bersih.length <= 420) return bersih;
+  const kalimat = pecahKalimatServer(bersih);
+  if (kalimat.length <= 1) return bersih.slice(0, 420);
+  const tokenAcuan = tokenJudul(acuan);
+  if (tokenAcuan.size === 0) return undefined;
+  let terbaik: string | undefined;
+  let skorTerbaik = 0;
+  for (const k of kalimat) {
+    const t = tokenJudul(k);
+    let sama = 0;
+    for (const x of t) if (tokenAcuan.has(x)) sama += 1;
+    if (sama > skorTerbaik) {
+      skorTerbaik = sama;
+      terbaik = k;
+    }
+  }
+  return terbaik ? terbaik.slice(0, 500) : undefined;
+}
+
+/** Indeks kalimat paragraf yang memuat teks seleksi (untuk pesan hasil
+ *  dan cadangan penanaman per kalimat bila posisi seleksi sudah basi). */
+export function indeksKalimatSeleksi(paragraf: string, seleksi: string): number {
+  const kalimat = pecahKalimatServer(paragraf);
+  if (kalimat.length <= 1) return 0;
+  const normal = (s: string) => s.replace(/\s+/g, " ").trim();
+  const target = normal(seleksi);
+  for (let i = 0; i < kalimat.length; i++) {
+    const k = normal(kalimat[i] ?? "");
+    if (k && (target.includes(k) || k.includes(target))) return i;
+  }
+  const tokenTarget = tokenJudul(target);
+  let terbaik = 0;
+  let skorTerbaik = -1;
+  kalimat.forEach((k, i) => {
+    const t = tokenJudul(k);
+    let sama = 0;
+    for (const x of t) if (tokenTarget.has(x)) sama += 1;
+    if (sama > skorTerbaik) {
+      skorTerbaik = sama;
+      terbaik = i;
+    }
+  });
+  return terbaik;
 }
 
 /** Rujukan hasil web → Sumber proyek. Halaman/jilid mengikuti bawaan
@@ -198,6 +362,9 @@ async function cariMasadir(
       kecocokan: frasaToken.filter((s) => [...s].some((x) => token.has(x))).length,
       inti: tokenInti ? token.has(tokenInti) : false,
       umum: token.size <= 1,
+      // Teks halaman yang benar-benar cocok dari korpus: kalimat isi
+      // nyata kandidat masadir (Tahap 4), bukan karangan.
+      cuplikan: c.teks_kutipan ? bersihkanKutipan(c.teks_kutipan).slice(0, 900) || undefined : undefined,
       jilid: c.jilid ? String(c.jilid) : undefined,
       halaman: c.halaman_cetak ? String(c.halaman_cetak) : undefined,
       konsepCocok: c.konsep_cocok?.length ?? 0,
@@ -339,6 +506,36 @@ function pilihKalimat(
   return terbaik;
 }
 
+/** Satu kandidat yang LOLOS gerbang pada mode seleksi, siap dipilih
+ *  mahasiswa di panel kandidat. */
+export interface KandidatHasil {
+  sumber: Sumber;
+  /** Kalimat isi nyata dari sumbernya yang cocok dengan teks yang
+   *  diblok. Tidak ada (undefined) bila sumber tidak menyediakan isi
+   *  atau tidak ada kalimat isinya yang menyentuh teks tersebut. */
+  kalimatIsi?: string;
+  /** True bila kandidat memang tidak punya kalimat isi untuk
+   *  ditampilkan — klien wajib menyatakannya apa adanya. */
+  tanpaKalimatIsi?: boolean;
+  /** Skor penilaian model 0..100 bila model menilai kandidat ini. */
+  skorModel?: number;
+  /** True bila kandidat artikel jurnal tanpa nomor halaman. */
+  halamanKosong?: boolean;
+}
+
+/** Satu kandidat TERTAHAN gerbang pada mode seleksi atau alur lama.
+ *  Hanya bisa dipasang lewat pasangFootnoteDisetujui dengan sidiknya. */
+export interface TertahanHasil {
+  sumber: Sumber;
+  /** Sidik kandidat yang diterbitkan server untuk kandidat ini. */
+  sidik: string;
+  bidangSumber: string;
+  alasan: string;
+  kalimatIsi?: string;
+  tanpaKalimatIsi?: boolean;
+  halamanKosong?: boolean;
+}
+
 export interface HasilGenerate {
   ketemu: boolean;
   sumber?: Sumber;
@@ -347,31 +544,199 @@ export interface HasilGenerate {
   dariBank: boolean;
   dariSidik: boolean;
   catatan?: string;
-  /** Kandidat terbaik tertahan gerbang relevansi: klien menampilkan
-   *  alasannya dan menanyakan pengguna; pengguna memasang paksa dengan
-   *  mengirim ulang paksaKonfirmasi: true. */
+  /** Mode seleksi: kandidat yang lolos gerbang (target minimal 3 bila
+   *  tersedia), urut penilaian. Mahasiswa memilih sendiri; tidak ada
+   *  pemasangan otomatis. */
+  kandidat?: KandidatHasil[];
+  /** Mode seleksi: kandidat tertahan gerbang yang masih boleh dipasang
+   *  paksa lewat sidiknya (maksimal 3 ditampilkan). */
+  tertahan?: TertahanHasil[];
+  /** Mode seleksi: rumusan makna kalimat yang diblok. dariModel false
+   *  berarti analisis model tidak tersedia dan pencarian berjalan
+   *  dengan teks seleksi apa adanya. */
+  makna?: {
+    topikParagraf: string;
+    klaim: string;
+    kebutuhan: string;
+    dariModel: boolean;
+  };
+  /** Kandidat terbaik tertahan gerbang relevansi (alur kursor lama):
+   *  klien menampilkan alasannya dan menanyakan pengguna; pengguna
+   *  memasang persis kandidat ini lewat sidiknya
+   *  (pasangFootnoteDisetujui), bukan dengan menjalankan ulang jalur. */
   perluKonfirmasi?: {
     sumber: Sumber;
     kalimatIdx: number;
     bidangSumber: string;
     bidangProyek: string;
     alasan: string;
+    sidik: string;
   };
   /** Penolakan gerbang yang dicatat selama mencoba kandidat, urut
    *  pemeriksaan. Untuk audit dan pesan jujur ke pengguna. */
   penolakan?: { judul: string; alasan: string }[];
 }
 
-/** Batas pemeriksaan gerbang per generate: kandidat maraji' yang dinilai
- *  dibatasi agar satu klik tidak berubah menjadi belasan panggilan. */
+/* ------------------------------------------------------------------ */
+/* Sidik kandidat tertahan (Tahap 4, menutup temuan S2 + R1 telaah      */
+/* komit koreksi). Persetujuan pengguna terikat pada kandidat yang      */
+/* benar-benar ia lihat: server menerbitkan sidik (hash isi kandidat)   */
+/* dan mencatatnya di store atas nama pemiliknya. Pemasangan paksa      */
+/* hanya memasang kandidat yang sidiknya tercatat DAN cocok dengan      */
+/* data kandidat yang dikirim balik — jalur tidak dijalankan ulang,     */
+/* dan paksaKonfirmasi tanpa sidik tidak berlaku lagi.                  */
+/* ------------------------------------------------------------------ */
+
+function hashSidik(teks: string): string {
+  return createHash("sha256").update(teks).digest("hex").slice(0, 32);
+}
+
+/** Tupel kanonis kandidat dari bentuk RujukanTamu (sisi server). */
+function tupelDariRujukan(r: RujukanTamu): string {
+  return [
+    r.judul.trim(),
+    r.penulis.join("، "),
+    r.tahun ?? "",
+    r.wadah ?? "",
+    r.doi ?? "",
+    r.isbn ?? "",
+    r.halaman ?? "",
+    r.jilid ?? "",
+    r.jenis,
+  ].join("\n");
+}
+
+/** Tupel kanonis yang sama dari bentuk Sumber (yang dilihat klien).
+ *  Pemetaan jenis dan wadah meniru rujukanKeSumber persis. */
+function tupelDariSumber(s: Sumber): string {
+  return [
+    (s.judul ?? "").trim(),
+    s.penulis ?? "",
+    s.tahun ?? "",
+    s.jurnal ?? s.penerbit ?? "",
+    s.doi ?? "",
+    s.isbn ?? "",
+    s.halaman ?? "",
+    s.jilid ?? "",
+    s.jenis === "artikel" ? "jurnal" : "buku",
+  ].join("\n");
+}
+
+export function sidikKandidatDariRujukan(r: RujukanTamu): string {
+  return hashSidik(tupelDariRujukan(r));
+}
+
+export function sidikKandidatDariSumber(s: Sumber): string {
+  return hashSidik(tupelDariSumber(s));
+}
+
+const UMUR_SIDIK_MS = 24 * 60 * 60 * 1000;
+
+/** Catat sidik kandidat tertahan atas nama pemiliknya agar pemasangan
+ *  paksa nanti bisa diverifikasi. Kegagalan mencatat tidak menggagalkan
+ *  generate; ia hanya membuat sidik itu tidak bisa dipakai memasang. */
+async function terbitkanSidik(sidik: string, pemilik: string): Promise<void> {
+  if (!pemilik) return;
+  await simpan("tembolok", {
+    id: `konf:${sidik}`,
+    tipe: "konf",
+    pemilik,
+    dibuat: new Date().toISOString(),
+  }).catch(() => undefined);
+}
+
+/**
+ * Pasang PERSIS kandidat tertahan yang disetujui pengguna (Tahap 4).
+ * Tidak ada pencarian ulang dan tidak ada penilaian ulang: yang
+ * dipasang adalah data kandidat yang ditampilkan server sebelumnya,
+ * diverifikasi lewat sidik terbitan server + kecocokan isi data.
+ * Sumber hasil selalu bertanda perluVerifikasi.
+ */
+export async function pasangFootnoteDisetujui(opsi: {
+  sidik: string;
+  kandidat: Sumber;
+  paragraf: string;
+  kalimatIdx?: number;
+  /** Id pengguna pemilik sidik (dari sesi server, bukan dari klien). */
+  pemilik: string;
+}): Promise<HasilGenerate> {
+  const gagal = (catatan: string): HasilGenerate => ({
+    ketemu: false,
+    kalimatKunci: [],
+    dariBank: false,
+    dariSidik: false,
+    catatan,
+  });
+  const sidik = (opsi.sidik ?? "").trim();
+  if (!sidik || !opsi.kandidat || typeof opsi.kandidat.judul !== "string" || !opsi.kandidat.judul.trim()) {
+    return gagal("Data kandidat yang disetujui tidak lengkap. Minta generate ulang, lalu setujui kandidat yang ditampilkan.");
+  }
+  if (sidikKandidatDariSumber(opsi.kandidat) !== sidik) {
+    return gagal(
+      "Sidik kandidat tidak cocok dengan data kandidat yang dikirim balik, jadi pemasangan dibatalkan. Minta generate ulang, lalu setujui kandidat yang ditampilkan.",
+    );
+  }
+  const rec = (await ambil("tembolok", `konf:${sidik}`).catch(() => null)) as
+    | { pemilik?: string; dibuat?: string }
+    | null;
+  if (!rec || rec.pemilik !== opsi.pemilik) {
+    return gagal(
+      "Kandidat ini tidak tercatat sebagai kandidat tertahan yang diterbitkan server untuk akun Anda. Minta generate ulang, lalu setujui dari panel yang baru.",
+    );
+  }
+  const dibuat = Date.parse(rec.dibuat ?? "");
+  if (Number.isFinite(dibuat) && Date.now() - dibuat > UMUR_SIDIK_MS) {
+    return gagal("Persetujuan kandidat ini sudah kedaluwarsa (lebih dari 24 jam). Minta generate ulang.");
+  }
+  const paragraf = opsi.paragraf.replace(/\[\[ref:[^\]]*\]\]/g, "").trim();
+  const jumlahKalimat = Math.max(1, pecahKalimatServer(paragraf).length);
+  const kalimatIdx = Math.min(
+    Math.max(0, typeof opsi.kalimatIdx === "number" && Number.isFinite(opsi.kalimatIdx) ? Math.floor(opsi.kalimatIdx) : 0),
+    jumlahKalimat - 1,
+  );
+  const sumber: Sumber = { ...opsi.kandidat, perluVerifikasi: true };
+  return {
+    ketemu: true,
+    sumber,
+    kalimatIdx,
+    kalimatKunci: [],
+    dariBank: false,
+    dariSidik: false,
+    catatan:
+      "Dipasang persis kandidat yang Anda setujui pada panel konfirmasi, tanpa pencarian atau penilaian ulang. Sumber ditandai perlu verifikasi.",
+  };
+}
+
+/** Batas pemeriksaan gerbang per generate (alur kursor lama): kandidat
+ *  yang dinilai dibatasi agar satu klik tidak berubah menjadi belasan
+ *  panggilan. Mode seleksi memeriksa lebih banyak karena panelnya
+ *  menargetkan minimal 3 kandidat lolos. */
 const MAKS_KANDIDAT_GERBANG = 5;
-/** Batas PENILAIAN MODEL per generate (ketetapan hemat panggilan):
- *  hanya kandidat yang akan dipasang atau maraji' teratas yang dinilai
- *  model; penolakan aturan keras tidak memakai jatah ini. */
+const MAKS_KANDIDAT_SELEKSI = 10;
+/** Batas PENILAIAN MODEL per generate: hanya kandidat yang akan
+ *  dipasang atau yang teratas yang dinilai model; penolakan aturan
+ *  keras tidak memakai jatah ini. Mode seleksi menilai lebih banyak
+ *  agar panel kandidat minimal 3 bisa terisi bila tersedia. */
 const MAKS_PENILAIAN_MODEL = 3;
+const MAKS_PENILAIAN_SELEKSI = 8;
+/** Target kandidat lolos yang dikumpulkan mode seleksi. */
+const TARGET_KANDIDAT_SELEKSI = 5;
 
 function apakahMasadir(r: RujukanTamu): boolean {
   return r.asal === "turath" || r.asal === "shamela";
+}
+
+interface NilaiKandidat {
+  rujukan: RujukanTamu;
+  kalimatIdx: number;
+  skorModel?: number;
+}
+
+interface TertahanKandidat {
+  rujukan: RujukanTamu;
+  kalimatIdx: number;
+  bidangSumber: string;
+  alasan: string;
 }
 
 export async function generateFootnoteUntukParagraf(opsi: {
@@ -382,9 +747,12 @@ export async function generateFootnoteUntukParagraf(opsi: {
   bidangId?: string;
   /** Topik proyek berbahasa Arab untuk konteks gerbang relevansi. */
   topikAr?: string;
-  /** Pengguna sudah melihat kandidat tertahan dan tetap memintanya
-   *  dipasang: kandidat dipasang dengan tanda perluVerifikasi. */
-  paksaKonfirmasi?: boolean;
+  /** Teks yang DIBLOK mahasiswa di editor (Tahap 4). Bila terisi, alur
+   *  berjalan pada mode seleksi: teks ini utuh menjadi unit pencarian
+   *  utama dan hasilnya daftar kandidat untuk dipilih mahasiswa. */
+  seleksi?: string;
+  /** Id pengguna dari sesi server; pemilik sidik kandidat tertahan. */
+  pemilik?: string;
   /** BYOK: kunci pribadi pemanggil (wajib untuk akun mahasiswa). */
   kolam?: OpsiKolamTerusan;
 }): Promise<HasilGenerate> {
@@ -393,38 +761,59 @@ export async function generateFootnoteUntukParagraf(opsi: {
   // kalimat, jadi indeks kalimat hasil bersih tetap sejajar dengan
   // paragraf asli tempat klien menanam penanda baru.
   const paragraf = opsi.paragraf.replace(/\[\[ref:[^\]]*\]\]/g, "").trim();
+  const seleksi = (opsi.seleksi ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
+  const modeSeleksi = seleksi.length > 0;
 
-  // 1) Sidik paragraf: paragraf persis sama pernah diproses → tanpa AI.
-  const sidik = await cariSidikParagraf(paragraf).catch(() => null);
-  let kalimatKunci = sidik?.kalimatKunci ?? null;
-
-  // 2) AI menyusun kalimat kunci dari paragraf (kolam premium).
-  if (!kalimatKunci) {
-    kalimatKunci = await kalimatKunciDariAI(paragraf, opsi.kolam);
-  }
-  // 3) Cadangan tanpa AI: kalimat pertama paragraf sebagai kueri apa adanya.
-  //    Potongan ini TEKS ASLI mahasiswa: boleh dipakai sesaat sebagai kueri
-  //    pencarian, tetapi tidak boleh disimpan ke bank maupun sidik (audit
-  //    dalam putaran 2, temuan R2-01), karena bank dibagikan antar pengguna
-  //    dan janji desainnya adalah teks paragraf tidak pernah dibagikan.
+  /* ---- Langkah makna (mode seleksi) dan kalimat kunci ---- */
+  let makna: AnalisisMakna | null = null;
+  let kalimatKunci: string[];
   let dariCadangan = false;
-  if (!kalimatKunci || kalimatKunci.length === 0) {
-    const pertama = pecahKalimatServer(paragraf)[0] ?? paragraf.slice(0, 200);
-    kalimatKunci = [pertama.slice(0, 200)];
-    dariCadangan = true;
+  // Frasa yang boleh masuk bank bersama: HANYA frasa makna dari model.
+  // Teks seleksi adalah teks mahasiswa dan tidak pernah disimpan ke
+  // bank (bank dibagikan antar pengguna), sama seperti aturan jalur
+  // cadangan pada alur lama.
+  let frasaBank: string[] | null = null;
+  // Sidik paragraf alur kursor (alur lama); null di mode seleksi.
+  let sidikLama: Awaited<ReturnType<typeof cariSidikParagraf>> = null;
+
+  if (modeSeleksi) {
+    makna = await analisisMaknaDariAI(paragraf, seleksi, opsi.kolam);
+    if (makna && makna.frasa.length > 0) {
+      frasaBank = makna.frasa;
+      kalimatKunci = [seleksi, ...makna.frasa.filter((f) => f !== seleksi)];
+    } else {
+      kalimatKunci = [seleksi];
+    }
+  } else {
+    // 1) Sidik paragraf: paragraf persis sama pernah diproses → tanpa AI.
+    const sidik = await cariSidikParagraf(paragraf).catch(() => null);
+    let kunci = sidik?.kalimatKunci ?? null;
+
+    // 2) AI menyusun kalimat kunci dari paragraf (kolam premium).
+    if (!kunci) {
+      kunci = await kalimatKunciDariAI(paragraf, opsi.kolam);
+    }
+    // 3) Cadangan tanpa AI: kalimat pertama paragraf sebagai kueri apa
+    //    adanya. Potongan ini TEKS ASLI mahasiswa: boleh dipakai sesaat
+    //    sebagai kueri pencarian, tetapi tidak boleh disimpan ke bank
+    //    maupun sidik, karena bank dibagikan antar pengguna.
+    if (!kunci || kunci.length === 0) {
+      const pertama = pecahKalimatServer(paragraf)[0] ?? paragraf.slice(0, 200);
+      kunci = [pertama.slice(0, 200)];
+      dariCadangan = true;
+    }
+    kalimatKunci = kunci;
+    frasaBank = dariCadangan ? null : kunci;
+
+    // Sidik paragraf disimpan di langkah pencarian (alur lama).
+    sidikLama = sidik;
   }
 
-  // 4) Bank rujukan bersama: kalimat kunci ini pernah dicari → pakai ulang.
-  const bank = await cariDiBank(kalimatKunci).catch(() => null);
+  /* ---- Daftar kandidat: bank bersama, atau cari baru ---- */
+  const bank = frasaBank ? await cariDiBank(frasaBank).catch(() => null) : null;
   let daftar = bank?.rujukan ?? null;
   let dariBank = Boolean(bank);
 
-  // 5) Cari baru: maraji' di web umum dan masadir di Turath/Shamela,
-  //    berjalan paralel. Hasil gabungan disimpan ke bank + sidik agar
-  //    pengguna berikutnya tidak mengulang pencarian apa pun, KECUALI
-  //    bila kalimat kunci berasal dari jalur cadangan (langkah 3):
-  //    hasil pencarian tetap dipakai untuk pengguna ini, tetapi tidak
-  //    disimpan, supaya potongan paragraf asli tidak masuk bank bersama.
   if (!daftar || daftar.length === 0) {
     dariBank = false;
     const [maraji, masadir] = await Promise.all([
@@ -433,9 +822,11 @@ export async function generateFootnoteUntukParagraf(opsi: {
     ]);
     const lihat = new Set(maraji.map((r) => r.judul.toLowerCase()));
     daftar = [...maraji, ...masadir.filter((r) => !lihat.has(r.judul.toLowerCase()))];
-    if (daftar.length > 0 && !dariCadangan) {
-      await simpanKeBank(kalimatKunci, daftar).catch(() => undefined);
-      if (!sidik) await simpanSidikParagraf(paragraf, kalimatKunci).catch(() => undefined);
+    if (daftar.length > 0 && frasaBank) {
+      await simpanKeBank(frasaBank, daftar).catch(() => undefined);
+      if (!modeSeleksi && !sidikLama) {
+        await simpanSidikParagraf(paragraf, kalimatKunci).catch(() => undefined);
+      }
     }
   }
 
@@ -446,29 +837,28 @@ export async function generateFootnoteUntukParagraf(opsi: {
       ketemu: false,
       kalimatKunci,
       dariBank: false,
-      dariSidik: Boolean(sidik),
+      dariSidik: false,
       catatan:
-        "Belum ditemukan rujukan yang cukup relevan untuk paragraf ini. Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.",
+        "Belum ditemukan rujukan yang cukup relevan untuk teks ini. Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.",
+      ...(modeSeleksi
+        ? {
+            makna: {
+              topikParagraf: makna?.topikParagraf ?? "",
+              klaim: makna?.klaim ?? "",
+              kebutuhan: makna?.kebutuhan ?? "",
+              dariModel: Boolean(makna),
+            },
+          }
+        : {}),
     };
   }
 
-  // Pilihan utama versi pilihRujukan adalah masadir (Turath/Shamela):
-  // sumber primer lintas bidang ini dikecualikan dari gerbang relevansi
-  // bidang dan langsung dipasang seperti sebelumnya.
-  if (apakahMasadir(pertama)) {
-    return {
-      ketemu: true,
-      sumber: rujukanKeSumber(pertama),
-      kalimatIdx: pilihKalimat(paragraf, pertama, kalimatKunci, opsi.kalimatKursor),
-      kalimatKunci,
-      dariBank,
-      dariSidik: Boolean(sidik),
-    };
-  }
-
-  // Jalur maraji' web: kandidat diperiksa gerbang relevansi satu per
-  // satu, urut pilihan utama lalu skor yang sudah ada. Yang tertolak
-  // dicatat alasannya, lalu kandidat berikutnya dicoba.
+  /* ---- Gerbang relevansi: SATU jalur untuk maraji' dan masadir ----
+   * (Tahap 4: jalur masadir tidak lagi memintas gerbang, menutup
+   * catatan A8 audit kode dan R3 telaah komit koreksi. Urutan pilihan
+   * pilihRujukan tetap memimpin, tetapi setiap kandidat, termasuk
+   * pilihan masadir untuk paragraf klasik, dinilai gerbang lebih dulu
+   * sebelum boleh dipasang atau ditawarkan.) */
   const bidang = opsi.bidangId ? getBidang(opsi.bidangId) : null;
   const konteks: KonteksProyek = {
     bidangId: opsi.bidangId ?? "",
@@ -477,19 +867,35 @@ export async function generateFootnoteUntukParagraf(opsi: {
     topik: opsi.topikAr ?? "",
   };
   const bidangProyekTampil = konteks.bidangLabel || konteks.bidangId || "proyek Anda";
-  const urutanMaraji = [
+  const urutan = [
     pertama,
-    ...semua.filter((r) => r !== pertama && !apakahMasadir(r)).sort((a, b) => b.skor - a.skor),
-  ].slice(0, MAKS_KANDIDAT_GERBANG);
+    ...semua.filter((r) => r !== pertama).sort((a, b) => b.skor - a.skor),
+  ];
+  const maksPeriksa = modeSeleksi ? MAKS_KANDIDAT_SELEKSI : MAKS_KANDIDAT_GERBANG;
+  const maksPenilaian = modeSeleksi ? MAKS_PENILAIAN_SELEKSI : MAKS_PENILAIAN_MODEL;
+  const targetLolos = modeSeleksi ? TARGET_KANDIDAT_SELEKSI : 1;
+  const maknaKalimat = makna
+    ? [makna.klaim, makna.kebutuhan ? `Dukungan yang dibutuhkan: ${makna.kebutuhan}` : ""]
+        .filter(Boolean)
+        .join(" ")
+    : "";
 
   const penolakan: { judul: string; alasan: string }[] = [];
-  let tertahan: { rujukan: RujukanTamu; bidangSumber: string; alasan: string } | null = null;
+  const lolosList: NilaiKandidat[] = [];
+  const tertahanList: TertahanKandidat[] = [];
   let penilaianModel = 0;
+  let jatahHabisAdaSisa = false;
+  let adaTidakDinilai = false;
 
-  for (const kandidat of urutanMaraji) {
+  for (let i = 0; i < urutan.length && i < maksPeriksa; i++) {
+    const kandidat = urutan[i]!;
+    const kalimatIdxKandidat = modeSeleksi
+      ? indeksKalimatSeleksi(paragraf, seleksi)
+      : pilihKalimat(paragraf, kandidat, kalimatKunci, opsi.kalimatKursor);
+
     // Footnote jurnal tanpa halaman tidak boleh terpasang diam-diam:
-    // lewati selama masih ada kandidat lain; bila hanya dia yang
-    // tersisa, ia menjadi kandidat perluKonfirmasi di akhir.
+    // tertahan selama masih ada kandidat lain; keputusan akhirnya
+    // tetap di tangan pengguna lewat panel/sidik.
     if (kandidat.jenis === "jurnal" && !(kandidat.halaman ?? "").trim()) {
       const bidangJurnalIni = deteksiBidangSumber(kandidat.judul, kandidat.wadah);
       const asingJurnalIni = Boolean(bidangJurnalIni && !bidangMilikProyek(bidangJurnalIni, konteks));
@@ -497,109 +903,202 @@ export async function generateFootnoteUntukParagraf(opsi: {
         ? `Judul atau nama jurnal menunjukkan bidang ${bidangJurnalIni}, sedangkan proyek ini bidang ${bidangProyekTampil}. Artikel ini juga tidak membawa nomor halaman.`
         : "Artikel jurnal ini tidak membawa nomor halaman. Footnote tanpa halaman harus dikonfirmasi penulis sebelum dipasang.";
       penolakan.push({ judul: kandidat.judul, alasan: alasanJurnalIni });
-      tertahan ??= {
+      tertahanList.push({
         rujukan: kandidat,
+        kalimatIdx: kalimatIdxKandidat,
         bidangSumber: bidangJurnalIni ?? "",
         alasan: alasanJurnalIni,
-      };
+      });
       continue;
     }
 
     // Hemat panggilan model: penolakan aturan keras tidak memakai
     // jatah penilaian; kandidat bersih sesudah jatah habis tidak
-    // dinilai lagi pada generate ini.
+    // dinilai lagi pada generate ini, dan kehadirannya dicatat agar
+    // hasil tidak menawarkan kandidat tertahan seolah tidak ada
+    // pilihan lain (temuan S5 telaah komit koreksi).
     const bidangKeras = deteksiBidangSumber(kandidat.judul, kandidat.wadah);
     const kerasMenolak = Boolean(bidangKeras && !bidangMilikProyek(bidangKeras, konteks));
-    if (!kerasMenolak && penilaianModel >= MAKS_PENILAIAN_MODEL) break;
+    if (!kerasMenolak && penilaianModel >= maksPenilaian) {
+      jatahHabisAdaSisa = urutan
+        .slice(i)
+        .some((r) => {
+          const b = deteksiBidangSumber(r.judul, r.wadah);
+          return !(b && !bidangMilikProyek(b, konteks)) && !(r.jenis === "jurnal" && !(r.halaman ?? "").trim());
+        });
+      break;
+    }
     if (!kerasMenolak) penilaianModel += 1;
 
-    // Kalimat tujuan dinilai dari kandidat ini sendiri, bukan dari
-    // pilihan awal, agar penilaian model menempel pada kalimat yang
-    // benar untuk kandidat yang benar.
-    const kalimatIdxKandidat = pilihKalimat(paragraf, kandidat, kalimatKunci, opsi.kalimatKursor);
-    const kalimatTujuan = pecahKalimatServer(paragraf)[kalimatIdxKandidat] ?? paragraf;
+    // Kalimat tujuan dinilai dari kandidat ini sendiri (alur lama),
+    // atau teks seleksi itu sendiri (mode seleksi: unit yang diblok
+    // mahasiswa adalah kalimat tujuannya).
+    const kalimatTujuan = modeSeleksi
+      ? seleksi
+      : (pecahKalimatServer(paragraf)[kalimatIdxKandidat] ?? paragraf);
     const nilai = await nilaiRelevansi(
-      { judul: kandidat.judul, wadah: kandidat.wadah, jenis: kandidat.jenis },
+      { judul: kandidat.judul, wadah: kandidat.wadah, jenis: kandidat.jenis, isi: kandidat.cuplikan },
       konteks,
       kalimatTujuan,
       opsi.kolam,
+      maknaKalimat ? { maknaKalimat } : undefined,
     );
+    if (nilai.statusPenilaian === "tidak-dinilai") adaTidakDinilai = true;
     if (nilai.lolos) {
-      return {
-        ketemu: true,
-        sumber: rujukanKeSumber(kandidat),
-        kalimatIdx: kalimatIdxKandidat,
-        kalimatKunci,
-        dariBank,
-        dariSidik: Boolean(sidik),
-        ...(penolakan.length > 0 ? { penolakan } : {}),
-      };
+      lolosList.push({ rujukan: kandidat, kalimatIdx: kalimatIdxKandidat, skorModel: nilai.skorModel });
+      if (lolosList.length >= targetLolos) break;
+      continue;
     }
     penolakan.push({ judul: kandidat.judul, alasan: nilai.alasan });
-    tertahan ??= { rujukan: kandidat, bidangSumber: nilai.bidangSumber, alasan: nilai.alasan };
+    tertahanList.push({
+      rujukan: kandidat,
+      kalimatIdx: kalimatIdxKandidat,
+      bidangSumber: nilai.bidangSumber,
+      alasan: nilai.alasan,
+    });
+  }
+  // Kandidat di luar jatah periksa juga dihitung sebagai sisa belum
+  // dinilai bila loop berhenti karena target/jatah, bukan karena habis.
+  if (!jatahHabisAdaSisa && urutan.length > maksPeriksa && lolosList.length < targetLolos) {
+    jatahHabisAdaSisa = true;
   }
 
-  // Tidak ada maraji' yang lolos. Bila ada masadir yang kuat, ia tetap
-  // lebih baik daripada memaksa maraji' tertahan (aturan pilihRujukan
-  // yang lama), selama tidak ada kandidat tertahan yang menunggu
-  // keputusan pengguna.
-  if (!tertahan) {
-    const masadirKuat = semua
-      .filter(apakahMasadir)
-      .sort((a, b) => b.skor - a.skor)[0];
-    if (masadirKuat && masadirKuat.skor >= 0.5) {
-      return {
-        ketemu: true,
-        sumber: rujukanKeSumber(masadirKuat),
-        kalimatIdx: pilihKalimat(paragraf, masadirKuat, kalimatKunci, opsi.kalimatKursor),
-        kalimatKunci,
-        dariBank,
-        dariSidik: Boolean(sidik),
-        ...(penolakan.length > 0 ? { penolakan } : {}),
-      };
-    }
-    const teratas = penolakan[0];
+  const keKandidatHasil = (n: NilaiKandidat): KandidatHasil => {
+    const kalimatIsi = pilihKalimatIsi(n.rujukan.cuplikan, modeSeleksi ? seleksi : paragraf);
     return {
-      ketemu: false,
+      sumber: rujukanKeSumber(n.rujukan),
+      ...(kalimatIsi ? { kalimatIsi } : { tanpaKalimatIsi: true }),
+      ...(typeof n.skorModel === "number" ? { skorModel: n.skorModel } : {}),
+      ...(n.rujukan.jenis === "jurnal" && !(n.rujukan.halaman ?? "").trim()
+        ? { halamanKosong: true }
+        : {}),
+    };
+  };
+  const keTertahanHasil = async (t: TertahanKandidat): Promise<TertahanHasil> => {
+    const sidik = sidikKandidatDariRujukan(t.rujukan);
+    await terbitkanSidik(sidik, opsi.pemilik ?? "");
+    const kalimatIsi = pilihKalimatIsi(t.rujukan.cuplikan, modeSeleksi ? seleksi : paragraf);
+    return {
+      sumber: rujukanKeSumber(t.rujukan),
+      sidik,
+      bidangSumber: t.bidangSumber,
+      alasan: t.alasan,
+      ...(kalimatIsi ? { kalimatIsi } : { tanpaKalimatIsi: true }),
+      ...(t.rujukan.jenis === "jurnal" && !(t.rujukan.halaman ?? "").trim()
+        ? { halamanKosong: true }
+        : {}),
+    };
+  };
+
+  /* ---- Hasil mode seleksi: daftar kandidat untuk dipilih ---- */
+  if (modeSeleksi) {
+    const kandidatHasil = lolosList.map(keKandidatHasil);
+    const tertahanHasil = await Promise.all(tertahanList.slice(0, 3).map(keTertahanHasil));
+    const catatanBagian: string[] = [];
+    if (kandidatHasil.length === 0) {
+      catatanBagian.push("Tidak ada kandidat yang lolos gerbang relevansi untuk teks yang diblok ini.");
+    } else if (kandidatHasil.length < 3) {
+      catatanBagian.push(
+        `Hanya ${kandidatHasil.length} kandidat yang lolos gerbang relevansi dari ${Math.min(urutan.length, maksPeriksa)} yang diperiksa; tidak ada kandidat tambahan yang dikarang untuk mengejar jumlah.`,
+      );
+    }
+    if (!makna) {
+      catatanBagian.push(
+        "Analisis makna oleh model tidak tersedia, jadi pencarian berjalan dengan teks yang diblok apa adanya dan penilaian gerbang tanpa rumusan makna.",
+      );
+    }
+    if (adaTidakDinilai) {
+      catatanBagian.push(
+        "Sebagian kandidat belum dinilai model (layanan AI terganggu atau kuota habis); kandidat itu ditahan, bukan diloloskan.",
+      );
+    }
+    if (jatahHabisAdaSisa) {
+      catatanBagian.push("Masih ada kandidat lain yang belum sempat dinilai pada generate ini; jalankan Generate lagi untuk menilai lebih banyak.");
+    }
+    return {
+      ketemu: kandidatHasil.length > 0,
+      kalimatIdx: indeksKalimatSeleksi(paragraf, seleksi),
+      kandidat: kandidatHasil,
+      ...(tertahanHasil.length > 0 ? { tertahan: tertahanHasil } : {}),
+      makna: {
+        topikParagraf: makna?.topikParagraf ?? "",
+        klaim: makna?.klaim ?? "",
+        kebutuhan: makna?.kebutuhan ?? "",
+        dariModel: Boolean(makna),
+      },
       kalimatKunci,
       dariBank,
-      dariSidik: Boolean(sidik),
+      dariSidik: false,
       ...(penolakan.length > 0 ? { penolakan } : {}),
-      catatan: teratas
-        ? `Semua rujukan web tertolak gerbang relevansi. Penolakan teratas: "${teratas.judul}" karena ${teratas.alasan} Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.`
-        : "Belum ditemukan rujukan yang cukup relevan untuk paragraf ini. Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.",
+      ...(catatanBagian.length > 0 ? { catatan: catatanBagian.join(" ") } : {}),
     };
   }
 
-  // Kandidat terbaik tertahan gerbang: pengguna yang memutuskan.
-  const kalimatIdxTertahan = pilihKalimat(paragraf, tertahan.rujukan, kalimatKunci, opsi.kalimatKursor);
-  if (opsi.paksaKonfirmasi) {
-    const sumber = rujukanKeSumber(tertahan.rujukan);
-    sumber.perluVerifikasi = true;
+  /* ---- Hasil alur kursor lama: satu kandidat dipasang ---- */
+  const terpilih = lolosList[0];
+  if (terpilih) {
+    const catatanMasadir =
+      apakahMasadir(terpilih.rujukan) && !(terpilih.rujukan.halaman ?? "").trim()
+        ? "Catatan: sumber masadir ini tidak membawa nomor halaman cetak pada hasil pencariannya; periksa halaman pada kitab cetaknya sebelum mengutip."
+        : undefined;
     return {
       ketemu: true,
-      sumber,
-      kalimatIdx: kalimatIdxTertahan,
+      sumber: rujukanKeSumber(terpilih.rujukan),
+      kalimatIdx: terpilih.kalimatIdx,
       kalimatKunci,
       dariBank,
-      dariSidik: Boolean(sidik),
-      penolakan,
-      catatan: `Dipasang atas konfirmasi Anda walau tertahan gerbang relevansi: ${tertahan.alasan} Sumber ditandai perlu verifikasi.`,
+      dariSidik: Boolean(sidikLama),
+      ...(penolakan.length > 0 ? { penolakan } : {}),
+      ...(catatanMasadir ? { catatan: catatanMasadir } : {}),
     };
   }
+
+  const tertahan = tertahanList[0];
+  if (tertahan) {
+    // Jatah penilaian habis padahal masih ada kandidat bersih belum
+    // dinilai: jangan tawarkan kandidat tertahan; minta generate lagi
+    // (temuan S5 telaah komit koreksi).
+    if (jatahHabisAdaSisa) {
+      return {
+        ketemu: false,
+        kalimatKunci,
+        dariBank,
+        dariSidik: Boolean(sidikLama),
+        penolakan,
+        catatan:
+          "Kandidat teratas tertahan gerbang relevansi, tetapi masih ada kandidat lain yang belum sempat dinilai pada generate ini. Jalankan Generate footnote sekali lagi agar kandidat berikutnya dinilai, sebelum memutuskan memasang yang tertahan.",
+      };
+    }
+    const tertahanHasil = await keTertahanHasil(tertahan);
+    return {
+      ketemu: false,
+      perluKonfirmasi: {
+        sumber: tertahanHasil.sumber,
+        kalimatIdx: tertahan.kalimatIdx,
+        bidangSumber: tertahan.bidangSumber,
+        bidangProyek: bidangProyekTampil,
+        alasan: tertahan.alasan,
+        sidik: tertahanHasil.sidik,
+      },
+      kalimatKunci,
+      dariBank,
+      dariSidik: Boolean(sidikLama),
+      penolakan,
+      catatan: `Rujukan teratas tertahan gerbang relevansi: ${tertahan.alasan} Periksa kandidatnya, lalu pasang persis kandidat itu bila memang disengaja.`,
+    };
+  }
+
+  const teratas = penolakan[0];
   return {
     ketemu: false,
-    perluKonfirmasi: {
-      sumber: rujukanKeSumber(tertahan.rujukan),
-      kalimatIdx: kalimatIdxTertahan,
-      bidangSumber: tertahan.bidangSumber,
-      bidangProyek: bidangProyekTampil,
-      alasan: tertahan.alasan,
-    },
     kalimatKunci,
     dariBank,
-    dariSidik: Boolean(sidik),
-    penolakan,
-    catatan: `Rujukan teratas tertahan gerbang relevansi: ${tertahan.alasan} Periksa kandidatnya, lalu pasang paksa bila memang disengaja.`,
+    dariSidik: Boolean(sidikLama),
+    ...(penolakan.length > 0 ? { penolakan } : {}),
+    catatan: jatahHabisAdaSisa
+      ? "Kandidat yang tersedia belum sempat dinilai semua pada generate ini. Jalankan Generate footnote sekali lagi."
+      : teratas
+        ? `Semua rujukan tertolak gerbang relevansi. Penolakan teratas: "${teratas.judul}" karena ${teratas.alasan} Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.`
+        : "Belum ditemukan rujukan yang cukup relevan untuk paragraf ini. Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.",
   };
 }

@@ -80,6 +80,18 @@ export interface RefHit extends RefCandidate {
   id: string;
   /** Kalimat dari paragraf yang dicari. */
   kalimat: string;
+  /** Putusan gerbang relevansi bidang dari server (Tahap 4) — hanya
+   *  terisi bila rute pencarian menerima konteks bidang proyek.
+   *  Kandidat tertahan (lolos false) wajib ditampilkan dengan
+   *  alasannya dan hanya dipasang lewat konfirmasi sadar pengguna. */
+  gerbang?: {
+    lolos: boolean;
+    perluKonfirmasi: boolean;
+    bidangSumber: string;
+    alasan: string;
+    statusPenilaian: "dinilai" | "tidak-dinilai" | "aturan-keras";
+    skorModel?: number;
+  };
 }
 
 export interface SourceStatus {
@@ -105,6 +117,14 @@ export interface SearchRequest {
   kunciLLM?: string;
   /** Konsep kustom yang dipilih/ditulis pengguna langsung dari UI. */
   konsepKustom?: string[];
+  /** Konteks bidang proyek untuk gerbang relevansi (Tahap 4): id bidang
+   *  dari lib/content/bidang.ts. Bila terisi, rute menilai kandidat
+   *  teratas dengan gerbang yang sama seperti Generate Footnote. */
+  bidangId?: string;
+  /** Judul proyek untuk konteks gerbang relevansi. */
+  judulProyek?: string;
+  /** Sinyal tema proyek untuk konteks gerbang (judul lebih dulu). */
+  topikAr?: string;
   /** Diisi SERVER dari sesi (bukan dari klien): pemanggil Premium terverifikasi. */
   premium?: boolean;
 }

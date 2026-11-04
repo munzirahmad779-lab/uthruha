@@ -129,6 +129,86 @@ export async function POST(req: Request) {
         ? body.konsepKustom.filter((s) => typeof s === "string" && s.trim())
         : undefined,
     });
+
+    // Gerbang relevansi bidang untuk Cari Rujukan (Tahap 4, menutup
+    // temuan S3 telaah komit koreksi: jalur ini dulu tidak melewati
+    // penilaian bidang sama sekali). Bila klien mengirim konteks
+    // bidang proyek, kandidat teratas dinilai gerbang yang sama dengan
+    // Generate Footnote dan putusannya menempel pada tiap hasil.
+    // Penilaian MODEL hanya berjalan untuk akun Premium atau pemilik
+    // kunci pribadi (agar pencarian gratis tidak membakar kolam
+    // pemilik); aturan keras bidang yang deterministik selalu
+    // diterapkan ke semua akun.
+    const bidangId = typeof body.bidangId === "string" ? body.bidangId.trim().slice(0, 60) : "";
+    const judulProyek = typeof body.judulProyek === "string" ? body.judulProyek.trim().slice(0, 300) : "";
+    const topikAr = typeof body.topikAr === "string" ? body.topikAr.trim().slice(0, 300) : "";
+    if ((bidangId || judulProyek) && hasil.hasil.length > 0) {
+      const { getBidang } = await import("@/lib/content/bidang");
+      const { bidangMilikProyek, deteksiBidangSumber, nilaiUntukCariRujukan } = await import(
+        "@/lib/server/gerbang-relevansi"
+      );
+      const bidang = bidangId ? getBidang(bidangId) : null;
+      const konteks = {
+        bidangId,
+        bidangLabel: bidang ? `${bidang.labelId} (${bidang.labelAr})` : "",
+        judulProyek,
+        topik: topikAr,
+      };
+      const kunciDari = (h: (typeof hasil.hasil)[number]) =>
+        `${h.kitab.replace(/^\[[^\]]*\]\s*/, "").trim().toLowerCase()}|${(h.penerbit ?? "").trim().toLowerCase()}`;
+      const { opsiKolamUntuk } = await import("@/lib/server/kunci-pribadi");
+      const opsiP = await opsiKolamUntuk(u).catch(() => null);
+      const bisaNilaiModel = tierEfektif(u) === "premium" || Boolean(opsiP?.pribadi) || Boolean(opsiP?.wajibPribadi);
+      if (bisaNilaiModel) {
+        const bentuk = hasil.hasil.map((h) => ({
+          kunci: kunciDari(h),
+          judul: h.kitab.replace(/^\[[^\]]*\]\s*/, "").trim(),
+          wadah: h.penerbit ?? "",
+          jenis: /^\[مجلة\]/.test(h.kitab) ? "jurnal" : "buku",
+          kalimat: h.kalimat,
+        }));
+        const { putusan, belumDinilai } = await nilaiUntukCariRujukan(bentuk, konteks, {
+          pribadi: opsiP?.pribadi,
+          wajibPribadi: opsiP?.wajibPribadi,
+          pinjaman: opsiP?.pinjaman,
+        }).catch(() => ({ putusan: new Map(), belumDinilai: 0 }));
+        for (const h of hasil.hasil) {
+          const p = putusan.get(kunciDari(h));
+          if (p) {
+            h.gerbang = {
+              lolos: p.lolos,
+              perluKonfirmasi: p.perluKonfirmasi,
+              bidangSumber: p.bidangSumber,
+              alasan: p.alasan,
+              statusPenilaian: p.statusPenilaian,
+              ...(typeof p.skorModel === "number" ? { skorModel: p.skorModel } : {}),
+            };
+          }
+        }
+        if (belumDinilai > 0) {
+          hasil.peringatan.push(
+            `${belumDinilai} kandidat belum dinilai gerbang bidang pada pencarian ini (batas penilaian per pencarian tercapai); kandidat itu belum punya putusan bidang.`,
+          );
+        }
+      } else {
+        // Tanpa penilaian model: aturan keras saja, putusannya hanya
+        // untuk kandidat yang tertahan; yang bersih tidak diberi label
+        // lolos yang tidak pernah dinilai model.
+        for (const h of hasil.hasil) {
+          const judulBersih = h.kitab.replace(/^\[[^\]]*\]\s*/, "").trim();
+          const bidangSumber = deteksiBidangSumber(judulBersih, h.penerbit ?? "");
+          if (bidangSumber && !bidangMilikProyek(bidangSumber, konteks)) {
+            h.gerbang = {
+              lolos: false,
+              perluKonfirmasi: true,
+              bidangSumber,
+              alasan: `Judul atau nama jurnal menunjukkan bidang ${bidangSumber}, sedangkan proyek ini bidang ${konteks.bidangLabel || bidangId}. (Penilaian model tidak berjalan untuk akun Anda; yang bekerja aturan keras bidang.)`,
+              statusPenilaian: "aturan-keras",
+            };
+          }
+        }
+      }
+    }
     return NextResponse.json(hasil);
   } catch (e) {
     console.error("Error in refs search:", e);

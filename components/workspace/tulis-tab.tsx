@@ -28,6 +28,41 @@ type PerluKonfirmasi = {
   bidangSumber?: string;
   bidangProyek?: string;
   alasan?: string;
+  /** Sidik kandidat terbitan server (Tahap 4): pemasangan paksa hanya
+   *  memasang persis kandidat ini lewat sidiknya. */
+  sidik?: string;
+};
+
+/** Kandidat lolos gerbang dari Generate Footnote mode seleksi. */
+type KandidatPanel = {
+  sumber: Sumber;
+  kalimatIsi?: string;
+  tanpaKalimatIsi?: boolean;
+  skorModel?: number;
+  halamanKosong?: boolean;
+};
+
+/** Kandidat tertahan gerbang dari Generate Footnote mode seleksi. */
+type TertahanPanel = {
+  sumber: Sumber;
+  sidik: string;
+  bidangSumber: string;
+  alasan: string;
+  kalimatIsi?: string;
+  tanpaKalimatIsi?: boolean;
+  halamanKosong?: boolean;
+};
+
+type PanelKandidat = {
+  kandidat: KandidatPanel[];
+  tertahan: TertahanPanel[];
+  makna?: { topikParagraf: string; klaim: string; kebutuhan: string; dariModel: boolean };
+  catatan?: string;
+  paragrafIdx: number;
+  kalimatIdx: number;
+  /** Posisi seleksi pada teks saat generate diminta, untuk penanaman
+   *  penanda tepat sesudah teks yang diblok. */
+  posisi: { awal: number; akhir: number; teks: string };
 };
 
 /** Hapus fragmen penanda rusak, penanda valid dipertahankan utuh. */
@@ -90,7 +125,9 @@ export function TulisTab({
   const [teks, setTeks] = useState(p.draf[bagian] ?? "");
   const [pratinjau, setPratinjau] = useState(false);
   const [cariRujukan, setCariRujukan] = useState(false);
-  const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string; paragrafIdx?: number; kalimatIdx?: number } | null>(null);
+  const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string; paragrafIdx?: number; kalimatIdx?: number; gerbang?: { bidangSumber: string; alasan: string } } | null>(null);
+  const [seleksi, setSeleksi] = useState<{ teks: string; awal: number; akhir: number } | null>(null);
+  const [panelKandidat, setPanelKandidat] = useState<PanelKandidat | null>(null);
   const [kursor, setKursor] = useState<number | null>(null);
   const [pesanPasang, setPesanPasang] = useState("");
   const [sibukGenerate, setSibukGenerate] = useState(false);
@@ -174,7 +211,6 @@ export function TulisTab({
    * Di sini tinggal tanam penandanya — tanpa dialog sama sekali.
    */
   async function generateOtomatis(opsi?: {
-    paksaKonfirmasi?: boolean;
     paragraf?: string;
     paragrafIdx?: number;
     kalimatIdx?: number;
@@ -214,7 +250,6 @@ export function TulisTab({
           // topikAr dipertahankan sebagai kontrak server; nilainya
           // judul lebih dulu (perbaikan telaah ulang Tahap 2, R4).
           topikAr: p.judulAr || p.topikAr,
-          ...(opsi?.paksaKonfirmasi ? { paksaKonfirmasi: true } : {}),
         }),
       });
       const data = (await res.json().catch(() => null)) as {
@@ -233,7 +268,7 @@ export function TulisTab({
         });
         return;
       }
-      if (!opsi?.paksaKonfirmasi && data?.perluKonfirmasi?.sumber) {
+      if (data?.perluKonfirmasi?.sumber) {
         setKonfirmasi({
           perlu: data.perluKonfirmasi,
           paragraf,
@@ -304,6 +339,218 @@ export function TulisTab({
       setPesanGenerate({
         jenis: "galat",
         teks: "Generate footnote gagal tersambung ke server. Periksa koneksi lalu coba lagi.",
+      });
+    } finally {
+      setSibukGenerate(false);
+    }
+  }
+
+  /**
+   * Catat seleksi teks di editor (Tahap 4). Seleksi sah untuk Generate
+   * Footnote bila panjangnya minimal 20 karakter dan tidak melintasi
+   * batas paragraf: unit pencariannya adalah teks yang diblok itu utuh.
+   */
+  function catatSeleksi(el: HTMLTextAreaElement) {
+    setKursor(el.selectionStart);
+    const awal = el.selectionStart ?? 0;
+    const akhir = el.selectionEnd ?? 0;
+    const potongan = el.value.slice(awal, akhir);
+    if (akhir - awal >= 20 && !potongan.includes("\n\n") && potongan.trim().length >= 20) {
+      setSeleksi({ teks: potongan.replace(/\s+/g, " ").trim(), awal, akhir });
+    } else {
+      setSeleksi(null);
+    }
+  }
+
+  /**
+   * Tanam penanda untuk satu sumber pada draf bagian ini, dipakai alur
+   * seleksi dan pemasangan lewat sidik. Bila posisi seleksi masih utuh
+   * pada teks, penanda ditanam tepat sesudah teks yang diblok; selain
+   * itu jatuh ke penanaman per kalimat seperti alur lama. Duplikat
+   * sumber yang sama pada bagian ini ditolak dengan pesan (penjaga B2).
+   */
+  async function tanamSumber(
+    sumberBaru: Sumber,
+    target: {
+      paragrafIdx: number;
+      kalimatIdx: number;
+      posisi?: { awal: number; akhir: number; teks: string };
+    },
+  ): Promise<boolean> {
+    const sudahAda = p.sumber.find(
+      (s) =>
+        (sumberBaru.doi && s.doi && s.doi.toLowerCase() === sumberBaru.doi.toLowerCase()) ||
+        s.judul.trim().toLowerCase() === sumberBaru.judul.trim().toLowerCase(),
+    );
+    const sumberFinal = sudahAda ?? sumberBaru;
+    if (
+      sudahAda &&
+      (teks.includes(`[[ref:${sumberFinal.id}]]`) || teks.includes(`[[ref:${sumberFinal.id}|`))
+    ) {
+      setPesanGenerate({
+        jenis: "info",
+        teks: `Sumber ini sudah terpasang di bagian ini: ${sumberFinal.judul}. Penanda yang sama tidak dipasang lagi.`,
+      });
+      return false;
+    }
+    try {
+      const gerbang = await fetch("/api/lapis/footnote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proyekId: p.id, paragrafId: `${bagian}:${target.paragrafIdx}` }),
+      });
+      if (gerbang.status === 403) {
+        const g = (await gerbang.json().catch(() => null)) as { error?: string } | null;
+        setPesanGenerate({
+          jenis: "galat",
+          teks: g?.error ?? "Pemasangan footnote ditolak oleh aturan lapis akun Anda.",
+        });
+        return false;
+      }
+    } catch {
+      /* lanjut lokal, sama seperti dialog */
+    }
+    const penanda = penandaUntuk(sumberFinal);
+    const drafBaru =
+      target.posisi && teks.slice(target.posisi.awal, target.posisi.akhir) !== "" &&
+      teks.slice(target.posisi.akhir - target.posisi.teks.length, target.posisi.akhir) === target.posisi.teks
+        ? `${teks.slice(0, target.posisi.akhir)}${penanda}${teks.slice(target.posisi.akhir)}`
+        : sisipPenandaKeDraf(teks, target.paragrafIdx, target.kalimatIdx, penanda);
+    ubah({
+      sumber: sudahAda ? p.sumber : [...p.sumber, sumberBaru],
+      draf: { ...p.draf, [bagian]: drafBaru },
+    });
+    setTeks(drafBaru);
+    sinkron.current = drafBaru;
+    setPesanGenerate({
+      jenis: "ok",
+      teks: `Footnote terpasang untuk teks yang diblok: ${sumberFinal.judul}`,
+    });
+    return true;
+  }
+
+  /**
+   * Generate Footnote mode seleksi (Tahap 4): teks yang diblok dikirim
+   * utuh sebagai unit pencarian beserta paragraf konteksnya. Server
+   * mengembalikan daftar kandidat; mahasiswa memilih sendiri di panel.
+   */
+  async function generateSeleksi() {
+    if (sibukGenerate || !seleksi) return;
+    sinkron.current = teks;
+    ubah({ draf: { ...p.draf, [bagian]: teks } });
+    const target = targetDariKursor(teks, seleksi.awal);
+    const paragraf = target ? ambilParagraf(teks, target.paragrafIdx) : null;
+    if (!target || !paragraf) {
+      setPesanGenerate({
+        jenis: "info",
+        teks: "Teks yang diblok tidak berada di paragraf isi. Blok kalimat di dalam paragraf naskah, lalu coba lagi.",
+      });
+      return;
+    }
+    setSibukGenerate(true);
+    setPesanGenerate(null);
+    setPanelKandidat(null);
+    try {
+      const res = await fetch("/api/footnote/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paragraf,
+          seleksi: seleksi.teks,
+          judulProyek: p.judulAr ?? "",
+          bidangId: p.bidangId,
+          topikAr: p.judulAr || p.topikAr,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        kandidat?: KandidatPanel[];
+        tertahan?: TertahanPanel[];
+        makna?: PanelKandidat["makna"];
+        catatan?: string;
+        kalimatIdx?: number;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        setPesanGenerate({
+          jenis: "galat",
+          teks: data?.error ?? "Generate footnote gagal. Coba lagi sebentar.",
+        });
+        return;
+      }
+      setPanelKandidat({
+        kandidat: data?.kandidat ?? [],
+        tertahan: data?.tertahan ?? [],
+        makna: data?.makna,
+        catatan: data?.catatan,
+        paragrafIdx: target.paragrafIdx,
+        kalimatIdx: typeof data?.kalimatIdx === "number" ? data.kalimatIdx : target.kalimatIdx,
+        posisi: { awal: seleksi.awal, akhir: seleksi.akhir, teks: seleksi.teks },
+      });
+    } catch {
+      setPesanGenerate({
+        jenis: "galat",
+        teks: "Generate footnote gagal tersambung ke server. Periksa koneksi lalu coba lagi.",
+      });
+    } finally {
+      setSibukGenerate(false);
+    }
+  }
+
+  /**
+   * Pasang PERSIS kandidat tertahan yang disetujui (Tahap 4): server
+   * memverifikasi sidiknya dan mengembalikan kandidat itu sendiri;
+   * tidak ada pencarian atau penilaian ulang. Dipakai panel kandidat
+   * mode seleksi dan panel konfirmasi alur kursor lama.
+   */
+  async function pasangLewatSidik(opsiPasang: {
+    sidik: string;
+    kandidat: Sumber;
+    paragraf: string;
+    paragrafIdx: number;
+    kalimatIdx: number;
+    posisi?: { awal: number; akhir: number; teks: string };
+  }) {
+    if (sibukGenerate) return;
+    setSibukGenerate(true);
+    setPesanGenerate(null);
+    try {
+      const res = await fetch("/api/footnote/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paragraf: opsiPasang.paragraf,
+          sidikDisetujui: opsiPasang.sidik,
+          kandidatDisetujui: opsiPasang.kandidat,
+          kalimatKursor: opsiPasang.kalimatIdx,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        ketemu?: boolean;
+        sumber?: Sumber;
+        kalimatIdx?: number;
+        catatan?: string;
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.ketemu || !data.sumber) {
+        setPesanGenerate({
+          jenis: "info",
+          teks: data?.catatan ?? data?.error ?? "Pemasangan kandidat yang disetujui gagal. Minta generate ulang.",
+        });
+        return;
+      }
+      const ok = await tanamSumber(data.sumber, {
+        paragrafIdx: opsiPasang.paragrafIdx,
+        kalimatIdx: typeof data.kalimatIdx === "number" ? data.kalimatIdx : opsiPasang.kalimatIdx,
+        posisi: opsiPasang.posisi,
+      });
+      if (ok) {
+        setKonfirmasi(null);
+        setPanelKandidat(null);
+      }
+    } catch {
+      setPesanGenerate({
+        jenis: "galat",
+        teks: "Pemasangan gagal tersambung ke server. Periksa koneksi lalu coba lagi.",
       });
     } finally {
       setSibukGenerate(false);
@@ -497,9 +744,9 @@ export function TulisTab({
             <textarea
               value={teks}
               onChange={(e) => setTeks(e.target.value)}
-              onSelect={(e) => setKursor(e.currentTarget.selectionStart)}
-              onClick={(e) => setKursor(e.currentTarget.selectionStart)}
-              onKeyUp={(e) => setKursor(e.currentTarget.selectionStart)}
+              onSelect={(e) => catatSeleksi(e.currentTarget)}
+              onClick={(e) => catatSeleksi(e.currentTarget)}
+              onKeyUp={(e) => catatSeleksi(e.currentTarget)}
               dir="rtl"
               spellCheck={false}
               className="doc-scroll min-h-[26rem] w-full rounded-xl border border-ink-900/15 bg-white p-4 text-right font-naskh text-[15.5px] leading-[2.1] text-ink-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
@@ -507,6 +754,176 @@ export function TulisTab({
             />
           )}
         </div>
+
+        {!pratinjau && seleksi && (
+          <div className="mt-2 rounded-xl border border-gold-500/50 bg-gold-50 px-3 py-2.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+              Teks diblok untuk footnote
+            </p>
+            <p className="mt-0.5 line-clamp-2 font-naskh text-[13px] leading-relaxed text-ink-900" dir="rtl">
+              {seleksi.teks}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void generateSeleksi()}
+                disabled={sibukGenerate}
+                className="btn-primary !py-1.5 !text-[12px] disabled:opacity-40"
+              >
+                {sibukGenerate ? "Mencari kandidat…" : "Generate footnote untuk teks ini"}
+              </button>
+              <span className="text-[11px] text-ink-600">
+                Unit pencarian = teks yang diblok ini utuh, bukan potongan kalimat kunci. Hasilnya berupa kandidat;
+                Anda yang memilih mana yang dipasang.
+              </span>
+            </div>
+          </div>
+        )}
+
+        {panelKandidat && (
+          <div className="mt-3 rounded-xl border border-ink-900/15 bg-white px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[13px] font-bold text-ink-900">Kandidat footnote untuk teks yang diblok</p>
+              <button type="button" onClick={() => setPanelKandidat(null)} className="btn-ghost !py-1 !text-[11px]">
+                Tutup panel
+              </button>
+            </div>
+            {panelKandidat.makna &&
+              (panelKandidat.makna.dariModel ? (
+                <p className="mt-1 text-[12px] leading-relaxed text-ink-700">
+                  Yang dipahami sistem dari paragraf ini: <strong>{panelKandidat.makna.topikParagraf || "—"}</strong>
+                  {panelKandidat.makna.klaim ? <> · klaim kalimat yang diblok: {panelKandidat.makna.klaim}</> : null}
+                  {panelKandidat.makna.kebutuhan ? <> · kebutuhan rujukan: {panelKandidat.makna.kebutuhan}</> : null}
+                </p>
+              ) : (
+                <p className="mt-1 text-[12px] leading-relaxed text-amber-800">
+                  Analisis makna oleh model tidak berhasil pada percobaan ini, jadi pencarian memakai teks yang
+                  diblok itu sendiri apa adanya. Kandidat di bawah tetap melewati gerbang penilaian.
+                </p>
+              ))}
+            {panelKandidat.catatan && (
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-700">{panelKandidat.catatan}</p>
+            )}
+            {panelKandidat.kandidat.length === 0 && panelKandidat.tertahan.length === 0 && (
+              <p className="mt-2 text-[12px] leading-relaxed text-ink-700">
+                Tidak ada kandidat yang lolos gerbang untuk teks ini. Coba blok kalimat lain, atau pakai Cari
+                Rujukan manual.
+              </p>
+            )}
+            <div className="mt-2 space-y-2.5">
+              {panelKandidat.kandidat.map((k, i) => (
+                <div key={`kand-${i}`} className="rounded-lg border border-ink-900/10 bg-cream-50 px-3 py-2.5">
+                  <p className="font-naskh text-[13.5px] font-semibold leading-relaxed text-ink-900" dir="rtl">
+                    {k.sumber.judul}
+                  </p>
+                  <p className="mt-0.5 text-[11.5px] text-ink-600">
+                    {k.sumber.penulis || "penulis tidak tercantum"}
+                    {k.sumber.tahun ? ` · ${k.sumber.tahun}` : ""}
+                    {k.sumber.jurnal ?? k.sumber.penerbit ? ` · ${k.sumber.jurnal ?? k.sumber.penerbit}` : ""}
+                    {k.sumber.doi ? ` · DOI ${k.sumber.doi}` : ""}
+                  </p>
+                  <p className="mt-1 flex flex-wrap gap-1.5">
+                    {k.halamanKosong ? (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800">
+                        Tanpa nomor halaman
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-800">
+                        Halaman {k.sumber.halaman}
+                      </span>
+                    )}
+                    {typeof k.skorModel === "number" && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-800">
+                        Skor relevansi {k.skorModel}
+                      </span>
+                    )}
+                  </p>
+                  {k.kalimatIsi ? (
+                    <blockquote className="mt-1.5 rounded-md bg-white px-2.5 py-2 font-naskh text-[12.5px] leading-relaxed text-ink-800" dir="rtl">
+                      {k.kalimatIsi}
+                    </blockquote>
+                  ) : (
+                    <p className="mt-1.5 text-[11.5px] italic leading-relaxed text-ink-500">
+                      Sumber ini tidak menyediakan cuplikan isi, jadi tidak ada kalimat isi yang bisa ditampilkan.
+                      Periksa sumbernya langsung sebelum memasang.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={sibukGenerate}
+                    onClick={() =>
+                      panelKandidat &&
+                      void tanamSumber(k.sumber, {
+                        paragrafIdx: panelKandidat.paragrafIdx,
+                        kalimatIdx: panelKandidat.kalimatIdx,
+                        posisi: panelKandidat.posisi,
+                      }).then((ok) => {
+                        if (ok) setPanelKandidat(null);
+                      })
+                    }
+                    className="btn-primary mt-2 !py-1.5 !text-[12px] disabled:opacity-40"
+                  >
+                    Pasang yang ini
+                  </button>
+                </div>
+              ))}
+            </div>
+            {panelKandidat.tertahan.length > 0 && (
+              <div className="mt-3">
+                <p className="text-[12px] font-semibold text-red-800">
+                  Tertahan gerbang relevansi bidang (belum terpasang; pasang hanya bila Anda sudah memeriksa isinya):
+                </p>
+                <div className="mt-1.5 space-y-2.5">
+                  {panelKandidat.tertahan.map((t, i) => (
+                    <div key={`thn-${i}`} className="rounded-lg border border-red-300 bg-red-50 px-3 py-2.5">
+                      <p className="font-naskh text-[13.5px] font-semibold leading-relaxed text-ink-900" dir="rtl">
+                        {t.sumber.judul}
+                      </p>
+                      <p className="mt-0.5 text-[11.5px] text-red-800">
+                        Bidang sumber: {t.bidangSumber || "tidak terdeteksi"}. {t.alasan}
+                      </p>
+                      {t.halamanKosong && (
+                        <p className="mt-1">
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800">
+                            Tanpa nomor halaman
+                          </span>
+                        </p>
+                      )}
+                      {t.kalimatIsi ? (
+                        <blockquote className="mt-1.5 rounded-md bg-white px-2.5 py-2 font-naskh text-[12.5px] leading-relaxed text-ink-800" dir="rtl">
+                          {t.kalimatIsi}
+                        </blockquote>
+                      ) : (
+                        t.tanpaKalimatIsi && (
+                          <p className="mt-1.5 text-[11.5px] italic leading-relaxed text-ink-500">
+                            Sumber ini tidak menyediakan cuplikan isi.
+                          </p>
+                        )
+                      )}
+                      <button
+                        type="button"
+                        disabled={sibukGenerate}
+                        onClick={() =>
+                          void pasangLewatSidik({
+                            sidik: t.sidik,
+                            kandidat: t.sumber,
+                            paragraf: ambilParagraf(teks, panelKandidat.paragrafIdx) ?? "",
+                            paragrafIdx: panelKandidat.paragrafIdx,
+                            kalimatIdx: panelKandidat.kalimatIdx,
+                            posisi: panelKandidat.posisi,
+                          })
+                        }
+                        className="btn-ghost mt-2 !py-1.5 !text-[12px] disabled:opacity-40"
+                      >
+                        Tetap pasang kandidat ini
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {(penandaDraf.length > 0 || adaFragmenRusak) && (
           <div className="mt-2 space-y-2">
@@ -546,9 +963,9 @@ export function TulisTab({
           <RefFinder
             p={p}
             tutup={() => setCariRujukan(false)}
-            onPasang={(sumber, kutipan) => {
+            onPasang={(sumber, kutipan, gerbang) => {
               setCariRujukan(false);
-              setPasangTarget({ sumber, kutipan });
+              setPasangTarget({ sumber, kutipan, gerbang });
             }}
             onSisip={(blok, sumberBaru) => {
               const gabung = `${teks.trim()}\n\n${blok}`;
@@ -566,6 +983,7 @@ export function TulisTab({
             ubah={ubah}
             sumber={pasangTarget.sumber}
             kutipan={pasangTarget.kutipan}
+            gerbangTertahan={pasangTarget.gerbang ?? null}
             babAwalId={bagian}
             paragrafAwal={pasangTarget.paragrafIdx}
             kalimatAwal={pasangTarget.kalimatIdx}
@@ -624,10 +1042,12 @@ export function TulisTab({
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={sibukGenerate}
+                disabled={sibukGenerate || !konfirmasi.perlu.sidik}
                 onClick={() =>
-                  void generateOtomatis({
-                    paksaKonfirmasi: true,
+                  konfirmasi.perlu.sidik &&
+                  void pasangLewatSidik({
+                    sidik: konfirmasi.perlu.sidik,
+                    kandidat: konfirmasi.perlu.sumber,
                     paragraf: konfirmasi.paragraf,
                     paragrafIdx: konfirmasi.paragrafIdx,
                     kalimatIdx: konfirmasi.perlu.kalimatIdx ?? konfirmasi.kalimatIdx,
@@ -635,12 +1055,18 @@ export function TulisTab({
                 }
                 className="btn-primary !py-1.5 !text-[12px] disabled:opacity-40"
               >
-                Tetap pasang
+                Tetap pasang kandidat ini
               </button>
               <button type="button" onClick={() => setKonfirmasi(null)} className="btn-ghost !py-1.5 !text-[12px]">
                 Jangan pasang
               </button>
             </div>
+            {!konfirmasi.perlu.sidik && (
+              <p className="mt-2 text-[12px] leading-relaxed text-ink-700">
+                Kandidat ini tidak membawa sidik persetujuan dari server, jadi tidak bisa dipasang paksa. Minta
+                generate ulang agar kandidat terbit dengan sidiknya.
+              </p>
+            )}
           </div>
         )}
 

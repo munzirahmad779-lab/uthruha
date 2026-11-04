@@ -15,7 +15,11 @@ import { tolakTanpaSesi } from "@/lib/security/akses";
 import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
 import { bolehLajuServer } from "@/lib/server/laju-server";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
-import { generateFootnoteUntukParagraf } from "@/lib/server/generate-footnote";
+import {
+  generateFootnoteUntukParagraf,
+  pasangFootnoteDisetujui,
+} from "@/lib/server/generate-footnote";
+import type { Sumber } from "@/lib/engine/cite";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -74,12 +78,11 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const paragraf = typeof body?.paragraf === "string" ? body.paragraf.trim().slice(0, 6000) : "";
-  if (paragraf.replace(/\[\[ref:[^\]]*\]\]/g, "").trim().length < 40) {
-    return NextResponse.json(
-      { error: "Paragraf terlalu pendek untuk diberi footnote otomatis. Tulis dulu isi paragrafnya." },
-      { status: 400 },
-    );
-  }
+  const bersihParagraf = paragraf.replace(/\[\[ref:[^\]]*\]\]/g, "").trim();
+  // Mode seleksi (Tahap 4): teks yang diblok mahasiswa menjadi unit
+  // pencarian; ambang panjangnya pada teks seleksinya sendiri.
+  const seleksi =
+    typeof body?.seleksi === "string" ? body.seleksi.replace(/\s+/g, " ").trim().slice(0, 1200) : "";
   const judulProyek = typeof body?.judulProyek === "string" ? body.judulProyek.trim().slice(0, 300) : "";
   const kalimatKursor =
     typeof body?.kalimatKursor === "number" && Number.isFinite(body.kalimatKursor)
@@ -88,7 +91,70 @@ export async function POST(req: NextRequest) {
   // Konteks gerbang relevansi (opsional; klien lama tetap berjalan).
   const bidangId = typeof body?.bidangId === "string" ? body.bidangId.trim().slice(0, 60) : undefined;
   const topikAr = typeof body?.topikAr === "string" ? body.topikAr.trim().slice(0, 300) : undefined;
-  const paksaKonfirmasi = body?.paksaKonfirmasi === true;
+
+  // Pemasangan persis kandidat tertahan yang disetujui (Tahap 4):
+  // sidik terbitan server + data kandidat yang ditampilkan. Jalur
+  // generate TIDAK dijalankan ulang untuk permintaan ini, dan
+  // paksaKonfirmasi tanpa sidik tidak lagi berlaku (diabaikan).
+  const sidikDisetujui =
+    typeof body?.sidikDisetujui === "string" ? body.sidikDisetujui.trim().slice(0, 64) : "";
+  if (sidikDisetujui) {
+    const kandidatMentah = body?.kandidatDisetujui as Partial<Sumber> | null;
+    if (!kandidatMentah || typeof kandidatMentah !== "object" || typeof kandidatMentah.judul !== "string") {
+      return NextResponse.json(
+        { error: "Data kandidat yang disetujui tidak lengkap. Minta generate ulang." },
+        { status: 400 },
+      );
+    }
+    const kandidat: Sumber = {
+      id: typeof kandidatMentah.id === "string" ? kandidatMentah.id.slice(0, 80) : "",
+      jenis: kandidatMentah.jenis === "artikel" ? "artikel" : "kitab",
+      penulis: typeof kandidatMentah.penulis === "string" ? kandidatMentah.penulis.slice(0, 300) : "",
+      penulisDaftar: Array.isArray(kandidatMentah.penulisDaftar)
+        ? kandidatMentah.penulisDaftar.filter((x) => typeof x === "string").slice(0, 8)
+        : undefined,
+      tahun: typeof kandidatMentah.tahun === "string" ? kandidatMentah.tahun.slice(0, 20) : "",
+      judul: kandidatMentah.judul.slice(0, 500),
+      penerbit: typeof kandidatMentah.penerbit === "string" ? kandidatMentah.penerbit.slice(0, 300) : undefined,
+      jurnal: typeof kandidatMentah.jurnal === "string" ? kandidatMentah.jurnal.slice(0, 300) : undefined,
+      jilid: typeof kandidatMentah.jilid === "string" ? kandidatMentah.jilid.slice(0, 20) : undefined,
+      halaman: typeof kandidatMentah.halaman === "string" ? kandidatMentah.halaman.slice(0, 40) : undefined,
+      doi: typeof kandidatMentah.doi === "string" ? kandidatMentah.doi.slice(0, 120) : undefined,
+      isbn: typeof kandidatMentah.isbn === "string" ? kandidatMentah.isbn.slice(0, 40) : undefined,
+      url: typeof kandidatMentah.url === "string" ? kandidatMentah.url.slice(0, 500) : undefined,
+      sumberImpor: typeof kandidatMentah.sumberImpor === "string" ? kandidatMentah.sumberImpor.slice(0, 60) : undefined,
+    };
+    const hasilPasang = await pasangFootnoteDisetujui({
+      sidik: sidikDisetujui,
+      kandidat,
+      paragraf,
+      kalimatIdx: kalimatKursor,
+      pemilik: pengguna.id,
+    });
+    return NextResponse.json(hasilPasang);
+  }
+
+  // Validasi panjang untuk jalur generate (cabang sidik di atas tidak
+  // memerlukannya: ia hanya memasang kandidat yang sudah diterbitkan).
+  if (seleksi) {
+    if (seleksi.length < 20) {
+      return NextResponse.json(
+        { error: "Teks yang diblok terlalu pendek. Blok minimal satu kalimat utuh, lalu coba lagi." },
+        { status: 400 },
+      );
+    }
+    if (bersihParagraf.length < 20) {
+      return NextResponse.json(
+        { error: "Paragraf tempat teks diblok terlalu pendek untuk diberi footnote otomatis." },
+        { status: 400 },
+      );
+    }
+  } else if (bersihParagraf.length < 40) {
+    return NextResponse.json(
+      { error: "Paragraf terlalu pendek untuk diberi footnote otomatis. Tulis dulu isi paragrafnya." },
+      { status: 400 },
+    );
+  }
 
   const hasil = await generateFootnoteUntukParagraf({
     paragraf,
@@ -96,7 +162,8 @@ export async function POST(req: NextRequest) {
     kalimatKursor,
     bidangId,
     topikAr,
-    paksaKonfirmasi,
+    ...(seleksi ? { seleksi } : {}),
+    pemilik: pengguna.id,
     kolam: {
       pribadi: opsiP.pribadi,
       wajibPribadi: opsiP.wajibPribadi,
