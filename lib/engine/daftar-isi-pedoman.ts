@@ -326,6 +326,31 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
     kepala = mKepala[1]!;
     sisa = bersihFrasa(sisa.slice(mKepala[0].length));
   }
+  // Pola "Hubungan antara X dengan Y": pasangan antara...dengan adalah
+  // pembelah konsepnya. Tanpa penanganan khusus, seluruh sisa judul
+  // menjadi satu konsep (temuan telaah Tahap 2, S3).
+  const mAntara = sisa.match(/^antara\s+(.+?)\s+dengan\s+(.+)$/i);
+  if (mAntara) {
+    tambah(mAntara[1]!);
+    tambah(mAntara[2]!);
+    if (kepala && hasil.konsep.length >= 2) {
+      const kap = kepala.charAt(0).toUpperCase() + kepala.slice(1).toLowerCase();
+      hasil.relasiId = `${kap} ${hasil.konsep[0]!.teks} dengan ${hasil.konsep[1]!.teks}`;
+    }
+    return hasil;
+  }
+  // Pola metode-di-lokasi: "… di <institusi/tempat>" yang MENUTUP judul
+  // adalah batas lokasi penelitian, bukan konsep. Dibuang dari bahan
+  // konsep agar objek kajian sebelumnya tidak tertutup nama tempat dan
+  // nama tempat tidak diberi sub-bab definisi (temuan telaah Tahap 2,
+  // S3). Ekor yang masih memuat preposisi lain tidak disentuh; itu di
+  // luar pola yang terbukti.
+  const mLokasi = sisa.match(
+    /^(.+?)\s+di\s+((?:madrasah|sekolah|universitas|institut|pondok|pesantren|ma'had|mahad|sma|smk|smp|mtsn|mts|min|mi|sd|stai|stain|iain|uin|stkip|politeknik|akademi|kelas|kecamatan|kabupaten|kota|desa|provinsi)\b.*)$/i,
+  );
+  if (mLokasi && !/\s+(?:dalam|pada|terhadap|untuk|melalui)\s+/i.test(mLokasi[2]!)) {
+    sisa = bersihFrasa(mLokasi[1]!);
+  }
   const bagian = sisa
     .split(/\s+(?:dalam|pada|terhadap|di|untuk|melalui)\s+/i)
     .map(bersihFrasa)
@@ -361,10 +386,12 @@ function normLabel(s: string): string {
 
 /**
  * Validator daftar isi otomatis (gerbang pola KATALOG Tema 6): hasil
- * generasi TIDAK BOLEH (1) mengubah jumlah/urutan bab template,
- * (2) memutus ikatan bab ke isykal, (3) membuang tujuan/aturan bab
- * template, (4) membuang sub-bab WAJIB pedoman, (5) menyimpang dari
- * bentuk BabKustom. Mengembalikan daftar pelanggaran; kosong = lolos.
+ * generasi TIDAK BOLEH (1) mengubah jumlah/urutan/nama bab template,
+ * (2) memutus ikatan bab ke isykal, (3) membuang ATAU mengganti isi
+ * tujuan/aturan bab template (dibandingkan persis, bukan jumlahnya),
+ * (4) membuang sub-bab WAJIB pedoman atau perancah jawaban bab yang
+ * terikat isykal, (5) menyimpang dari bentuk BabKustom. Mengembalikan
+ * daftar pelanggaran; kosong = lolos.
  */
 export function validasiDaftarIsiOtomatis(daftar: BabKustom[], tpl: StrukturPedoman): string[] {
   const galat: string[] = [];
@@ -376,11 +403,16 @@ export function validasiDaftarIsiOtomatis(daftar: BabKustom[], tpl: StrukturPedo
     galat.push(`jumlah bab ${daftar.length} tidak sama dengan template (${babTpl.length})`);
     return galat;
   }
+  const proyeksi = strukturKeDaftarIsi(tpl);
   babTpl.forEach((b, i) => {
     const db = daftar[i]!;
     if (db.id !== `bab-pedoman-${b.nomor}`) {
       galat.push(`bab ke-${i + 1} bukan bab pedoman nomor ${b.nomor}`);
       return;
+    }
+    const pb = proyeksi[i]!;
+    if (db.labelId !== pb.labelId || db.labelAr !== pb.labelAr || db.babAr !== pb.babAr) {
+      galat.push(`bab ${b.nomor} berganti nama dari pedoman`);
     }
     if (typeof b.menjawabIsykal === "number" && db.isykalKe !== b.menjawabIsykal) {
       galat.push(`bab ${b.nomor} kehilangan ikatan isykal ${b.menjawabIsykal}`);
@@ -389,16 +421,31 @@ export function validasiDaftarIsiOtomatis(daftar: BabKustom[], tpl: StrukturPedo
       galat.push(`bab ${b.nomor} mendapat ikatan isykal karangan (${db.isykalKe})`);
     }
     if (b.tujuan && db.tujuan !== b.tujuan) galat.push(`bab ${b.nomor} kehilangan tujuan pedoman`);
-    if (b.aturan.length > 0 && (db.aturan?.length ?? 0) !== b.aturan.length) {
-      galat.push(`bab ${b.nomor} kehilangan aturan pedoman`);
+    if (b.aturan.length > 0) {
+      // Isi aturan dibandingkan PERSIS seperti tujuan (perbaikan telaah
+      // Tahap 2, S4): membandingkan jumlah saja membiarkan teks aturan
+      // yang diganti karangan lolos selama hitungannya sama.
+      const teksTpl = b.aturan.map((a) => a.teks);
+      const teksDb = db.aturan ?? [];
+      if (teksDb.length !== teksTpl.length || teksTpl.some((t, j) => teksDb[j] !== t)) {
+        galat.push(`bab ${b.nomor} kehilangan aturan pedoman`);
+      }
     }
     const labelProyek = new Set(
       db.sections.flatMap((s) => [normLabel(s.labelId), normLabel(s.labelAr)]),
     );
     for (const sub of b.subBab) {
-      if (!sub.wajib) continue;
+      // Sub-bab wajib selalu diperiksa. Pada bab terikat isykal, perancah
+      // jawaban dari template (satu-satunya sub-bab bab isi Mangkoso,
+      // wajib=false sebagai perancah aplikasi) ikut diperiksa: membuangnya
+      // tidak boleh lolos senyap (temuan telaah Tahap 2, R2).
+      if (!sub.wajib && typeof b.menjawabIsykal !== "number") continue;
       if (!labelProyek.has(normLabel(sub.nama)) && !labelProyek.has(normLabel(sub.namaAr ?? ""))) {
-        galat.push(`bab ${b.nomor} membuang sub-bab wajib pedoman "${sub.nama}"`);
+        galat.push(
+          sub.wajib
+            ? `bab ${b.nomor} membuang sub-bab wajib pedoman "${sub.nama}"`
+            : `bab ${b.nomor} membuang perancah pedoman "${sub.nama}"`,
+        );
       }
     }
   });
@@ -409,10 +456,14 @@ export function validasiDaftarIsiOtomatis(daftar: BabKustom[], tpl: StrukturPedo
  * Susun daftar isi proyek dari judul + template pedoman. Kerangka selalu
  * dari template (strukturKeDaftarIsi); yang diturunkan dari judul hanya
  * sub-bab MATERI pada bab isi:
- *  - bab terikat isykal (menjawabIsykal): membuka dengan sub-bab definisi
- *    bahasa dan istilah bagi konsep-konsep judul (pola contoh pemilik),
- *    sub-bab relasi antar konsep bila polanya terbaca, dan ditutup
- *    perancah jawaban isykal dari template;
+ *  - bab terikat isykal PERTAMA (menjawabIsykal): membuka dengan sub-bab
+ *    definisi bahasa dan istilah bagi konsep-konsep judul (pola contoh
+ *    pemilik), sub-bab relasi antar konsep bila polanya terbaca, dan
+ *    ditutup perancah jawaban isykal dari template. Bab terikat
+ *    berikutnya TIDAK mengulang blok definisi itu (definisi istilah
+ *    judul tempatnya di Bab 1 dan di bab terikat pertama); ia membuka
+ *    langsung dengan perancah jawaban isykalnya dari template
+ *    (perbaikan telaah Tahap 2, S2);
  *  - bab kedua tanpa ikatan (mis. الإطار النظري As'adiyah yang isinya
  *    memang teori sesuai judul): satu sub-bab definisi konsep utama
  *    ditambahkan di depan, sub-bab wajib template tidak digeser;
@@ -428,12 +479,19 @@ export function susunDaftarIsiOtomatis(
   const { konsep, relasiAr, relasiId } = dekonstruksiKonsepJudul(judul ?? "");
   if (konsep.length === 0) return { daftar: dasar, dariJudul: false };
   const utama = konsep[0]!;
+  // Blok definisi konsep judul hanya untuk bab terikat isykal pertama
+  // (nomor bab terkecil yang terikat); bab terikat lain tidak mengulang.
+  const babTerikatPertama = [...tpl.bab]
+    .sort((a, b) => a.nomor - b.nomor)
+    .find((b) => typeof b.menjawabIsykal === "number");
+  const idBabDefinisi = babTerikatPertama ? `bab-pedoman-${babTerikatPertama.nomor}` : null;
 
   let berubah = false;
   const hasil = dasar.map((db) => {
     const bTpl = tpl.bab.find((b) => db.id === `bab-pedoman-${b.nomor}`);
     if (!bTpl) return db;
     if (typeof bTpl.menjawabIsykal === "number") {
+      if (db.id !== idBabDefinisi) return db;
       const awalan = `bab-pedoman-${bTpl.nomor}-judul`;
       const sections: SubBabKustom[] = [seksiDefinisi(utama, `${awalan}-1`)];
       if (konsep[1]) sections.push(seksiDefinisi(konsep[1], `${awalan}-2`));

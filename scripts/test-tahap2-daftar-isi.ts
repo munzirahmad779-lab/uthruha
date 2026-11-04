@@ -22,6 +22,7 @@ import {
 } from "../lib/engine/daftar-isi-pedoman";
 import { migrasiProyek, newProject, type Project } from "../lib/engine/project";
 import { strukturProyek } from "../lib/content/struktur";
+import { composeSection } from "../lib/engine/compose";
 
 let gagal = 0;
 const cek = (nama: string, ok: boolean, detail = "") => {
@@ -273,6 +274,138 @@ cek(
   pPutaran.daftarIsiDariJudul === true &&
     (pPutaran.daftarIsi?.[1]?.sections[0]?.anak?.length ?? 0) === 2 &&
     pPutaran.daftarIsi?.[1]?.isykalKe === 1,
+);
+
+/* ---------- Perbaikan telaah Tahap 2: S1 (compose tanpa placeholder) ---------- */
+const hududBaru = composeSection(pMk, "hudud").markdown;
+cek(
+  "S1: batasan objektif proyek baru memakai judul, bukan placeholder topik",
+  !hududBaru.includes("[موضوع البحث]") && hududBaru.includes(JUDUL_USER_AR),
+);
+const itharFikriBaru = composeSection(pMk, "itharFikri").markdown;
+cek(
+  "S1: variabel kerangka proyek baru memakai judul, bukan placeholder topik",
+  !itharFikriBaru.includes("[موضوع البحث]") && itharFikriBaru.includes(JUDUL_USER_AR),
+);
+const farudhBaru = composeSection(pMk, "farudhiyat").markdown;
+cek(
+  "S1: hipotesis proyek baru memakai judul, bukan placeholder variabel",
+  !farudhBaru.includes("[المتغير المستقل]") && farudhBaru.includes(JUDUL_USER_AR),
+);
+
+/* ---------- Perbaikan telaah Tahap 2: S2 (definisi hanya di bab terikat pertama) ---------- */
+cek(
+  "S2: Bab 3 dan 4 membuka dengan perancah jawaban isykalnya, bukan blok definisi",
+  hasilId.daftar[2]?.sections[0]?.labelId === "Jawaban Isykal Kedua" &&
+    hasilId.daftar[3]?.sections[0]?.labelId === "Jawaban Isykal Ketiga",
+  `${hasilId.daftar[2]?.sections[0]?.labelId} | ${hasilId.daftar[3]?.sections[0]?.labelId}`,
+);
+cek(
+  "S2: tidak ada sub-bab definisi konsep di Bab 3 dan 4",
+  ![...(hasilId.daftar[2]?.sections ?? []), ...(hasilId.daftar[3]?.sections ?? [])].some((s) =>
+    s.labelId.startsWith("Definisi"),
+  ),
+);
+cek(
+  "S2: tiga bab terikat tidak lagi berawalan identik",
+  new Set([
+    hasilId.daftar[1]?.sections[0]?.labelId,
+    hasilId.daftar[2]?.sections[0]?.labelId,
+    hasilId.daftar[3]?.sections[0]?.labelId,
+  ]).size === 3,
+);
+cek(
+  "S2: Bab 2 tetap membawa blok definisi dan sub-bab relasi judul",
+  (hasilId.daftar[1]?.sections[0]?.labelId ?? "").includes("Definisi Ushul Fiqh") &&
+    hasilId.daftar[1]!.sections.some((s) => s.labelId === "Pengaruh Ushul Fiqh dalam Kehidupan"),
+);
+cek(
+  "S2: hasil susunan judul Indonesia tetap lolos validator",
+  validasiDaftarIsiOtomatis(hasilId.daftar, mangkoso).length === 0,
+  validasiDaftarIsiOtomatis(hasilId.daftar, mangkoso).join(" | "),
+);
+
+/* ---------- Perbaikan telaah Tahap 2: S3 (dua pola judul Indonesia) ---------- */
+const JUDUL_METODE = "Penerapan Metode Diskusi dalam Pembelajaran Bahasa Arab di Madrasah Aliyah Negeri 1 Barru";
+const konsepMetode = dekonstruksiKonsepJudul(JUDUL_METODE);
+cek(
+  "S3: metode-di-lokasi: konsepnya Metode Diskusi + Pembelajaran Bahasa Arab, lokasi bukan konsep",
+  konsepMetode.konsep[0]?.teks === "Metode Diskusi" &&
+    konsepMetode.konsep[1]?.teks === "Pembelajaran Bahasa Arab" &&
+    !konsepMetode.konsep.some((k) => /madrasah/i.test(k.teks)),
+  konsepMetode.konsep.map((k) => k.teks).join(" | "),
+);
+cek(
+  "S3: metode-di-lokasi: label relasi memakai objek kajian, bukan lokasi",
+  konsepMetode.relasiId === "Penerapan Metode Diskusi dalam Pembelajaran Bahasa Arab",
+  konsepMetode.relasiId,
+);
+const JUDUL_HUBUNGAN = "Hubungan antara Kecerdasan Emosional dengan Prestasi Belajar Santri";
+const konsepHub = dekonstruksiKonsepJudul(JUDUL_HUBUNGAN);
+cek(
+  "S3: pola antara...dengan terbelah menjadi dua konsep",
+  konsepHub.konsep[0]?.teks === "Kecerdasan Emosional" &&
+    konsepHub.konsep[1]?.teks === "Prestasi Belajar Santri",
+  konsepHub.konsep.map((k) => k.teks).join(" | "),
+);
+cek(
+  "S3: pola antara...dengan: label relasi setia pada redaksi judul",
+  konsepHub.relasiId === "Hubungan Kecerdasan Emosional dengan Prestasi Belajar Santri",
+  konsepHub.relasiId,
+);
+const hasilMetode = susunDaftarIsiOtomatis(mangkoso, JUDUL_METODE);
+cek(
+  "S3: daftar isi judul metode: definisi kedua adalah objek kajian, tidak ada definisi nama sekolah",
+  hasilMetode.dariJudul === true &&
+    (hasilMetode.daftar[1]?.sections[1]?.labelId ?? "").includes("Pembelajaran Bahasa Arab") &&
+    !hasilMetode.daftar.flatMap((b) => b.sections).some((s) => s.labelId.includes("Madrasah Aliyah")),
+  hasilMetode.daftar[1]?.sections.map((s) => s.labelId).join(" | "),
+);
+cek(
+  "S3: daftar isi judul metode lolos validator",
+  validasiDaftarIsiOtomatis(hasilMetode.daftar, mangkoso).length === 0,
+  validasiDaftarIsiOtomatis(hasilMetode.daftar, mangkoso).join(" | "),
+);
+
+/* ---------- Perbaikan telaah Tahap 2: S4 + ringan R1/R2 (validator) ---------- */
+const rusakAturanIsi: Project["daftarIsi"] = hasilMk.daftar.map((b) =>
+  b.id === "bab-pedoman-2"
+    ? { ...b, aturan: (b.aturan ?? []).map(() => "ATURAN PALSU TANPA DASAR PEDOMAN") }
+    : b,
+);
+cek(
+  "S4: aturan yang diganti isinya dengan jumlah sama tertangkap validator",
+  validasiDaftarIsiOtomatis(rusakAturanIsi!, mangkoso).some((g) => g.includes("aturan pedoman")),
+);
+const rusakNama: Project["daftarIsi"] = hasilMk.daftar.map((b) =>
+  b.id === "bab-pedoman-2" ? { ...b, labelId: "BAB KARANGAN BEBAS" } : b,
+);
+cek(
+  "R1: nama bab yang diganti tertangkap validator",
+  validasiDaftarIsiOtomatis(rusakNama!, mangkoso).some((g) => g.includes("berganti nama")),
+);
+const rusakPerancah: Project["daftarIsi"] = hasilMk.daftar.map((b) =>
+  b.id === "bab-pedoman-2"
+    ? { ...b, sections: b.sections.filter((s) => s.labelId !== "Jawaban Isykal Pertama") }
+    : b,
+);
+cek(
+  "R2: perancah jawaban isykal yang dibuang dari bab terikat tertangkap validator",
+  validasiDaftarIsiOtomatis(rusakPerancah!, mangkoso).some((g) => g.includes("Jawaban Isykal Pertama")),
+);
+
+/* ---------- Perbaikan telaah Tahap 2: R5 (penanda editor) [statis] ---------- */
+const sumberEditor = readFileSync(
+  new URL("../components/workspace/daftar-isi-editor.tsx", import.meta.url),
+  "utf8",
+);
+cek(
+  "[statis] R5: jalur edit manual editor menurunkan penanda dariJudul",
+  sumberEditor.includes("ubah({ daftarIsi: next, daftarIsiDariJudul: false })"),
+);
+cek(
+  "[statis] R5: tombol struktur bawaan editor menurunkan penanda dariJudul",
+  sumberEditor.includes("daftarIsi: susunDaftarIsiBawaan(p), daftarIsiDariJudul: false"),
 );
 
 console.log(gagal === 0 ? "\nSEMUA PASS" : `\n${gagal} GAGAL`);

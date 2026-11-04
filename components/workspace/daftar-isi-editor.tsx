@@ -103,7 +103,10 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
   }
 
   function terapkan(next: BabKustom[]) {
-    ubah({ daftarIsi: next });
+    // Edit manual mengakhiri status "susunan awal otomatis dari judul":
+    // penanda diturunkan agar catatan asal-usul tidak tampil basi
+    // (temuan telaah Tahap 2, R5).
+    ubah({ daftarIsi: next, daftarIsiDariJudul: false });
   }
 
   function ubahBab(i: number, patch: Partial<BabKustom>) {
@@ -248,7 +251,7 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
             bawaan saat ini sebagai daftar isi milik proyek, lalu edit bebas (termasuk menambah
             fasal/matlab di bawah sub-bab).
           </p>
-          <button type="button" onClick={() => ubah({ daftarIsi: susunDaftarIsiBawaan(p) })} className="btn-quiet mt-2">
+          <button type="button" onClick={() => ubah({ daftarIsi: susunDaftarIsiBawaan(p), daftarIsiDariJudul: false })} className="btn-quiet mt-2">
             Jadikan struktur bawaan bisa diedit
           </button>
         </div>
