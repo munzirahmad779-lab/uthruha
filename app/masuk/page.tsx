@@ -49,13 +49,16 @@ export default function MasukPage() {
                 Mahasiswa Ma'had Aly DDI Mangkoso
               </p>
               <p className="mt-1 text-[12px] leading-relaxed text-ink-700">
-                Bila email Google Anda sudah didaftarkan dosen, cukup masuk dengan
-                Google saja, tanpa kunci akses: akun Anda langsung Premium. Sesudah
-                masuk, isi kunci API Anda sendiri di halaman{" "}
+                Bila email Google Anda sudah didaftarkan dosen, masuklah dengan
+                Google saja, tanpa kunci akses. Khusus akun mahasiswa, akses
+                Premium baru terbuka sesudah Anda menyetor kunci API Anda
+                sendiri di halaman{" "}
                 <a href="/kunci" className="font-semibold text-gold-700 underline underline-offset-2">
                   Kunci API
-                </a>{" "}
-                agar fitur Premium berjalan di atas kuota API Anda sendiri.
+                </a>
+                ; sistem akan mengantar Anda ke sana pada percobaan masuk
+                pertama. Fitur Premium Anda berjalan di atas kuota API Anda
+                sendiri.
               </p>
             </div>
           )}

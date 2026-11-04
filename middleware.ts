@@ -157,6 +157,14 @@ const JALUR_BEBAS = new Set([
   // lain tetap memeriksa cookie gerbang (lapis kedua tolakTanpaSesi).
   "/api/auth/google",
   "/api/auth/status",
+  // Halaman + rute Kunci API (BYOK mahasiswa): harus bisa dicapai
+  // mahasiswa terdaftar yang BELUM menyetor kunci — gerbang setor
+  // kunci menolaknya di /api/masuk dan mengarahkannya ke sini.
+  // Keamanan BUKAN gerbang ini: handler /api/kunci-pribadi mewajibkan
+  // sesi Google yang sah, lalu cookie gerbang ATAU tanda mahasiswa;
+  // halaman /kunci sendiri hanya formulir tanpa data pengguna.
+  "/kunci",
+  "/api/kunci-pribadi",
   // Keluar/ganti akun juga harus tercapai SEBELUM gerbang (tombol
   // "Ganti akun" di /masuk dipakai pengunjung yang belum punya sesi
   // gerbang) dan dari dalam ruang kerja. Endpoint ini tidak memberi

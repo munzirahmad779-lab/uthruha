@@ -8,35 +8,52 @@
  * Kunci mentah TIDAK pernah dikembalikan. Penyimpanan terenkripsi di
  * lib/server/kunci-pribadi.ts. Hanya pemilik sesi yang bisa menyentuh
  * kuncinya sendiri (identitas dari cookie sesi, bukan dari body).
+ *
+ * Penjaga: sesi Google yang sah WAJIB. Sesudah itu salah satu dari
+ * cookie gerbang (pengguna biasa yang sudah masuk) ATAU tanda
+ * mahasiswa — mahasiswa terdaftar memang harus bisa mencapai rute
+ * ini SEBELUM aksesnya dibuka, untuk menyetor kunci pertamanya
+ * (gerbang setor kunci di /api/masuk). Karena itu jalur ini bebas
+ * gerbang tepi di middleware dan penjaganya tinggal di sini.
  */
 import { NextResponse } from "next/server";
 import { tolakTanpaSesi } from "@/lib/security/akses";
 import { asalSah } from "@/lib/security/laju";
-import { penggunaDariRequest } from "@/lib/server/identitas";
+import { penggunaDariRequest, type Pengguna } from "@/lib/server/identitas";
 import {
   kunciPribadiSah,
   simpanKunciPribadi,
   statusKunciPribadi,
 } from "@/lib/server/kunci-pribadi";
+import { perbarui } from "@/lib/server/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+async function penjaga(req: Request): Promise<Pengguna | Response> {
+  const u = await penggunaDariRequest(req);
+  if (!u) {
+    return NextResponse.json({ error: "Belum masuk dengan Google." }, { status: 401 });
+  }
+  if (u.mahasiswa) return u;
   const tolak = tolakTanpaSesi(req);
   if (tolak) return tolak;
-  const u = await penggunaDariRequest(req);
-  if (!u) return NextResponse.json({ error: "Belum masuk dengan Google." }, { status: 401 });
+  return u;
+}
+
+export async function GET(req: Request) {
+  const hasil = await penjaga(req);
+  if (hasil instanceof Response) return hasil;
+  const u = hasil;
   const status = await statusKunciPribadi(u.id);
   return NextResponse.json({ ok: true, mahasiswa: Boolean(u.mahasiswa), ...status });
 }
 
 export async function POST(req: Request) {
-  const tolak = tolakTanpaSesi(req);
-  if (tolak) return tolak;
+  const hasil = await penjaga(req);
+  if (hasil instanceof Response) return hasil;
   if (!asalSah(req)) return NextResponse.json({ error: "Asal tidak dikenal." }, { status: 403 });
-  const u = await penggunaDariRequest(req);
-  if (!u) return NextResponse.json({ error: "Belum masuk dengan Google." }, { status: 401 });
+  const u = hasil;
 
   let body: { gemini?: unknown; groq?: unknown };
   try {
@@ -67,16 +84,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Tidak ada kunci yang dikirim." }, { status: 400 });
   }
   await simpanKunciPribadi(u.id, ubah);
+  // Kehadiran mahasiswa menyetor kunci dihitung kehadiran hari ini:
+  // cap login terakhir ditulis agar kuncinya tidak dipinjam pada hari
+  // yang sama dengan hari ia sendiri muncul (aturan kolam pinjaman).
+  if (u.mahasiswa) {
+    await perbarui("pengguna", u.id, { loginTerakhir: new Date().toISOString() });
+  }
   const status = await statusKunciPribadi(u.id);
   return NextResponse.json({ ok: true, ...status });
 }
 
 export async function DELETE(req: Request) {
-  const tolak = tolakTanpaSesi(req);
-  if (tolak) return tolak;
+  const hasil = await penjaga(req);
+  if (hasil instanceof Response) return hasil;
   if (!asalSah(req)) return NextResponse.json({ error: "Asal tidak dikenal." }, { status: 403 });
-  const u = await penggunaDariRequest(req);
-  if (!u) return NextResponse.json({ error: "Belum masuk dengan Google." }, { status: 401 });
+  const u = hasil;
 
   let body: { penyedia?: unknown };
   try {

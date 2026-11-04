@@ -16,6 +16,7 @@ import {
 } from "@/lib/security/akses";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 import { penggunaDariCookie, tierEfektif } from "@/lib/server/identitas";
+import { statusKunciPribadi } from "@/lib/server/kunci-pribadi";
 import { aktifkanPremiumDariKunci } from "@/lib/server/lapis";
 import { catatDanBeritahuLogin } from "@/lib/server/notif-login";
 import { pesanBatasPerangkat, saringPerangkatAkun } from "@/lib/server/perangkat-akun";
@@ -59,6 +60,30 @@ function terbitkanCookie(res: NextResponse, jenis: JenisKunci, ingat: boolean) {
 }
 
 /**
+ * Gerbang setor kunci (ketetapan pemilik 4 Nov 2026 siang): akun
+ * mahasiswa TIDAK mendapat akses apa pun sebelum menyetor minimal
+ * satu kunci API pribadi — lewat jalur masuk mana pun. Mengembalikan
+ * respons penolakan bila harus ditolak, null bila boleh lanjut.
+ * Penolakan terjadi sebelum cap login ditulis, dan klien mengantar
+ * mahasiswa ke /kunci, rute yang tercapai hanya dengan sesi Google.
+ */
+async function tolakBilaMahasiswaTanpaKunci(
+  pengguna: { id: string; mahasiswa?: boolean },
+): Promise<NextResponse | null> {
+  if (!pengguna.mahasiswa) return null;
+  const statusKunci = await statusKunciPribadi(pengguna.id);
+  if (statusKunci.gemini.ada || statusKunci.groq.ada) return null;
+  return NextResponse.json(
+    {
+      error:
+        "Akun mahasiswa wajib menyetor kunci API pribadi dulu sebelum bisa masuk. Anda kami antar ke halaman Kunci API.",
+      kode: "WAJIB_ISI_KUNCI",
+    },
+    { status: 403 },
+  );
+}
+
+/**
  * Mode identitas: pulihkan sesi gerbang TANPA mengetik kunci, hanya untuk
  * identitas Google yang sudah membuktikan haknya —
  *  - premium masih aktif (menempel di identitas; selamat dari rotasi
@@ -88,6 +113,9 @@ async function masukViaIdentitas(req: Request, ingat: boolean, perangkatId: unkn
       jenis = "gratis";
     }
   }
+
+  const tolakMahasiswa = await tolakBilaMahasiswaTanpaKunci(pengguna);
+  if (tolakMahasiswa) return tolakMahasiswa;
 
   if (!jenis) {
     return NextResponse.json(
@@ -205,6 +233,14 @@ export async function POST(req: Request) {
         ...terbaru,
       } as unknown as Record<string, unknown> & { id: string });
     }
+  }
+
+  // Gerbang setor kunci berlaku juga di jalur kunci akses: mahasiswa
+  // yang menyertai percobaan ini tetapi belum menyetor kunci pribadi
+  // tidak dibukakan aksesnya walau kunci bersamanya benar.
+  if (terbaru) {
+    const tolakMahasiswa = await tolakBilaMahasiswaTanpaKunci(terbaru);
+    if (tolakMahasiswa) return tolakMahasiswa;
   }
 
   // Batas perangkat per akun (gratis 1, premium 2), dinilai SESUDAH hak

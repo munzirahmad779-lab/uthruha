@@ -138,8 +138,14 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "identitas", ingat, perangkatId: ambilPerangkatId() }),
       });
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; kode?: string };
       if (!res.ok) {
+        // Mahasiswa yang belum menyetor kunci API: antar langsung ke
+        // halaman Kunci API (gerbang setor kunci di server).
+        if (data.kode === "WAJIB_ISI_KUNCI") {
+          window.location.href = "/kunci";
+          return;
+        }
         setPesan(data.error ?? "Tidak bisa memulihkan sesi. Masukkan kunci akses Anda.");
         return;
       }
