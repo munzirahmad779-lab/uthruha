@@ -47,8 +47,22 @@ function isi(tpl: string, v: Vars): string {
   });
 }
 
-function pilih(section: string, jumlah: number, seed: number): FrasaEntry[] {
-  const pool = FRASA.filter((f) => f.section === section);
+/**
+ * Pilih frasa dari bank FRASA untuk satu bagian. Opsi tolak (Tahap
+ * 10, paket bernama telaah Tahap 3 butir ii) menyaring entri dengan
+ * aturan yang sama seperti filter tolak pada pilihBertag:
+ * generator fawaid dan ithar memakainya untuk menolak frasa yang
+ * menyematkan {{fenomena}} di tengah kalimat bila fenomena proyek
+ * berbentuk kalimat utuh, supaya fenomena berdiri sebagai
+ * kalimatnya sendiri lewat kalimatFenomena.
+ */
+function pilih(
+  section: string,
+  jumlah: number,
+  seed: number,
+  tolak?: (f: FrasaEntry) => boolean,
+): FrasaEntry[] {
+  const pool = FRASA.filter((f) => f.section === section && (!tolak || !tolak(f)));
   if (pool.length === 0) return [];
   return pool
     .map((f) => ({ f, k: hash(f.id + seed) }))
@@ -647,11 +661,36 @@ const BAB: Record<string, BagianFn> = {
   },
 
   fawaid: (p, v, seed) => {
-    const teoretis = pilih("fawaid", 2, seed).map((f) => isi(f.ar, v));
+    // Paket bernama telaah Tahap 3 butir (ii), porsi fawaid (ditutup
+    // Tahap 10): bank fawaid menyematkan {{fenomena}} di tengah
+    // frasa ("لتحسين {{fenomena}}", "تتناول {{fenomena}} من زوايا
+    // أخرى", "من خلال تحسين {{fenomena}}"). Bila fenomena proyek
+    // berbentuk kalimat utuh (penggolong Tahap 3), frasa-frasa itu
+    // ditolak dan fenomena masuk sebagai kalimat tersendiri sesudah
+    // frasa manfaat teoretis, persis perlakuan khalfiyah. Fenomena
+    // berbentuk frasa benda tetap tersemat wajar seperti sebelumnya.
+    const fenomenaKalimat = fenomenaBerbentukKalimat(v.fenomena);
+    const teoretis = pilih(
+      "fawaid",
+      2,
+      seed,
+      fenomenaKalimat ? (f) => f.ar.includes("{{fenomena}}") : undefined,
+    ).map((f) => isi(f.ar, v));
+    const kalimatFen = fenomenaKalimat
+      ? [
+          kalimatFenomena({
+            v,
+            siap: varsTerisi(v),
+            pakai: new Set<string>(),
+            fenomenaKalimat: true,
+          }),
+        ]
+      : [];
     return par(
       "## فوائد البحث",
       "### أولًا: الفوائد النظرية",
       ...teoretis,
+      ...kalimatFen,
       isi("ويسهم هذا البحث في إثراء الدراسات المتعلقة بـ{{bidang}}، ويضيف إلى المكتبة العلمية وصفًا دقيقًا لـ{{topik}} في السياق الذي يدرسه.", v),
       "### ثانيًا: الفوائد العملية",
       isi("أما الفوائد العملية فتتمثل في أن نتائج هذا البحث يمكن أن يستفيد منها القائمون على {{bidang}} في {{lokasi}}، إلى جانب الباحثين الذين سيتابعون الدراسة في الموضوع نفسه.", v),
@@ -699,10 +738,35 @@ const BAB: Record<string, BagianFn> = {
         isi(`ويتصل هذا المفهوم بـ{{topik}} اتصالًا مباشرًا، من حيث إن الأول يقدم الإطار الذي يفسر به الثاني.`, v),
       ),
     );
+    // Paket bernama telaah Tahap 3 butir (ii), porsi ithar (ditutup
+    // Tahap 10): perlakuan yang sama dengan fawaid. Bank ithar juga
+    // menyematkan {{fenomena}} di tengah frasa; bila fenomena proyek
+    // berbentuk kalimat utuh frasa-frasa itu ditolak dan fenomena
+    // berdiri sebagai kalimat tersendiri sesudah paragraf bank.
+    const fenomenaKalimat = fenomenaBerbentukKalimat(v.fenomena);
+    const frasaIthar = pilih(
+      "ithar",
+      2,
+      seed,
+      fenomenaKalimat ? (f) => f.ar.includes("{{fenomena}}") : undefined,
+    )
+      .map((f) => isi(f.ar, v))
+      .join("\n\n");
+    const kalimatFen = fenomenaKalimat
+      ? [
+          kalimatFenomena({
+            v,
+            siap: varsTerisi(v),
+            pakai: new Set<string>(),
+            fenomenaKalimat: true,
+          }),
+        ]
+      : [];
     return par(
       "## الإطار النظري",
       isi("تتطلب هذه الدراسة عرض الإطار النظري الذي تُبنى عليه، إذ تنطلق من مفاهيم {{bidang}} كما صاغها العلماء، ثم تختار منها ما يصلح لتحليل {{topik}}.", v),
-      pilih("ithar", 2, seed).map((f) => isi(f.ar, v)).join("\n\n"),
+      frasaIthar,
+      ...kalimatFen,
       ...sub,
       "### التأصيل النظري في المصادر الأصلية",
       "ويلزم التنبيه إلى أن المصادر الأصلية مقدمة على غيرها في هذا البحث، ولذلك يعتمد الباحث على المصادر الآتية، ويرجع إليها عند نقل المسائل:",
@@ -1016,7 +1080,16 @@ export function composeSection(p: Project, sectionId: string, seed = 0): HasilKo
   // utuh akan membuang kajian terakhir dan sintesisnya SENYAP, dan
   // draf tampak lengkap padahal isinya hilang. Panjangnya diatur oleh
   // jumlah kajian yang dipilih, bukan batas satu halaman.
-  if (sectionId !== "khalfiya" && sectionId !== "dirasat") {
+  // PENGECUALIAN ithar (Tahap 10, paket bernama telaah Tahap 3 butir
+  // i): kelas cacat yang sama, terbukti pada fixture penuh (2.211
+  // karakter menjadi 1.740; blok penutup التأصيل النظري في المصادر
+  // الأصلية beserta daftar rujukan kunci bidang hilang senyap, dan
+  // pada fixture kaya 19 blok menjadi 12). Panjang ithar dibatasi
+  // oleh susunannya sendiri (pengantar, dua frasa bank, maksimal
+  // empat sub-bab teori bidang, dan blok التأصيل النظري), bukan oleh
+  // batas satu halaman; blok penutup itu memuat rujukan kunci yang
+  // justru menjadi pegangan mahasiswa menulis bab teori.
+  if (sectionId !== "khalfiya" && sectionId !== "dirasat" && sectionId !== "ithar") {
     markdown = pangkasSatuHalaman(markdown);
   }
 
