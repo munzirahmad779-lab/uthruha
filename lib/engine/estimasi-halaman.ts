@@ -38,6 +38,18 @@
  *   1.652 kata -> 8 halaman; 3.134 kata -> 14 halaman; 6.100 kata ->
  *   26 halaman. Konstanta 235 kata/halaman menghasilkan kembali ketiga
  *   angka itu persis lewat ceil(kata/235).
+ * - KALIBRASI ULANG (tahap verifikasi menyeluruh, menutup L1 telaah
+ *   Tahap 10): huruf Carlito (pengganti Calibri yang cocok metriknya,
+ *   SIL OFL) dipasang di lingkungan ukur dan ketiga fixture standar
+ *   dirender ulang; pdffonts membuktikan Carlito kini benar-benar
+ *   memuat Latin pada PDF hasil. Angka baru: 1.652 -> 8; 3.134 -> 14;
+ *   6.100 -> 27 halaman. Konstanta standar diganti 230 kata/halaman,
+ *   yang menghasilkan kembali ketiga angka Carlito itu persis dan
+ *   tetap dalam 4 persen dari ketiga angka ukur lama. Catatan jujur:
+ *   glif Arab pada kedua render tetap dirujukbalik ke DejaVu Sans
+ *   karena Carlito (dan Calibri asli) tidak memuat huruf Arab; di
+ *   Word nyata rujukbalik Arab bergantung huruf Arab bawaan mesin
+ *   pengguna, jadi angka ini tetap perkiraan berlabel, bukan janji.
  * - Hasil ukur format As'adiyah (Sakkal Majalla 16, spasi Exactly
  *   24 pt, margin kanan 4, kiri 3, atas 3, bawah 3 cm): 3.134 kata ->
  *   14 halaman; 6.100 kata -> 26 halaman; konstanta 235 juga
@@ -101,7 +113,7 @@ export const FORMAT_STANDAR: FormatHalaman = {
   ukuranPt: 16,
   spasi: "1,5",
   marginCm: { kanan: 2.5, kiri: 2.5, atas: 2.5, bawah: 2.5 },
-  kataPerHalaman: 235,
+  kataPerHalaman: 230,
 };
 
 /**

@@ -138,15 +138,16 @@ export interface HasilBatas {
 
 /**
  * Perkiraan halaman A4 untuk naskah Arab 16 pt spasi 1,5, dari
- * kalibrasi terukur (Pembangunan Ulang Tahap 10): dokumen uji
- * 1.652 kata menjadi 8 halaman, 3.134 kata menjadi 14, 6.100 kata
- * menjadi 26 pada render eksportir aplikasi, yang cocok dengan
- * 235 kata per halaman. Angka ini sama dengan konstanta format
+ * kalibrasi terukur (Pembangunan Ulang Tahap 10) dan kalibrasi
+ * ulangnya dengan huruf Carlito pada tahap verifikasi menyeluruh:
+ * dokumen uji 1.652 kata menjadi 8 halaman, 3.134 kata menjadi 14,
+ * 6.100 kata menjadi 27 pada render berhuruf Carlito, yang cocok
+ * dengan 230 kata per halaman. Angka ini sama dengan konstanta format
  * standar di lib/engine/estimasi-halaman.ts (dijaga suite
  * test-tahap10-target, bukan impor, agar lib/refs tidak bergantung
  * pada lib/engine) dan tetap perkiraan, bukan pengukuran Word.
  */
-export const KATA_PER_HALAMAN = 235;
+export const KATA_PER_HALAMAN = 230;
 
 export function hitungBatas(teks: string, p: PedomanRules): HasilBatas {
   const paragrafMentah = teks.split(/\n{2,}/).filter((s) => s.trim() !== "");

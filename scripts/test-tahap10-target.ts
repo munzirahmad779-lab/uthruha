@@ -9,8 +9,13 @@
  * sini adalah angka yang benar-benar terukur pada 5 Nov 2026 dari
  * dokumen uji yang dirender LibreOffice (berkas dan naskahnya di
  * ~/workspace/kitabah-rebuild-10/kalibrasi-tahap10/): format standar
- * 1.652 kata menjadi 8 halaman, 3.134 menjadi 14, 6.100 menjadi 26;
- * format As'adiyah 3.134 menjadi 14 dan 6.100 menjadi 26.
+ * 1.652 kata menjadi 8 halaman, 3.134 menjadi 14, 6.100 menjadi 26
+ * pada render pengganti DejaVu; pada kalibrasi ulang tahap
+ * verifikasi menyeluruh dengan huruf Carlito terpasang, ketiga
+ * fixture standar terukur 8, 14, dan 27 halaman, dan konstanta
+ * standar menjadi 230. Format As'adiyah 3.134 menjadi 14 dan 6.100
+ * menjadi 26 (basis hurufnya tidak berubah, Sakkal Majalla belum
+ * terpasang, konstanta tetap 235).
  *
  * Jalankan: npx tsx scripts/test-tahap10-target.ts
  */
@@ -50,8 +55,8 @@ const cek = (nama: string, ok: boolean, detail = "") => {
 /* ================= A. Penaksir dan kalibrasinya ================= */
 
 cek(
-  "A1 konstanta kalibrasi format standar 235 kata per halaman",
-  FORMAT_STANDAR.kataPerHalaman === 235,
+  "A1 konstanta kalibrasi format standar 230 kata per halaman (kalibrasi ulang Carlito)",
+  FORMAT_STANDAR.kataPerHalaman === 230,
   String(FORMAT_STANDAR.kataPerHalaman),
 );
 cek(
@@ -65,7 +70,7 @@ cek(
 const UKUR_STANDAR: [number, number][] = [
   [1652, 8],
   [3134, 14],
-  [6100, 26],
+  [6100, 27],
 ];
 for (const [kata, halaman] of UKUR_STANDAR) {
   const taksir = estimasiHalamanDariKata(kata, FORMAT_STANDAR);
@@ -105,10 +110,10 @@ cek(
     halamanMentahDariKata(0, FORMAT_STANDAR) === 0,
 );
 cek(
-  "A7 kata untuk halaman: 2 hal = 470, 20 hal = 4700, 100 hal = 23500",
-  kataUntukHalaman(2, FORMAT_STANDAR) === 470 &&
-    kataUntukHalaman(20, FORMAT_STANDAR) === 4700 &&
-    kataUntukHalaman(100, FORMAT_STANDAR) === 23500,
+  "A7 kata untuk halaman: 2 hal = 460, 20 hal = 4600, 100 hal = 23000",
+  kataUntukHalaman(2, FORMAT_STANDAR) === 460 &&
+    kataUntukHalaman(20, FORMAT_STANDAR) === 4600 &&
+    kataUntukHalaman(100, FORMAT_STANDAR) === 23000,
 );
 cek(
   "A8 target pemilik tercatat apa adanya (2, 20, 100)",
@@ -176,8 +181,8 @@ cek(
   khalfiyaSkripsi.targetHalaman === 2 && khalfiyaSkripsi.sumberTarget === "pemilik",
 );
 cek(
-  "C2 skripsi: target kata khalfiyah diturunkan dari halaman (470), bukan generik 900",
-  khalfiyaSkripsi.targetKata === 470,
+  "C2 skripsi: target kata khalfiyah diturunkan dari halaman (460), bukan generik 900",
+  khalfiyaSkripsi.targetKata === 460,
   String(khalfiyaSkripsi.targetKata),
 );
 cek(
@@ -218,7 +223,7 @@ const khalfiyaMk = stMk.chapters
   .find((s) => s.id === "khalfiya");
 cek(
   "C6 proyek template Mangkoso: khalfiyah terpetakan dan bertarget halaman pemilik",
-  !!khalfiyaMk && khalfiyaMk.targetHalaman === 2 && khalfiyaMk.targetKata === 470,
+  !!khalfiyaMk && khalfiyaMk.targetHalaman === 2 && khalfiyaMk.targetKata === 460,
 );
 cek(
   "C7 format proyek Mangkoso adalah format standar, As'adiyah formatnya sendiri",
@@ -236,8 +241,8 @@ const promptTarget = buatPromptKembangkan({
   targetKata: khalfiyaSkripsi.targetKata,
 });
 cek(
-  "C8 prompt pengembangan menyebut target kata turunan halaman (470)",
-  !!promptTarget && promptTarget.includes("المستهدف") && promptTarget.includes("470"),
+  "C8 prompt pengembangan menyebut target kata turunan halaman (460)",
+  !!promptTarget && promptTarget.includes("المستهدف") && promptTarget.includes("460"),
 );
 
 /* ================= D. Ringkasan capaian yang jujur ================= */
