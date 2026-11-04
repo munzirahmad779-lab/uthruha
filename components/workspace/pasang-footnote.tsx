@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Project } from "@/lib/engine/project";
 import type { Sumber } from "@/lib/engine/cite";
 import { strukturProyek } from "@/lib/content/struktur";
@@ -150,6 +150,25 @@ export function PasangFootnote({
   const [kalimatIdx, setKalimatIdx] = useState(kalimatAwal ?? 0);
   const [halaman, setHalaman] = useState(sumber.halaman ?? "");
   const [jilid, setJilid] = useState(sumber.jilid ?? "");
+  const [konfirmasiDuplikat, setKonfirmasiDuplikat] = useState(false);
+
+  useEffect(() => {
+    setKonfirmasiDuplikat(false);
+  }, [sectionId]);
+
+  const jumlahDuplikat = useMemo(() => {
+    const teks = p.draf[sectionId] ?? "";
+    const pola = /\[\[ref:([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+    let jumlah = 0;
+    for (const m of teks.matchAll(pola)) {
+      if ((m[1] ?? "").trim() === sumber.id) jumlah++;
+    }
+    return jumlah;
+  }, [p.draf, sectionId, sumber.id]);
+
+  const halamanKosong = !halaman.trim();
+  const blokirArtikel = sumber.jenis === "artikel" && halamanKosong;
+  const blokirDuplikat = jumlahDuplikat > 0 && !konfirmasiDuplikat;
 
   const drafLama = p.draf[sectionId] ?? "";
   // Blok mentah = semua blok teks draf, termasuk baris judul markdown.
@@ -302,6 +321,12 @@ export function PasangFootnote({
         <p className="mt-0.5 font-naskh text-[12.5px] leading-relaxed text-ink-700" dir="rtl">
           {sumber.judul}
         </p>
+        {sumber.jurnal && (
+          <p className="mt-0.5 font-naskh text-[11.5px] leading-relaxed text-ink-500" dir="rtl">
+            {sumber.jurnal}
+            {sumber.tahun ? `, ${sumber.tahun}` : ""}
+          </p>
+        )}
 
         <label className="mt-3 block">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">1 · Bagian tujuan</span>
@@ -384,6 +409,32 @@ export function PasangFootnote({
             <input className="input mt-1 w-full" value={jilid} onChange={(e) => setJilid(e.target.value)} inputMode="numeric" />
           </label>
         </div>
+        {blokirArtikel && (
+          <p role="alert" className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[12px] leading-relaxed text-red-700">
+            Footnote artikel jurnal wajib mencantumkan halaman yang dirujuk. Isi dulu halaman di atas, atau footnote tidak bisa dipasang.
+          </p>
+        )}
+        {!blokirArtikel && halamanKosong && (
+          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] leading-relaxed text-amber-800">
+            Halaman masih kosong. Footnote tanpa halaman sulit ditelusuri pembaca, sebaiknya isi halaman yang dirujuk.
+          </p>
+        )}
+        {jumlahDuplikat > 0 && (
+          <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2.5">
+            <p role="alert" className="text-[12px] font-semibold leading-relaxed text-red-700">
+              Peringatan: sumber yang sama sudah terpasang {jumlahDuplikat} kali di bagian ini.
+            </p>
+            <label className="mt-2 flex items-start gap-2 text-[12px] leading-relaxed text-red-700">
+              <input
+                type="checkbox"
+                checked={konfirmasiDuplikat}
+                onChange={(e) => setKonfirmasiDuplikat(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0"
+              />
+              <span>Sumber yang sama sudah terpasang di bagian ini. Tetap pasang lagi.</span>
+            </label>
+          </div>
+        )}
 
         <div className="mt-3 rounded-xl border border-gold-600/30 bg-gold-500/5 px-3 py-2.5">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">
@@ -405,7 +456,7 @@ export function PasangFootnote({
           <button
             type="button"
             onClick={pasang}
-            disabled={memasang || (!modeBaru && paragraf.length === 0)}
+            disabled={memasang || (!modeBaru && paragraf.length === 0) || blokirArtikel || blokirDuplikat}
             className="btn-primary disabled:opacity-40"
           >
             {memasang ? "Memeriksa lapis…" : "Pasang footnote"}

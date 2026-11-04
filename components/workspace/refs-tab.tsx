@@ -21,6 +21,7 @@ import { IconPlus, IconTrash } from "@/components/icons";
 import { CopyButton, Field, Note } from "@/components/ui";
 import { PedomanPanel } from "@/components/workspace/pedoman-panel";
 import { verifikasiDoi } from "@/lib/engine/validasi-ref";
+import { ambilMetadataDoi } from "@/lib/engine/doi-metadata";
 import { PencarianTopikPanel } from "@/components/workspace/pencarian-topik-panel";
 
 const KOSONG: Sumber = sumberBaru("kitab");
@@ -39,40 +40,41 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
   const [sibukIsbn, setSibukIsbn] = useState(false);
   const [pesanIsbn, setPesanIsbn] = useState("");
 
-  /** Ambil metadata jurnal dari DOI via CrossRef — mengisi formulir manual. */
+  /** Ambil metadata jurnal dari DOI via Crossref dan OpenAlex, mengisi formulir manual. */
   async function ambilDariDoi() {
     const doi = doiAmbil.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, "");
     if (doi.length < 6) return;
     setSibukDoi(true);
     setPesanDoi("");
     try {
-      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
-      if (!res.ok) throw new Error(String(res.status));
-      const data = await res.json();
-      const m = data?.message ?? {};
-      const penulis: string = Array.isArray(m.author)
-        ? m.author
-            .map((a: { family?: string; given?: string }) => [a.family, a.given].filter(Boolean).join(", "))
-            .join("; ")
-        : "";
-      const tahun = m.issued?.["date-parts"]?.[0]?.[0] ?? m.created?.["date-parts"]?.[0]?.[0];
-      setBaru((b) => ({
-        ...b,
-        jenis: "artikel",
-        penulis: penulis || b.penulis,
-        judul: (Array.isArray(m.title) ? m.title[0] : "") || b.judul,
-        jurnal: (Array.isArray(m["container-title"]) ? m["container-title"][0] : "") || b.jurnal,
-        penerbit: m.publisher ?? b.penerbit,
-        tahun: tahun ? String(tahun) : b.tahun,
-        volume: m.volume ?? b.volume,
-        nomor: m.issue ?? b.nomor,
-        halaman: m.page ?? b.halaman,
-        doi,
-        url: m.URL ?? b.url,
-      }));
-      setPesanDoi(`Metadata DOI ${doi} terisi ke formulir — periksa, lalu tambahkan referensinya.`);
+      const hasil = await ambilMetadataDoi(doi);
+      const d = hasil.data;
+      setBaru((b) => {
+        const next = { ...b, jenis: "artikel" as const, doi: d.doi || doi };
+        if (d.penulis) next.penulis = d.penulis;
+        if (d.judul) next.judul = d.judul;
+        if (d.jurnal) next.jurnal = d.jurnal;
+        if (d.penerbit) next.penerbit = d.penerbit;
+        if (d.tahun) next.tahun = d.tahun;
+        if (d.volume) next.volume = d.volume;
+        if (d.nomor) next.nomor = d.nomor;
+        if (d.halaman) next.halaman = d.halaman;
+        if (d.url) next.url = d.url;
+        if (hasil.kurang.length > 0) next.perluVerifikasi = true;
+        else next.perluVerifikasi = undefined;
+        return next;
+      });
+      if (hasil.kurang.length > 0) {
+        const tambahanCatatan = hasil.catatan.length > 0 ? ` ${hasil.catatan.join(" ")}` : "";
+        setPesanDoi(
+          `Metadata terisi sebagian. Yang belum ada dari sumber: ${hasil.kurang.join(", ")}. Isi dari catatan jurnal atau periksa manual.${tambahanCatatan}`,
+        );
+      } else {
+        const tambahanCatatan = hasil.catatan.length > 0 ? ` ${hasil.catatan.join(" ")}` : "";
+        setPesanDoi(`Metadata DOI ${doi} terisi lengkap ke formulir. Periksa, lalu tambahkan referensinya.${tambahanCatatan}`);
+      }
     } catch {
-      setPesanDoi("DOI tidak ditemukan di CrossRef atau koneksi gagal. Periksa penulisannya, atau isi manual.");
+      setPesanDoi("DOI tidak ditemukan di Crossref maupun OpenAlex atau koneksi gagal. Periksa penulisannya, atau isi manual.");
     } finally {
       setSibukDoi(false);
     }
