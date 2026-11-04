@@ -44,6 +44,7 @@ import { composeNaskah } from "../lib/engine/compose";
 import { daftarPustakaProyek, entriPustakaProyek } from "../lib/engine/daftar-pustaka";
 import { buatDocx, markdownKeWord, setelDokumen } from "../lib/engine/export";
 import {
+  daftarPustakaKampus,
   entriPustakaMangkoso,
   footnoteKampus,
   kampusProyek,
@@ -812,6 +813,42 @@ async function ujiDocx() {
   sama("R2: nama berawalan huruf mirip gelar tidak terpotong (أحمد)", penulisTanpaGelar("أحمد الشافعي"), "أحمد الشافعي");
   sama("R2: nama Latin mirip token gelar tidak terpotong (Drake)", penulisTanpaGelar("Drake Bell"), "Drake Bell");
   sama("R2: nama yang hanya berisi gelar tidak dikosongkan", penulisTanpaGelar("د."), "د.");
+  // R2-a (verifikasi menyeluruh): gelar akhiran sesudah koma, aturan
+  // ekor murni hanya token gelar tertutup.
+  sama("R2a: dua gelar akhiran bertingkat dibuang", penulisTanpaGelar("Ahmad Yusuf, S.Ag., M.Ag."), "Ahmad Yusuf");
+  sama("R2a: gelar akhiran Lc. dan M.A. dibuang", penulisTanpaGelar("Hasan Basri, Lc., M.A."), "Hasan Basri");
+  sama("R2a: satu segmen berisi dua gelar sekaligus dibuang", penulisTanpaGelar("Hasan Basri, Lc. M.A."), "Hasan Basri");
+  sama("R2a: format Arab laqab-koma-nama TIDAK terpotong", penulisTanpaGelar("الشافعي، حسن"), "الشافعي، حسن");
+  sama("R2a: nama terbalik Latin TIDAK terpotong", penulisTanpaGelar("Smith, John"), "Smith, John");
+  sama("R2a: ekor campuran nama dan gelar berhenti, tidak terpotong", penulisTanpaGelar("Ahmad, S.Ag., Guru Besar"), "Ahmad, S.Ag., Guru Besar");
+  sama("R2a: gelar awalan dan akhiran sama sama dibuang", penulisTanpaGelar("Dra. Sari Wulandari, M.Pd."), "Sari Wulandari");
+  sama("R2a: nama tanpa koma tidak berubah", penulisTanpaGelar("Ahmad Yusuf"), "Ahmad Yusuf");
+  sama("R2a: ekor berhuruf gelar tak bertitik tidak dibuang (aman ke arah utuh)", penulisTanpaGelar("Ahmad Yusuf, SAg"), "Ahmad Yusuf, SAg");
+  // R2-b (verifikasi menyeluruh): sortir daftar pustaka memakai nama
+  // tercetak tersaring, bukan nama mentah bergelar.
+  const pustakaR2b = daftarPustakaKampus(
+    [
+      sumber({
+        id: "r2b-b",
+        penulis: "بدر الدين العيني",
+        judul: "عمدة القاري",
+        tahun: "2001",
+      }),
+      sumber({
+        id: "r2b-a",
+        penulis: "د. أحمد مختار عمر",
+        judul: "معجم اللغة العربية المعاصرة",
+        tahun: "2008",
+      }),
+    ],
+    "mangkoso",
+  );
+  const entriR2b = pustakaR2b.flatMap((g) => g.entri);
+  cek(
+    "R2b: urutan sortir mengikuti nama tercetak (أحمد sebelum بدر)",
+    entriR2b.length === 2 && entriR2b[0].startsWith("أحمد مختار عمر.") && entriR2b[1].startsWith("بدر الدين العيني."),
+    entriR2b.join(" | "),
+  );
   const artikelBergelar = sumber({
     jenis: "artikel",
     penulis: "أ. د. حسن الشافعي",

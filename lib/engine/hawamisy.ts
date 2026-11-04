@@ -206,6 +206,47 @@ const TOKEN_GELAR: string[] = [
 ];
 
 /**
+ * Token gelar AKHIRAN (sesudah koma) yang tertutup daftarnya, untuk
+ * penyaringan ekor nama (menutup R2-a telaah Tahap 6 pada tahap
+ * verifikasi menyeluruh). Aturan amannya: segmen ekor sesudah koma
+ * hanya dibuang bila SELURUH tokennya token gelar dari daftar ini.
+ * Koma bersifat struktural pada data nama aplikasi ini (format
+ * «اللقب، الاسم» dan nama terbalik Latin "Smith, John"), jadi potong
+ * koma mentah dilarang: segmen ekor nama terbalik adalah nama orang,
+ * bukan gelar, dan tidak akan pernah lolos aturan seluruh-token ini.
+ */
+const TOKEN_GELAR_AKHIRAN: string[] = [
+  "S.Ag.", "M.Ag.", "S.Pd.", "M.Pd.", "S.Pd.I.", "M.Pd.I.",
+  "S.H.", "M.H.", "S.H.I.", "M.H.I.",
+  "S.S.", "M.Hum.", "S.E.", "M.E.", "M.Si.",
+  "S.T.", "M.T.", "S.Kom.", "M.Kom.",
+  "S.Sos.", "M.Sos.", "S.IP.", "S.I.Kom.",
+  "Lc.", "M.A.", "M.Sc.", "M.Phil.", "Ph.D.", "Ed.D.",
+  "B.A.", "B.Sc.",
+  "Dr.", "Prof.", "Drs.", "Dra.", "Ir.",
+];
+
+/** Buang segmen ekor bergelar dari nama berkomma; mengembalikan nama
+ *  apa adanya bila tidak ada segmen ekor yang murni gelar. */
+function saringGelarAkhiran(nama: string): string {
+  const segmen = nama.split(",").map((s) => s.trim());
+  if (segmen.length < 2) return nama;
+  let potong = segmen.length;
+  while (potong > 1) {
+    const token = segmen[potong - 1].split(/\s+/).filter(Boolean);
+    if (
+      token.length > 0 &&
+      token.every((t) => TOKEN_GELAR_AKHIRAN.includes(t))
+    ) {
+      potong--;
+    } else {
+      break;
+    }
+  }
+  return potong === segmen.length ? nama : segmen.slice(0, potong).join(", ");
+}
+
+/**
  * Nama penulis tanpa gelar akademik, untuk LAPISAN FORMAT saja
  * (aturan umum pedoman dan format 6 Mangkoso: nama ditulis مجردا عن
  * اللقب). Data nama tersimpan tidak pernah diubah fungsi ini: bila
@@ -223,6 +264,11 @@ export function penulisTanpaGelar(penulis: string): string {
     const sisa = n.slice(token.length).trim();
     if (!sisa) break;
     n = sisa;
+    terpotong = true;
+  }
+  const tanpaAkhiran = saringGelarAkhiran(n);
+  if (tanpaAkhiran !== n) {
+    n = tanpaAkhiran;
     terpotong = true;
   }
   return terpotong ? n : penulis;
@@ -561,9 +607,13 @@ export interface GrupPustakaKampus {
 const collatorAr = new Intl.Collator("ar");
 
 function urutHijaiyah(items: Sumber[]): Sumber[] {
+  // Urutan memakai nama TERCETAK (tersaring gelarnya), bukan nama
+  // mentah tersimpan (menutup R2-b telaah Tahap 6): penulis bergelar
+  // awalan dulu terurut menurut huruf gelarnya, tidak konsisten
+  // dengan nama yang benar-benar dibaca mahasiswa.
   return [...items].sort(
     (a, b) =>
-      collatorAr.compare(a.penulis, b.penulis) ||
+      collatorAr.compare(penulisTanpaGelar(a.penulis), penulisTanpaGelar(b.penulis)) ||
       (a.tahun || "").localeCompare(b.tahun || "") ||
       collatorAr.compare(bersihkanJudul(a.judul), bersihkanJudul(b.judul)),
   );
@@ -679,7 +729,7 @@ export function daftarPustakaKampus(items: Sumber[], kampus: KampusPedoman): Gru
     const urut = [...items].sort(
       (a, b) =>
         peringkatBahasa(a) - peringkatBahasa(b) ||
-        collatorAr.compare(a.penulis, b.penulis) ||
+        collatorAr.compare(penulisTanpaGelar(a.penulis), penulisTanpaGelar(b.penulis)) ||
         (a.tahun || "").localeCompare(b.tahun || "") ||
         collatorAr.compare(bersihkanJudul(a.judul), bersihkanJudul(b.judul)),
     );
