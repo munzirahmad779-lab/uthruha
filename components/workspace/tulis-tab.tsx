@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { strukturProyek } from "@/lib/content/struktur";
+import { BIDANG, getBidang } from "@/lib/content/bidang";
 import { composeSection } from "@/lib/engine/compose";
 import type { Project } from "@/lib/engine/project";
 import { IconArrowRight, IconCheck, IconDownload, IconPen, IconSearch, IconSparkle } from "@/components/icons";
@@ -18,6 +19,54 @@ import {
 import type { Sumber } from "@/lib/engine/cite";
 import { FootnoteBagian } from "@/components/workspace/footnote-bagian";
 import { BatasStrip } from "@/components/workspace/batas-strip";
+
+const POLA_PENANDA = /\[\[ref:([^\]|]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
+
+type PerluKonfirmasi = {
+  sumber: Sumber;
+  kalimatIdx?: number;
+  bidangSumber?: string;
+  bidangProyek?: string;
+  alasan?: string;
+};
+
+/** Hapus fragmen penanda rusak, penanda valid dipertahankan utuh. */
+function bersihkanFragmen(teks: string): string {
+  let hasil = "";
+  let i = 0;
+  const validDi = new RegExp(POLA_PENANDA.source, "y");
+  while (i < teks.length) {
+    if (teks.startsWith("[[", i)) {
+      validDi.lastIndex = i;
+      const cocok = validDi.exec(teks);
+      if (cocok && cocok.index === i) {
+        hasil += cocok[0];
+        i += cocok[0].length;
+        continue;
+      }
+      const tutup = teks.indexOf("]]", i);
+      if (tutup !== -1 && tutup - i < 100) {
+        i = tutup + 2;
+      } else {
+        let j = i;
+        while (j < teks.length && !/\s/.test(teks[j] ?? "")) j++;
+        i = j;
+      }
+      continue;
+    }
+    if (teks.startsWith("ref:", i)) {
+      let j = i;
+      while (j < teks.length && !/[\s\]]/.test(teks[j] ?? "")) j++;
+      if (teks.slice(j, j + 2) === "]]") j += 2;
+      else if (teks[j] === "]") j++;
+      i = j;
+      continue;
+    }
+    hasil += teks[i];
+    i++;
+  }
+  return hasil;
+}
 
 export function TulisTab({
   p,
@@ -48,6 +97,12 @@ export function TulisTab({
   const [pesanGenerate, setPesanGenerate] = useState<{
     jenis: "ok" | "info" | "galat";
     teks: string;
+  } | null>(null);
+  const [konfirmasi, setKonfirmasi] = useState<{
+    perlu: PerluKonfirmasi;
+    paragraf: string;
+    paragrafIdx: number;
+    kalimatIdx: number;
   } | null>(null);
   const sinkron = useRef(p.draf[bagian] ?? "");
 
@@ -82,6 +137,27 @@ export function TulisTab({
   }, [teks]);
 
   const kata = useMemo(() => teks.split(/\s+/).filter(Boolean).length, [teks]);
+  const penandaDraf = useMemo(
+    () =>
+      [...teks.matchAll(POLA_PENANDA)].map((m) => ({
+        id: (m[1] ?? "").trim(),
+        hlm: (m[2] ?? "").trim(),
+        jilid: (m[3] ?? "").trim(),
+      })),
+    [teks],
+  );
+  const adaFragmenRusak = useMemo(() => {
+    const sisa = teks.replace(POLA_PENANDA, "");
+    return sisa.includes("[[") || sisa.includes("ref:");
+  }, [teks]);
+
+  function bersihkanFragmenDraf() {
+    const bersih = bersihkanFragmen(teks);
+    setTeks(bersih);
+    sinkron.current = bersih;
+    ubah({ draf: { ...p.draf, [bagian]: bersih } });
+  }
+
   const selesai = semua.filter((s) => (p.draf[s.id] ?? "").trim().length > 80).length;
 
   function susunUlang() {
@@ -97,14 +173,23 @@ export function TulisTab({
    * (atau memakai bank rujukan bersama), memilih kalimat tempat menempel.
    * Di sini tinggal tanam penandanya — tanpa dialog sama sekali.
    */
-  async function generateOtomatis() {
+  async function generateOtomatis(opsi?: {
+    paksaKonfirmasi?: boolean;
+    paragraf?: string;
+    paragrafIdx?: number;
+    kalimatIdx?: number;
+  }) {
     if (sibukGenerate) return;
     // Samakan dulu draf proyek dengan isi editor, lalu tentukan paragraf
     // dan kalimat dari posisi kursor terakhir yang tercatat.
     sinkron.current = teks;
     ubah({ draf: { ...p.draf, [bagian]: teks } });
-    const target = kursor != null ? targetDariKursor(teks, kursor) : null;
-    const paragraf = target ? ambilParagraf(teks, target.paragrafIdx) : null;
+    const targetKursor = kursor != null ? targetDariKursor(teks, kursor) : null;
+    const target =
+      opsi?.paragraf && typeof opsi.paragrafIdx === "number"
+        ? { paragrafIdx: opsi.paragrafIdx, kalimatIdx: opsi.kalimatIdx ?? targetKursor?.kalimatIdx ?? 0 }
+        : targetKursor;
+    const paragraf = opsi?.paragraf ?? (target ? ambilParagraf(teks, target.paragrafIdx) : null);
     if (!target || !paragraf) {
       setPesanGenerate({
         jenis: "info",
@@ -122,6 +207,9 @@ export function TulisTab({
           paragraf,
           judulProyek: p.judulAr ?? "",
           kalimatKursor: target.kalimatIdx,
+          bidangId: p.bidangId,
+          topikAr: p.topikAr,
+          ...(opsi?.paksaKonfirmasi ? { paksaKonfirmasi: true } : {}),
         }),
       });
       const data = (await res.json().catch(() => null)) as {
@@ -131,11 +219,21 @@ export function TulisTab({
         dariBank?: boolean;
         catatan?: string;
         error?: string;
+        perluKonfirmasi?: PerluKonfirmasi;
       } | null;
       if (!res.ok) {
         setPesanGenerate({
           jenis: "galat",
           teks: data?.error ?? "Generate footnote gagal. Coba lagi sebentar.",
+        });
+        return;
+      }
+      if (!opsi?.paksaKonfirmasi && data?.perluKonfirmasi?.sumber) {
+        setKonfirmasi({
+          perlu: data.perluKonfirmasi,
+          paragraf,
+          paragrafIdx: target.paragrafIdx,
+          kalimatIdx: target.kalimatIdx,
         });
         return;
       }
@@ -155,6 +253,17 @@ export function TulisTab({
           s.judul.trim().toLowerCase() === sumberBaru.judul.trim().toLowerCase(),
       );
       const sumberFinal = sudahAda ?? sumberBaru;
+      if (
+        sudahAda &&
+        (teks.includes(`[[ref:${sumberFinal.id}]]`) || teks.includes(`[[ref:${sumberFinal.id}|`))
+      ) {
+        setKonfirmasi(null);
+        setPesanGenerate({
+          jenis: "info",
+          teks: `Sumber ini sudah terpasang di bagian ini: ${sumberFinal.judul}. Penanda yang sama tidak dipasang lagi.`,
+        });
+        return;
+      }
       // Gerbang lapis server, sama seperti dialog manual (403 = tolak).
       try {
         const gerbang = await fetch("/api/lapis/footnote", {
@@ -181,6 +290,7 @@ export function TulisTab({
       });
       setTeks(drafBaru);
       sinkron.current = drafBaru;
+      setKonfirmasi(null);
       setPesanGenerate({
         jenis: "ok",
         teks: `Footnote terpasang otomatis di paragraf ${target.paragrafIdx + 1}, setelah kalimat ${kalimatIdx + 1}: ${sumberFinal.judul}${data.dariBank ? " (dari bank rujukan bersama, tanpa pencarian baru)" : ""}`,
@@ -393,6 +503,40 @@ export function TulisTab({
           )}
         </div>
 
+        {(penandaDraf.length > 0 || adaFragmenRusak) && (
+          <div className="mt-2 space-y-2">
+            {penandaDraf.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" aria-label="Penanda sitasi di draf ini">
+                {penandaDraf.map((pen, i) => {
+                  const sumberPen = p.sumber.find((s) => s.id === pen.id);
+                  return (
+                    <span
+                      key={`${pen.id}-${i}`}
+                      className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
+                        sumberPen
+                          ? "border-ink-900/15 bg-white/70 text-ink-800"
+                          : "border-red-300 bg-red-50 font-semibold text-red-700"
+                      }`}
+                    >
+                      <span className="truncate">{sumberPen ? sumberPen.judul : "rujukan hilang"}</span>
+                      {pen.hlm && <span className="shrink-0 text-ink-500">hlm. {pen.hlm}</span>}
+                      {pen.jilid && <span className="shrink-0 text-ink-500">jilid {pen.jilid}</span>}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {adaFragmenRusak && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+                <span>Ada fragmen penanda sitasi rusak di draf ini</span>
+                <button type="button" onClick={bersihkanFragmenDraf} className="btn-quiet !py-0.5 !text-[11px]">
+                  Bersihkan fragmen
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {cariRujukan && (
           <RefFinder
             p={p}
@@ -449,12 +593,58 @@ export function TulisTab({
           </p>
         )}
 
+        {konfirmasi && (
+          <div className="mt-3 rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3" role="alert">
+            <p className="text-[13px] font-bold text-red-900">Konfirmasi pemasangan sumber</p>
+            <p className="mt-1 font-naskh text-[13px] leading-relaxed text-ink-900" dir="rtl">
+              {konfirmasi.perlu.sumber.judul}
+            </p>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink-800">
+              Bidang sumber:{" "}
+              <strong>
+                {(() => {
+                  const cocok = BIDANG.find((b) => b.id === konfirmasi.perlu.bidangSumber);
+                  return cocok ? cocok.labelId : konfirmasi.perlu.bidangSumber || "tidak diketahui";
+                })()}
+              </strong>{" "}
+              · Bidang proyek: <strong>{getBidang(p.bidangId).labelId}</strong>
+              {getBidang(p.bidangId).labelAr ? ` (${getBidang(p.bidangId).labelAr})` : ""}
+            </p>
+            {konfirmasi.perlu.alasan && (
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-700">Alasan ditahan: {konfirmasi.perlu.alasan}</p>
+            )}
+            <p className="mt-1 text-[12px] leading-relaxed text-ink-700">
+              Sumber ini belum dipasang. Pilih apakah tetap dipasang atau tidak.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={sibukGenerate}
+                onClick={() =>
+                  void generateOtomatis({
+                    paksaKonfirmasi: true,
+                    paragraf: konfirmasi.paragraf,
+                    paragrafIdx: konfirmasi.paragrafIdx,
+                    kalimatIdx: konfirmasi.perlu.kalimatIdx ?? konfirmasi.kalimatIdx,
+                  })
+                }
+                className="btn-primary !py-1.5 !text-[12px] disabled:opacity-40"
+              >
+                Tetap pasang
+              </button>
+              <button type="button" onClick={() => setKonfirmasi(null)} className="btn-ghost !py-1.5 !text-[12px]">
+                Jangan pasang
+              </button>
+            </div>
+          </div>
+        )}
+
         <FootnoteBagian
           p={p}
           bagian={bagian}
           onCariRujukan={() => setCariRujukan(true)}
           onPasang={(sumber) => setPasangTarget({ sumber })}
-          onGenerate={generateOtomatis}
+          onGenerate={() => void generateOtomatis()}
           sibukGenerate={sibukGenerate}
         />
 
