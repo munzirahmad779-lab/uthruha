@@ -11,14 +11,12 @@ import {
   IconCompass,
   IconDoc,
   IconLayers,
-  IconList,
   IconLock,
   IconPen,
   IconQuote,
   IconScale,
   IconSearch,
   IconShield,
-  IconSparkle,
   IconTarget,
   IconTranslate,
 } from "@/components/icons";
@@ -30,14 +28,11 @@ export function Hero() {
     <section className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute inset-0 pattern-geo opacity-[0.25]" />
-        <div className="absolute -left-32 top-10 h-72 w-72 rounded-full bg-gold-200/40 blur-3xl" />
-        <div className="absolute -right-24 top-40 h-80 w-80 rounded-full bg-ink-200/40 blur-3xl" />
       </div>
 
       <div className="wrap grid gap-14 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-24">
-        <div className="animate-rise">
+        <div>
           <span className="eyebrow">
-            <span className="h-1.5 w-1.5 rounded-full bg-gold-500" />
             Ruang kerja karya ilmiah berbahasa Arab
           </span>
 
@@ -54,7 +49,7 @@ export function Hero() {
             mainnya sendiri: struktur <span className="font-arabic">الباب الأول</span>…,
             istilah yang harus konsisten, ortografi yang tidak ditangkap pemeriksa ejaan,
             dan sitasi gaya <span className="font-arabic">الحواشي</span>. Kitabah
-            menyiapkan kerangkanya — Anda yang mengisi datanya.
+            menyiapkan kerangkanya. Anda yang mengisi datanya.
           </p>
 
           <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-ink-700 sm:text-base">
@@ -72,15 +67,14 @@ export function Hero() {
               Masuk
               <IconArrowRight className="h-4 w-4" />
             </Link>
-            <Link href="/#uji-coba" className="btn-ghost">
-              Coba sebagai tamu
-              <IconArrowUpRight className="h-4 w-4" />
+            <Link href="/panduan" className="btn-ghost">
+              Lihat panduan
             </Link>
           </div>
 
           <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-xs text-ink-600">
             {[
-              "Uji coba tamu tanpa akun",
+              "Kunci gratis lewat WhatsApp",
               "Draf tersimpan di peramban Anda",
               "Ekspor .docx siap RTL",
             ].map((t) => (
@@ -92,21 +86,18 @@ export function Hero() {
           </ul>
         </div>
 
-        <div className="relative animate-rise lg:justify-self-end">
+        <div className="relative lg:justify-self-end">
           <div className="absolute -right-2 -top-5 z-20 hidden rounded-full border border-gold-500/40 bg-parchment-50 px-3 py-1 text-[11px] font-semibold text-ink-700 shadow-card sm:block">
             <span className="font-arabic">خلفية البحث</span> · 900 kata
-          </div>
-          <div className="absolute -left-3 bottom-16 z-20 hidden rounded-full border border-ink-900/10 bg-white px-3 py-1 text-[11px] font-semibold text-ink-700 shadow-card sm:block">
-            همزة · ة / ت · مراجع
           </div>
 
           <div className="card relative w-full max-w-md overflow-hidden p-0">
             <div className="flex items-center justify-between border-b border-ink-900/10 bg-parchment-100/80 px-5 py-3">
               <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-600">
-                مسودة البحث
+                مسودة البحث · Contoh draf
               </span>
               <span className="chip !border-gold-500/30 !bg-gold-100/60 !text-ink-700">
-                <IconSparkle className="h-3.5 w-3.5" /> tesis · kualitatif
+                <IconPen className="h-3.5 w-3.5" /> tesis · kualitatif
               </span>
             </div>
 
@@ -130,7 +121,7 @@ export function Hero() {
                     </span>
                     <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink-900/10">
                       <span
-                        className="block h-full rounded-full bg-gradient-to-r from-gold-500 to-gold-300"
+                        className="block h-full rounded-full bg-gold-500"
                         style={{ width: `${r.isi}%` }}
                       />
                     </span>
@@ -160,37 +151,34 @@ export function Hero() {
 
 const MASALAH = [
   {
-    ikon: IconList,
     judul: "Template babnya tidak sama",
     ar: "هيكل البحث",
     isi: "Panduan penulisan umum memakai Chapter 1–5. Naskah Arab memakai الباب الأول sampai الباب الخامس, dengan bagian مثل خلفية البحث dan تحديد المصطلحات yang tidak punya padanan langsung.",
   },
   {
-    ikon: IconTranslate,
     judul: "Istilah berubah di tiap bab",
     ar: "اتساق المصطلحات",
     isi: "Satu istilah Indonesia diterjemahkan jadi tiga bentuk Arab yang berbeda di bab I, III, dan IV. Penguji akan menanyakannya satu per satu.",
   },
   {
-    ikon: IconSearch,
     judul: "Pemeriksa ejaan tidak menolong",
     ar: "الإملاء",
     isi: "Kesalahan ة/ه, hamzah, dan tanda baca Arab lolos dari Word. Yang tertangkap justru kata asing yang sebenarnya benar.",
   },
   {
-    ikon: IconQuote,
     judul: "Sitasi Arab punya aturannya",
     ar: "الحواشي والمراجع",
-    isi: "Catatan kaki menyebut تحقيق، الطبعة، ج، dan ص — bukan hanya penulis–tahun. Daftar rujukan juga diurutkan dengan kaidah Arab.",
+    isi: "Catatan kaki menyebut تحقيق، الطبعة، ج، dan ص, bukan hanya penulis–tahun. Daftar rujukan juga diurutkan dengan kaidah Arab.",
   },
 ];
 
+const NOMOR_ARAB = ["٠١", "٠٢", "٠٣", "٠٤"];
+
 export function Masalah() {
   return (
-    <section className="wrap py-16 sm:py-20">
+    <section className="wrap py-10 sm:py-20">
       <div className="max-w-2xl">
-        <span className="eyebrow">Kenapa dibuat</span>
-        <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
+        <h2 className="text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
           Masalahnya jarang pada bahasa Arabnya.
         </h2>
         <p className="mt-4 text-[15px] leading-relaxed text-ink-700">
@@ -200,18 +188,21 @@ export function Masalah() {
         </p>
       </div>
 
-      <div className="mt-10 grid gap-4 sm:grid-cols-2">
-        {MASALAH.map((m) => (
-          <div key={m.judul} className="card group p-6">
-            <div className="flex items-start justify-between gap-4">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-ink-900 text-gold-300">
-                <m.ikon className="h-5 w-5" />
+      <div className="mt-10 grid sm:grid-cols-2">
+        {MASALAH.map((m, i) => (
+          <div
+            key={m.judul}
+            className="border-t border-ink-900/10 py-6 sm:odd:pr-10 sm:even:border-l sm:even:border-ink-900/10 sm:even:pl-10"
+          >
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="font-display text-[26px] font-semibold leading-none text-gold-700">
+                {NOMOR_ARAB[i]}
               </span>
               <span className="font-arabic text-sm text-ink-400" dir="rtl">
                 {m.ar}
               </span>
             </div>
-            <h3 className="mt-4 text-lg font-bold text-ink-900">{m.judul}</h3>
+            <h3 className="mt-3 text-lg font-bold text-ink-900">{m.judul}</h3>
             <p className="mt-2 text-sm leading-relaxed text-ink-700">{m.isi}</p>
           </div>
         ))}
@@ -235,7 +226,7 @@ const LANGKAH = [
     no: "٠٢",
     judul: "Susun struktur",
     ar: "بناء الهيكل",
-    isi: "Struktur bab tersusun otomatis mengikuti jenis karya dan metode — termasuk bagian yang hanya berlaku untuk kuantitatif.",
+    isi: "Struktur bab tersusun otomatis mengikuti jenis karya dan metode, termasuk bagian yang hanya berlaku untuk kuantitatif.",
     tautan: "/panduan#struktur",
     label: "Lihat struktur",
   },
@@ -260,11 +251,10 @@ const LANGKAH = [
 export function CaraKerja() {
   return (
     <section id="cara-kerja" className="border-y border-ink-900/10 bg-parchment-100/60">
-      <div className="wrap py-16 sm:py-20">
+      <div className="wrap py-10 sm:py-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="max-w-xl">
-            <span className="eyebrow">Cara kerja</span>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
+            <h2 className="text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
               Empat langkah, satu naskah.
             </h2>
           </div>
@@ -315,7 +305,7 @@ const FITUR = [
     ikon: IconPen,
     judul: "Bank frasa akademik",
     ar: "عبارات أكاديمية",
-    isi: `${FRASA.length} pola kalimat Arab untuk membuka, membandingkan, menyimpulkan, dan mengutip — sudah dipetakan per bagian naskah.`,
+    isi: `${FRASA.length} pola kalimat Arab untuk membuka, membandingkan, menyimpulkan, dan mengutip, sudah dipetakan per bagian naskah.`,
     href: "/alat#frasa",
   },
   {
@@ -343,7 +333,7 @@ const FITUR = [
     ikon: IconQuote,
     judul: "Sitasi & daftar rujukan",
     ar: "التوثيق",
-    isi: "Kutipan dalam teks, catatan kaki gaya kitab, dan daftar rujukan terurut kaidah Arab — dari data yang Anda masukkan sendiri.",
+    isi: "Kutipan dalam teks, catatan kaki gaya kitab, dan daftar rujukan terurut kaidah Arab, dari data yang Anda masukkan sendiri.",
     href: "/alat#sitasi",
   },
   {
@@ -357,7 +347,7 @@ const FITUR = [
     ikon: IconTarget,
     judul: "Simulasi sidang",
     ar: "أسئلة المناقشة",
-    isi: "Pertanyaan penguji yang realistis — dalam bahasa Indonesia dan Arab — beserta bukti naskah yang harus Anda tunjukkan.",
+    isi: "Pertanyaan penguji yang realistis dalam bahasa Indonesia dan Arab, beserta bukti naskah yang harus Anda tunjukkan.",
     href: "/alat#sidang",
   },
   {
@@ -371,11 +361,10 @@ const FITUR = [
 
 export function Fitur() {
   return (
-    <section id="fitur" className="wrap py-16 sm:py-20">
+    <section id="fitur" className="wrap py-10 sm:py-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-xl">
-          <span className="eyebrow">Fitur</span>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
+          <h2 className="text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
             Alat yang memang dibuat untuk naskah Arab.
           </h2>
         </div>
@@ -385,8 +374,32 @@ export function Fitur() {
         </p>
       </div>
 
-      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {FITUR.map((f) => (
+      {FITUR.slice(0, 1).map((f) => (
+        <Link
+          key={f.judul}
+          href={f.href}
+          className="card group mt-10 flex flex-col gap-5 p-6 transition hover:border-gold-500/40 hover:shadow-lift sm:flex-row sm:items-center sm:p-8"
+        >
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-ink-900 text-gold-300">
+            <f.ikon className="h-6 w-6" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-lg font-bold text-ink-900">{f.judul}</span>
+              <span className="font-arabic text-sm text-ink-400" dir="rtl">
+                {f.ar}
+              </span>
+            </span>
+            <span className="mt-1.5 block text-sm leading-relaxed text-ink-700">{f.isi}</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-semibold text-gold-700">
+            Masuk untuk memakai <IconArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </Link>
+      ))}
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {FITUR.slice(1).map((f) => (
           <Link
             key={f.judul}
             href={f.href}
@@ -402,7 +415,7 @@ export function Fitur() {
             </div>
             <h3 className="mt-4 text-[15px] font-bold text-ink-900">{f.judul}</h3>
             <p className="mt-2 flex-1 text-[13px] leading-relaxed text-ink-700">{f.isi}</p>
-            <span className="mt-4 inline-flex items-center gap-1 text-[12px] font-semibold text-gold-600 opacity-0 transition group-hover:opacity-100">
+            <span className="mt-4 inline-flex items-center gap-1 text-[12px] font-semibold text-gold-700 opacity-0 transition group-hover:opacity-100">
               Masuk untuk memakai <IconArrowRight className="h-3.5 w-3.5" />
             </span>
           </Link>
@@ -427,13 +440,12 @@ export function StrukturSection() {
       <div className="wrap py-16 sm:py-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="max-w-xl">
-            <span className="eyebrow !text-gold-300">Struktur</span>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-[2.4rem]">
+            <h2 className="text-3xl font-extrabold tracking-tight sm:text-[2.4rem]">
               Satu kerangka, empat jenjang.
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-parchment-200/70">
               Semua struktur mengikuti urutan bab yang lazim di perguruan tinggi
-              keislaman. Bedanya pada kedalaman, cakupan teori, dan bobot pembahasan —
+              keislaman. Bedanya pada kedalaman, cakupan teori, dan bobot pembahasan,
               bukan pada nama babnya.
             </p>
           </div>
@@ -460,7 +472,7 @@ export function StrukturSection() {
                     {st.labelAr}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] uppercase tracking-wider text-parchment-200/45">
+                <p className="mt-1 text-xs uppercase tracking-wider text-parchment-200/70">
                   {KARYA_LABEL[jenis].jenjang} · {kata} kata
                 </p>
                 <div className="my-4 h-px bg-parchment-200/10" />
@@ -474,7 +486,7 @@ export function StrukturSection() {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-4 text-[11px] text-parchment-200/50">{st.rentang}</p>
+                <p className="mt-4 text-[11px] text-parchment-200/70">{st.rentang}</p>
               </div>
             );
           })}
@@ -494,8 +506,7 @@ export function FrasaPreview() {
     <section className="wrap py-16 sm:py-20">
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <div>
-          <span className="eyebrow">Bank frasa</span>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
+          <h2 className="text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
             Kalimat yang memang dipakai di naskah Arab.
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-ink-700">
@@ -527,10 +538,10 @@ export function FrasaPreview() {
                 {f!.ar}
               </blockquote>
               <figcaption className="mt-3 border-t border-dashed border-ink-900/10 pt-3 text-[12px] leading-relaxed text-ink-600">
-                <span className="font-semibold uppercase tracking-wider text-gold-600">
+                <span className="font-semibold uppercase tracking-wider text-gold-700">
                   {f!.section}
-                </span>{" "}
-                — {f!.arti}
+                </span>
+                : {f!.arti}
               </figcaption>
             </figure>
           ))}
@@ -555,13 +566,12 @@ export function JurnalPreview() {
       <div className="panel overflow-hidden">
         <div className="grid grid-cols-1 gap-8 p-6 sm:p-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center">
           <div className="min-w-0">
-            <span className="eyebrow">Direktori jurnal</span>
-            <h2 className="mt-3 text-2xl font-extrabold tracking-tight text-ink-900 sm:text-3xl">
+            <h2 className="text-2xl font-extrabold tracking-tight text-ink-900 sm:text-3xl">
               Sebelum mengirim naskah, cek dulu tujuannya.
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-700">
               {JURNAL.length} jurnal yang menerima atau lazim memuat naskah berbahasa
-              Arab. Pemadu mencocokkan kalimat kunci naskah Anda dengan cakupan jurnal —
+              Arab. Pemadu mencocokkan kalimat kunci naskah Anda dengan cakupan jurnal,
               lalu Anda memutuskan sendiri setelah membaca laman resminya.
             </p>
             <Link href="/jurnal" className="btn-ghost mt-6">
@@ -581,7 +591,7 @@ export function JurnalPreview() {
                   <p className="mt-0.5 truncate text-[11px] text-ink-500">{j!.penerbit}</p>
                 </div>
                 <span className="shrink-0 rounded-full bg-ink-900/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-600">
-                  {j!.indeks[0] ?? "—"}
+                  {j!.indeks[0] ?? "-"}
                 </span>
               </div>
             ))}
@@ -620,13 +630,12 @@ export function Integritas() {
     <section className="border-y border-ink-900/10 bg-parchment-100/70">
       <div className="wrap grid gap-10 py-16 sm:py-20 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
-          <span className="eyebrow">Integritas akademik</span>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
+          <h2 className="text-3xl font-extrabold tracking-tight text-ink-900 sm:text-[2.4rem]">
             Alat bantu, bukan jasa pembuatan karya.
           </h2>
           <p className="mt-4 text-[15px] leading-relaxed text-ink-700">
             Naskah yang baik lahir dari data dan penalaran Anda. Kitabah mengambil beban
-            teknis penulisan — bukan beban berpikirnya.
+            teknis penulisan, bukan beban berpikirnya.
           </p>
           <div className="mt-6 flex items-start gap-3 rounded-2xl border border-gold-500/30 bg-gold-100/50 p-4">
             <IconScale className="mt-0.5 h-5 w-5 shrink-0 text-gold-600" />
@@ -686,8 +695,8 @@ export function CtaBand() {
         </h2>
         <p className="relative mx-auto mt-4 max-w-xl text-sm leading-relaxed text-parchment-200/75">
           Buat proyek, pilih jenjang dan metode, lalu susun draf bagian pertama dalam
-          beberapa menit. Ruang kerja dibuka dengan kunci akses — atau coba dulu sebagai
-          tamu, tanpa akun.
+          beberapa menit. Ruang kerja dibuka dengan kunci akses; kunci gratis bisa
+          diminta lewat WhatsApp dari halaman masuk.
         </p>
         <div className="relative mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/masuk" className="btn-gold">
@@ -695,10 +704,10 @@ export function CtaBand() {
             <IconArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/#uji-coba"
+            href="/panduan"
             className="btn border border-parchment-200/25 text-parchment-100 hover:border-gold-300/60"
           >
-            Coba sebagai tamu
+            Lihat panduan
           </Link>
         </div>
       </div>

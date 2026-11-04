@@ -41,7 +41,7 @@ export function SiteFooter() {
             </div>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-parchment-200/70">
               Ruang kerja penulisan karya ilmiah berbahasa Arab. Dibangun untuk mahasiswa
-              dan peneliti yang menulis dalam bahasa Arab — bukan terjemahan mesin dari
+              dan peneliti yang menulis dalam bahasa Arab, bukan terjemahan mesin dari
               bahasa lain.
             </p>
             <p className="mt-3 text-sm font-semibold italic text-gold-300">
@@ -92,7 +92,7 @@ export function SiteFooter() {
             </Link>
           </p>
           <p className="max-w-lg sm:text-right">
-            Alat bantu penulisan — bukan pengganti pembimbing, dan bukan jasa pembuatan
+            Alat bantu penulisan, bukan pengganti pembimbing, dan bukan jasa pembuatan
             karya ilmiah. Setiap sitasi wajib diperiksa pada sumber aslinya.
           </p>
         </div>

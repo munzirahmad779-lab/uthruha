@@ -19,7 +19,7 @@ import { JURNAL } from "@/lib/content/jurnal";
 const FAQ = [
   {
     q: "Apakah naskah saya dikirim ke server?",
-    a: "Isi draf naskah Anda disimpan di penyimpanan lokal peramban Anda sendiri (localStorage) — tetap ada meski Anda menutup tab, dan konsekuensinya tidak ikut pindah bila Anda membersihkan data peramban atau berganti perangkat; karena itu biasakan mengekspor .docx. Yang disimpan di server hanya akun Anda (nama, email, foto dari Google) dan catatan proyek seperti judul, kategori, dan pemakaian fitur, agar aturan lapis dan proyek Anda dikenali. Teks yang Anda minta diproses fitur AI dikirim ke penyedia AI (Google Gemini/Groq) sebatas permintaan itu. Rinciannya ada di Kebijakan Privasi (/privasi).",
+    a: "Isi draf naskah Anda disimpan di penyimpanan lokal peramban Anda sendiri (localStorage). Ia tetap ada meski Anda menutup tab, dan konsekuensinya tidak ikut pindah bila Anda membersihkan data peramban atau berganti perangkat; karena itu biasakan mengekspor .docx. Yang disimpan di server hanya akun Anda (nama, email, foto dari Google) dan catatan proyek seperti judul, kategori, dan pemakaian fitur, agar aturan lapis dan proyek Anda dikenali. Teks yang Anda minta diproses fitur AI dikirim ke penyedia AI (Google Gemini/Groq) sebatas permintaan itu. Rinciannya ada di Kebijakan Privasi (/privasi).",
   },
   {
     q: "Apakah ini bisa menuliskan skripsi saya dari nol?",
@@ -35,11 +35,11 @@ const FAQ = [
   },
   {
     q: "Apakah data jurnal di direktori itu akurat?",
-    a: "Data direktori bersifat indikatif dan berubah dari waktu ke waktu — biaya publikasi, status indeks, dan cakupan bisa berubah kapan saja. Karena itu setiap entri diberi catatan verifikasi dan tautan resmi. Jangan pernah mengirim naskah hanya berdasarkan data di halaman ini.",
+    a: "Data direktori bersifat indikatif dan berubah dari waktu ke waktu: biaya publikasi, status indeks, dan cakupan bisa berubah kapan saja. Karena itu setiap entri diberi catatan verifikasi dan tautan resmi. Jangan pernah mengirim naskah hanya berdasarkan data di halaman ini.",
   },
   {
     q: "Apakah hasilnya bisa langsung diserahkan ke pembimbing?",
-    a: "Belum. Draf yang dihasilkan adalah kerangka kerja: strukturnya sudah benar, tetapi isinya masih perlu data, rujukan, dan penalaran Anda. Yang biasanya paling cepat terlihat oleh pembimbing adalah bagian yang masih berisi penanda — jadi lengkapi dulu bagian-bagian itu sebelum dibawa ke bimbingan.",
+    a: "Belum. Draf yang dihasilkan adalah kerangka kerja: strukturnya sudah benar, tetapi isinya masih perlu data, rujukan, dan penalaran Anda. Yang biasanya paling cepat terlihat oleh pembimbing adalah bagian yang masih berisi penanda, jadi lengkapi dulu bagian-bagian itu sebelum dibawa ke bimbingan.",
   },
   {
     q: "Apakah aplikasi ini gratis?",

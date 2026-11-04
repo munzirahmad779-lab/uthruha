@@ -8,7 +8,7 @@ import { AgenWidget } from "@/components/agen-widget";
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.kitabah.web.id"),
   title: {
-    default: "كتابة Kitabah — Ruang Kerja Karya Ilmiah Berbahasa Arab",
+    default: "كتابة Kitabah · Ruang Kerja Karya Ilmiah Berbahasa Arab",
     template: "%s · Kitabah",
   },
   description:
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Kitabah" }],
   openGraph: {
-    title: "كتابة Kitabah — Ruang Kerja Karya Ilmiah Berbahasa Arab",
+    title: "كتابة Kitabah · Ruang Kerja Karya Ilmiah Berbahasa Arab",
     description:
       "Dari topik yang masih kabur menjadi naskah skripsi, tesis, disertasi, atau artikel jurnal berbahasa Arab yang tertata.",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "كتابة Kitabah — Ruang Kerja Karya Ilmiah Berbahasa Arab",
+    title: "كتابة Kitabah · Ruang Kerja Karya Ilmiah Berbahasa Arab",
     description:
       "Dari topik yang masih kabur menjadi naskah skripsi, tesis, disertasi, atau artikel jurnal berbahasa Arab yang tertata.",
     images: ["/og-image.png"],
@@ -89,7 +89,7 @@ export default function RootLayout({
         <SiteFooter />
         {/* Fase 3 (keputusan J): widget chat bawaan kini AgenWidget (Premium).
             Widget estafet mailbox lama TIDAK dihapus, tetapi bukan lagi
-            bawaan — ia hanya dimuat bila WIDGET_MAILBOX_AKTIF=1 di env. */}
+            bawaan, ia hanya dimuat bila WIDGET_MAILBOX_AKTIF=1 di env. */}
         {process.env.WIDGET_MAILBOX_AKTIF === "1" && (
           <Script src="/widget-claude.js" strategy="afterInteractive" />
         )}

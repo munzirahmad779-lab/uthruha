@@ -201,7 +201,7 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
       {googleAktif && (
         <>
       <p className="text-[12px] font-semibold text-ink-800">
-        Langkah 1 — Masuk dengan Google
+        Langkah 1: Masuk dengan Google
       </p>
       {!statusDimuat ? (
         <div className="mt-2 rounded-lg bg-parchment-50 p-3">
@@ -226,7 +226,7 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
                 {status.tier === "premium"
                   ? " dan premiumnya masih aktif"
                   : ""}
-                {" "}— Anda bisa langsung masuk tanpa mengetik kunci lagi.
+                . Anda bisa langsung masuk tanpa mengetik kunci lagi.
               </p>
               <button
                 type="button"
@@ -272,7 +272,7 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
       <form onSubmit={kirimKunci} className="mt-6 space-y-4">
         <div>
           <label htmlFor="kunci" className="block text-[12px] font-semibold text-ink-800">
-            {googleAktif ? "Langkah 2 — Kunci akses" : "Kunci akses"}
+            {googleAktif ? "Langkah 2: Kunci akses" : "Kunci akses"}
           </label>
           <input
             id="kunci"
