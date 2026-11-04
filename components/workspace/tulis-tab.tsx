@@ -1022,6 +1022,7 @@ export function TulisTab({
               teks: seleksi ? seleksi.teks : teks,
               namaPedoman: p.strukturPedoman?.namaPedoman,
               targetKata: aktif?.targetKata,
+              bahasa: p.bahasa,
             };
             return (
               <SerahAiPanel

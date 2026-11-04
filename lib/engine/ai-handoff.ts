@@ -154,6 +154,13 @@ export interface KonteksKembangkan {
   namaPedoman?: string;
   /** Target kata bagian menurut struktur proyek, bila ada. */
   targetKata?: number;
+  /**
+   * Bahasa naskah proyek ("ar" | "id" | "en"); bahasa instruksi
+   * prompt mengikuti bidang ini (Verifikasi menyeluruh, menutup R1
+   * telaah Tahap 8: dulu instruksi selalu Arab walau proyek berbahasa
+   * Indonesia atau Inggris). Kosong berarti "ar", perilaku lama.
+   */
+  bahasa?: "ar" | "id" | "en";
 }
 
 /**
@@ -172,6 +179,85 @@ export interface KonteksKembangkan {
  * tidak menghasilkan prompt, dan permukaan wajib menyatakannya jujur
  * (tombol nonaktif), bukan menyerahkan kerangka kosong.
  */
+/** Paket bahasa instruksi prompt kembangkan, per bahasa naskah proyek. */
+interface PaketBahasaPrompt {
+  pembuka: string;
+  labelJudul: (judul: string) => string;
+  labelBagian: (nama: string) => string;
+  labelPedoman: (nama: string) => string;
+  diminta: string;
+  instruksi: string[];
+  target: (jumlahKata: number, targetKata: number) => string;
+  penutup: string;
+  labelTeks: string;
+  /** Penanda di ekor prompt yang dipotong ke batas aman penyedia. */
+  penandaPotong: string;
+}
+
+const PAKET_PROMPT: Record<"ar" | "id" | "en", PaketBahasaPrompt> = {
+  ar: {
+    pembuka: "أنت مساعد أكاديمي متخصص في الكتابة العلمية باللغة العربية الفصحى.",
+    labelJudul: (j) => `عنوان البحث: «${j}»`,
+    labelBagian: (n) => `القسم المطلوب تطويره: ${n}`,
+    labelPedoman: (n) => `يُكتب هذا البحث وفق: ${n}`,
+    diminta: "المطلوب: طوِّر النص الآتي ووسِّعه وعمِّق تحليله، ملتزمًا بما يأتي:",
+    instruksi: [
+      "حافِظ على المعنى الأصلي وعلى كل فكرة واردة في النص، ولا تحذف منها شيئًا ولا تغيّر مقصود الباحث.",
+      "وسِّع الشرح والأمثلة والروابط المنطقية بين الأفكار بلغة عربية أكاديمية رصينة وتراكيب مترابطة، تعميقًا لا حشوًا ولا تكرارًا.",
+      "لا تخترع مراجع ولا مصادر ولا أسماء علماء ولا تواريخ ولا أرقام صفحات غير واردة في النص. وإن احتاج موضع إلى مرجع إضافي فاكتب فيه [يحتاج إلى مرجع] ولا تخترع مرجعًا.",
+      "علامات الحواشي الواردة في النص بصيغة [[ref:...]] بيانات آلية لنظام كتابة البحث؛ حافِظ عليها في مواضعها نفسها ولا تعدّلها ولا تحذفها.",
+    ],
+    target: (j, t) =>
+      `النص الحالي نحو ${j} كلمة، والمستهدف في هذا القسم نحو ${t} كلمة؛ فوسِّع النص حتى يقارب المستهدف دون إخلال بالشروط السابقة.`,
+    penutup:
+      "أخيرًا: أعِد النص المطوَّر فقط، جاهزًا لأن يُلصق محل النص الأصلي، من دون مقدمات ولا تعليقات ولا عناوين من خارج النص.",
+    labelTeks: "النص الحالي:",
+    penandaPotong: "\n\n[… تم اقتصاص النص بسبب حدود الرموز]",
+  },
+  id: {
+    pembuka: "Anda adalah asisten akademik yang ahli dalam penulisan ilmiah berbahasa Indonesia.",
+    labelJudul: (j) => `Judul penelitian: «${j}»`,
+    labelBagian: (n) => `Bagian yang diminta dikembangkan: ${n}`,
+    labelPedoman: (n) => `Penelitian ini ditulis mengikuti: ${n}`,
+    diminta: "Tugas: kembangkan teks berikut, perluas dan perdalam analisisnya, dengan mematuhi ketentuan berikut:",
+    instruksi: [
+      "Pertahankan makna asli dan setiap gagasan yang ada di dalam teks; jangan menghapus apa pun dan jangan mengubah maksud peneliti.",
+      "Perluas penjelasan, contoh, dan kaitan logis antar gagasan dengan bahasa Indonesia akademik yang kokoh dan susunan yang saling berkaitan; pendalaman, bukan pengulangan atau isian kosong.",
+      "Jangan mengarang rujukan, sumber, nama ulama atau pakar, tanggal, atau nomor halaman yang tidak ada di dalam teks. Bila suatu tempat membutuhkan rujukan tambahan, tuliskan [perlu rujukan] di tempat itu, jangan mengarang rujukan.",
+      "Penanda catatan kaki dalam teks berbentuk [[ref:...]] adalah data mesin sistem penulisan risalah; pertahankan pada tempat dan bentuknya, jangan diubah dan jangan dihapus.",
+    ],
+    target: (j, t) =>
+      `Teks saat ini sekitar ${j} kata, dan target bagian ini sekitar ${t} kata; perluas teks hingga mendekati target tanpa melanggar ketentuan di atas.`,
+    penutup:
+      "Terakhir: kembalikan hanya teks hasil pengembangan, siap ditempel menggantikan teks asli, tanpa pengantar, komentar, atau judul dari luar teks.",
+    labelTeks: "Teks saat ini:",
+    penandaPotong: "\n\n[… teks dipotong karena batas karakter]",
+  },
+  en: {
+    pembuka: "You are an academic assistant specialising in scholarly writing in English.",
+    labelJudul: (j) => `Research title: "${j}"`,
+    labelBagian: (n) => `Section to expand: ${n}`,
+    labelPedoman: (n) => `This work follows the guidelines: ${n}`,
+    diminta: "Task: expand the following text and deepen its analysis, observing these rules:",
+    instruksi: [
+      "Preserve the original meaning and every idea in the text; delete nothing and do not alter the researcher's intent.",
+      "Expand the explanations, examples, and logical links between ideas in solid academic English with a coherent structure; deepen, do not pad or repeat.",
+      "Do not invent references, sources, scholars' names, dates, or page numbers that are not in the text. Where a passage needs an additional reference, write [needs reference] there instead of inventing one.",
+      "Footnote markers in the text in the form [[ref:...]] are machine data of the thesis-writing system; keep them exactly in place, unmodified and undeleted.",
+    ],
+    target: (j, t) =>
+      `The current text is about ${j} words and the target for this section is about ${t} words; expand the text towards the target without breaking the rules above.`,
+    penutup:
+      "Finally: return only the expanded text, ready to be pasted in place of the original, with no introductions, comments, or headings from outside the text.",
+    labelTeks: "Current text:",
+    penandaPotong: "\n\n[… text truncated due to the character limit]",
+  },
+};
+
+function paketPrompt(k: KonteksKembangkan): PaketBahasaPrompt {
+  return PAKET_PROMPT[k.bahasa === "id" || k.bahasa === "en" ? k.bahasa : "ar"];
+}
+
 export function buatPromptKembangkan(k: KonteksKembangkan): string | null {
   const teks = (k.teks ?? "").trim();
   if (!teks) return null;
@@ -179,37 +265,21 @@ export function buatPromptKembangkan(k: KonteksKembangkan): string | null {
   const namaBagian = (k.namaBagian ?? "").trim();
   const namaPedoman = (k.namaPedoman ?? "").trim();
   const jumlahKata = teks.split(/\s+/).filter(Boolean).length;
+  const paket = paketPrompt(k);
 
-  const instruksi: string[] = [
-    "حافِظ على المعنى الأصلي وعلى كل فكرة واردة في النص، ولا تحذف منها شيئًا ولا تغيّر مقصود الباحث.",
-    "وسِّع الشرح والأمثلة والروابط المنطقية بين الأفكار بلغة عربية أكاديمية رصينة وتراكيب مترابطة، تعميقًا لا حشوًا ولا تكرارًا.",
-    "لا تخترع مراجع ولا مصادر ولا أسماء علماء ولا تواريخ ولا أرقام صفحات غير واردة في النص. وإن احتاج موضع إلى مرجع إضافي فاكتب فيه [يحتاج إلى مرجع] ولا تخترع مرجعًا.",
-    "علامات الحواشي الواردة في النص بصيغة [[ref:...]] بيانات آلية لنظام كتابة البحث؛ حافِظ عليها في مواضعها نفسها ولا تعدّلها ولا تحذفها.",
-  ];
+  const instruksi: string[] = [...paket.instruksi];
   if (typeof k.targetKata === "number" && k.targetKata > 0 && jumlahKata < k.targetKata) {
-    instruksi.push(
-      `النص الحالي نحو ${jumlahKata} كلمة، والمستهدف في هذا القسم نحو ${k.targetKata} كلمة؛ فوسِّع النص حتى يقارب المستهدف دون إخلال بالشروط السابقة.`,
-    );
+    instruksi.push(paket.target(jumlahKata, k.targetKata));
   }
 
-  const baris: string[] = [
-    "أنت مساعد أكاديمي متخصص في الكتابة العلمية باللغة العربية الفصحى.",
-    "",
-  ];
-  if (judul) baris.push(`عنوان البحث: «${judul}»`);
-  if (namaBagian) baris.push(`القسم المطلوب تطويره: ${namaBagian}`);
-  if (namaPedoman) baris.push(`يُكتب هذا البحث وفق: ${namaPedoman}`);
+  const baris: string[] = [paket.pembuka, ""];
+  if (judul) baris.push(paket.labelJudul(judul));
+  if (namaBagian) baris.push(paket.labelBagian(namaBagian));
+  if (namaPedoman) baris.push(paket.labelPedoman(namaPedoman));
   if (judul || namaBagian || namaPedoman) baris.push("");
-  baris.push("المطلوب: طوِّر النص الآتي ووسِّعه وعمِّق تحليله، ملتزمًا بما يأتي:");
+  baris.push(paket.diminta);
   instruksi.forEach((isi, i) => baris.push(`${i + 1}. ${isi}`));
-  baris.push(
-    "أخيرًا: أعِد النص المطوَّر فقط، جاهزًا لأن يُلصق محل النص الأصلي، من دون مقدمات ولا تعليقات ولا عناوين من خارج النص.",
-    "",
-    "النص الحالي:",
-    "---",
-    teks,
-    "---",
-  );
+  baris.push(paket.penutup, "", paket.labelTeks, "---", teks, "---");
   return baris.join("\n");
 }
 
@@ -246,7 +316,7 @@ export function siapkanSerahKembangkan(
   return {
     provider,
     prompt: terpotong
-      ? prompt.slice(0, provider.batasKarakter) + "\n\n[… تم اقتصاص النص بسبب حدود الرموز]"
+      ? prompt.slice(0, provider.batasKarakter) + paketPrompt(k).penandaPotong
       : prompt,
     terpotong,
     panjangAsli: prompt.length,

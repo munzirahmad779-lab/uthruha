@@ -28,9 +28,13 @@ async function salinTeks(teks: string): Promise<boolean> {
       ta.value = teks;
       document.body.appendChild(ta);
       ta.select();
-      document.execCommand("copy");
+      // Nilai balik execCommand WAJIB dihormati (menutup R3 telaah
+      // Tahap 8): penyalinan cadangan yang gagal tidak boleh
+      // dilaporkan berhasil, karena tab hanya dibuka bila salin
+      // benar-benar berhasil.
+      const berhasil = document.execCommand("copy");
       ta.remove();
-      return true;
+      return berhasil;
     } catch {
       return false;
     }

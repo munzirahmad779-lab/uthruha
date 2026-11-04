@@ -205,6 +205,53 @@ async function main() {
     "E8 khalfiyah-composer memasang panel dengan draf narasi panelnya",
     sumberKhalfiyah.includes("SerahAiPanel") && sumberKhalfiyah.includes("Kembangkan di AI luar") && sumberKhalfiyah.includes("teks: hasil.narasiLengkap"),
   );
+  cek(
+    "E9 jalur cadangan salin menghormati nilai balik execCommand (tutup R3 verifikasi akhir)",
+    sumberPanel.includes('const berhasil = document.execCommand("copy")') && sumberPanel.includes("return berhasil"),
+  );
+  cek(
+    "E10 tulis-tab meneruskan bahasa proyek ke konteks serah (tutup R1 verifikasi akhir)",
+    sumberTulis.includes("bahasa: p.bahasa"),
+  );
+
+  /* ---------- F. Bahasa instruksi mengikuti bahasa proyek ---------- */
+  const konteksId = buatPromptKembangkan({
+    judul: "Pengaruh Ushul Fiqh",
+    namaBagian: "Kerangka Teori",
+    teks: "teks contoh bagian ini memuat [[ref:src-x|hlm:3]] di tengahnya untuk diuji",
+    bahasa: "id",
+    targetKata: 100,
+  });
+  cek(
+    "F1 prompt id berbahasa Indonesia dengan penanda [perlu rujukan] dan penanda sitasi dijaga",
+    Boolean(konteksId) &&
+      konteksId!.includes("berbahasa Indonesia") &&
+      konteksId!.includes("[perlu rujukan]") &&
+      konteksId!.includes("[[ref:src-x|hlm:3]]") &&
+      !konteksId!.includes("يحتاج إلى مرجع"),
+  );
+  const konteksEn = buatPromptKembangkan({
+    judul: "The Influence of Usul al-Fiqh",
+    namaBagian: "Theory",
+    teks: "sample section text for the language check",
+    bahasa: "en",
+  });
+  cek(
+    "F2 prompt en berbahasa Inggris dengan penanda [needs reference]",
+    Boolean(konteksEn) &&
+      konteksEn!.includes("specialising in scholarly writing in English") &&
+      konteksEn!.includes("[needs reference]") &&
+      konteksEn!.includes("Current text:"),
+  );
+  const konteksAr = buatPromptKembangkan({
+    judul: "عنوان",
+    namaBagian: "قسم",
+    teks: "نص عربي للفحص",
+  });
+  cek(
+    "F3 tanpa bidang bahasa, prompt tetap Arab seperti perilaku lama",
+    Boolean(konteksAr) && konteksAr!.includes("[يحتاج إلى مرجع]") && konteksAr!.includes("النص الحالي:"),
+  );
 
   console.log(`\nHASIL: ${lulus} PASS, ${gagal} FAIL`);
   if (gagal > 0) process.exit(1);
