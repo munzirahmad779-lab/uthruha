@@ -396,6 +396,11 @@ export interface BentukKandidatCari {
   judul: string;
   wadah?: string;
   jenis?: string;
+  /** Isi nyata kandidat dari sumbernya (teks kutipan hasil pencarian),
+   *  diteruskan ke penilaian model sama seperti jalur Generate
+   *  Footnote menilai dari isi/abstrak (poin A8; temuan R5 telaah
+   *  silang Tahap 4: jalur ini kemarin menilai dari judul saja). */
+  isi?: string;
   /** Kalimat asal tempat kandidat ini akan dipasang. */
   kalimat: string;
 }
@@ -437,7 +442,7 @@ export async function nilaiUntukCariRujukan(
     putusan.set(
       k.kunci,
       await nilaiRelevansi(
-        { judul: k.judul, wadah: k.wadah, jenis: k.jenis },
+        { judul: k.judul, wadah: k.wadah, jenis: k.jenis, isi: k.isi },
         konteks,
         k.kalimat,
         opsiKolam,

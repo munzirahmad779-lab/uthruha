@@ -49,7 +49,7 @@ import {
   simpanKeBank,
   simpanSidikParagraf,
 } from "./bank-rujukan";
-import { ambil, idAcak, simpan } from "./store";
+import { ambil, hapus, idAcak, simpan } from "./store";
 import { getBidang } from "@/lib/content/bidang";
 import {
   bidangMilikProyek,
@@ -224,33 +224,70 @@ async function analisisMaknaDariAI(
 }
 
 /**
+ * Ambang tumpang-tindih bermakna antara kalimat isi dan teks acuan,
+ * dihitung sebagai jumlah batang kata isi BERBEDA yang sama-sama
+ * muncul (tokenJudul sudah membuang kata pendek dan menyamakan batang
+ * kata Arab). Satu batang kata yang sama tidak pernah cukup: kata
+ * seperti قياس bisa berarti kias ushul fiqh pada acuan dan pengukuran
+ * industri pada kandidat, dan boilerplate jurnal bisa tidak berbagi
+ * satu kata pun dengan acuan tetapi kemarin tampil utuh sebagai
+ * "kalimat isi yang cocok" (temuan S1 telaah silang Tahap 4).
+ */
+const AMBANG_IRISAN_KALIMAT_ISI = 2;
+/**
+ * Pengecualian asal untuk kutipan MASADIR: cuplikan Turath/Shamela
+ * adalah teks halaman yang SUDAH tercocok oleh adapternya pada frasa
+ * pencarian dari paragraf itu sendiri, jadi kecocokannya dibuktikan
+ * jalur pencariannya, bukan pemilih ini. Satu batang kata isi yang
+ * sama dengan acuan sudah menjadi bukti sentuhan; di bawah itu
+ * kutipannya tetap tidak ditampilkan.
+ */
+const AMBANG_IRISAN_MASADIR = 1;
+
+/**
  * Kalimat isi kandidat: kalimat dari isi nyata sumber (abstrak atau
  * cuplikan teks) yang paling menyentuh teks acuan. Yang ditampilkan
  * selalu teks sumber apa adanya; fungsi ini hanya MEMILIH kalimatnya.
  * Undefined bila sumber tidak menyediakan isi, atau tidak ada kalimat
- * isinya yang menyentuh acuan sama sekali — kandidat lalu ditandai
- * tanpa kalimat isi, tidak diisi karangan.
+ * isinya yang menyentuh acuan secara BERMAKNA (lihat ambang di atas,
+ * berlaku pada cuplikan pendek maupun panjang) — kandidat lalu
+ * ditandai tanpa kalimat isi, tidak diisi karangan.
  */
-export function pilihKalimatIsi(cuplikan: string | undefined, acuan: string): string | undefined {
+export function pilihKalimatIsi(
+  cuplikan: string | undefined,
+  acuan: string,
+  opsi?: { dariMasadir?: boolean },
+): string | undefined {
   const bersih = (cuplikan ?? "").replace(/\s+/g, " ").trim();
   if (!bersih) return undefined;
-  if (bersih.length <= 420) return bersih;
-  const kalimat = pecahKalimatServer(bersih);
-  if (kalimat.length <= 1) return bersih.slice(0, 420);
   const tokenAcuan = tokenJudul(acuan);
   if (tokenAcuan.size === 0) return undefined;
+  const ambang = opsi?.dariMasadir ? AMBANG_IRISAN_MASADIR : AMBANG_IRISAN_KALIMAT_ISI;
+  const irisan = (teks: string): number => {
+    const t = tokenJudul(teks);
+    let sama = 0;
+    for (const x of t) if (tokenAcuan.has(x)) sama += 1;
+    return sama;
+  };
+  const kalimat = pecahKalimatServer(bersih);
+  if (kalimat.length <= 1) {
+    return irisan(bersih) >= ambang ? bersih.slice(0, 420) : undefined;
+  }
   let terbaik: string | undefined;
   let skorTerbaik = 0;
   for (const k of kalimat) {
-    const t = tokenJudul(k);
-    let sama = 0;
-    for (const x of t) if (tokenAcuan.has(x)) sama += 1;
-    if (sama > skorTerbaik) {
-      skorTerbaik = sama;
+    const s = irisan(k);
+    if (s > skorTerbaik) {
+      skorTerbaik = s;
       terbaik = k;
     }
   }
-  return terbaik ? terbaik.slice(0, 500) : undefined;
+  if (terbaik && skorTerbaik >= ambang) return terbaik.slice(0, 500);
+  // Cuplikan PENDEK yang kalimatnya terpencar: tampilkan utuh hanya
+  // bila cuplikan secara keseluruhan menyentuh acuan melewati ambang
+  // yang sama. Cuplikan panjang tidak pernah ditampilkan utuh.
+  if (bersih.length <= 420 && irisan(bersih) >= ambang) return bersih;
+  return undefined;
 }
 
 /** Indeks kalimat paragraf yang memuat teks seleksi (untuk pesan hasil
@@ -519,7 +556,10 @@ export interface KandidatHasil {
   tanpaKalimatIsi?: boolean;
   /** Skor penilaian model 0..100 bila model menilai kandidat ini. */
   skorModel?: number;
-  /** True bila kandidat artikel jurnal tanpa nomor halaman. */
+  /** True bila kandidat tidak membawa nomor halaman sama sekali
+   *  (jurnal maupun buku): klien menampilkan lencana "Tanpa nomor
+   *  halaman", bukan lencana "Halaman" yang kosong (temuan R4 telaah
+   *  silang Tahap 4). */
   halamanKosong?: boolean;
 }
 
@@ -533,6 +573,7 @@ export interface TertahanHasil {
   alasan: string;
   kalimatIsi?: string;
   tanpaKalimatIsi?: boolean;
+  /** Sama seperti pada KandidatHasil: kandidat tanpa nomor halaman. */
   halamanKosong?: boolean;
 }
 
@@ -585,6 +626,12 @@ export interface HasilGenerate {
 /* hanya memasang kandidat yang sidiknya tercatat DAN cocok dengan      */
 /* data kandidat yang dikirim balik — jalur tidak dijalankan ulang,     */
 /* dan paksaKonfirmasi tanpa sidik tidak berlaku lagi.                  */
+/* Pengerasan telaah silang Tahap 4 (R2): rekam SEKALI PAKAI — sesudah */
+/* satu pemasangan berhasil rekamnya dihapus, jadi satu persetujuan    */
+/* hanya membuahkan satu pemasangan; memasang kandidat yang sama di    */
+/* tempat lain berjalan lewat generate dan persetujuan baru (atau      */
+/* lewat daftar sumber proyek yang sudah memuatnya). Rekam tanpa       */
+/* tanggal pembuatan yang sah dianggap kedaluwarsa, bukan lolos.       */
 /* ------------------------------------------------------------------ */
 
 function hashSidik(teks: string): string {
@@ -650,7 +697,8 @@ async function terbitkanSidik(sidik: string, pemilik: string): Promise<void> {
  * Tidak ada pencarian ulang dan tidak ada penilaian ulang: yang
  * dipasang adalah data kandidat yang ditampilkan server sebelumnya,
  * diverifikasi lewat sidik terbitan server + kecocokan isi data.
- * Sumber hasil selalu bertanda perluVerifikasi.
+ * Sumber hasil selalu bertanda perluVerifikasi. Persetujuannya
+ * sekali pakai: rekam sidik dihapus pada pemasangan yang berhasil.
  */
 export async function pasangFootnoteDisetujui(opsi: {
   sidik: string;
@@ -685,8 +733,10 @@ export async function pasangFootnoteDisetujui(opsi: {
     );
   }
   const dibuat = Date.parse(rec.dibuat ?? "");
-  if (Number.isFinite(dibuat) && Date.now() - dibuat > UMUR_SIDIK_MS) {
-    return gagal("Persetujuan kandidat ini sudah kedaluwarsa (lebih dari 24 jam). Minta generate ulang.");
+  if (!Number.isFinite(dibuat) || Date.now() - dibuat > UMUR_SIDIK_MS) {
+    return gagal(
+      "Persetujuan kandidat ini sudah kedaluwarsa (lebih dari 24 jam) atau catatan persetujuannya tidak lengkap. Minta generate ulang.",
+    );
   }
   const paragraf = opsi.paragraf.replace(/\[\[ref:[^\]]*\]\]/g, "").trim();
   const jumlahKalimat = Math.max(1, pecahKalimatServer(paragraf).length);
@@ -694,6 +744,11 @@ export async function pasangFootnoteDisetujui(opsi: {
     Math.max(0, typeof opsi.kalimatIdx === "number" && Number.isFinite(opsi.kalimatIdx) ? Math.floor(opsi.kalimatIdx) : 0),
     jumlahKalimat - 1,
   );
+  // SEKALI PAKAI: semua pemeriksaan lolos, pemasangan akan terjadi —
+  // bakar rekam persetujuannya sekarang agar sidik yang sama tidak
+  // bisa diputar ulang untuk pemasangan kedua. Kegagalan menghapus
+  // tidak membatalkan pemasangan yang sah ini.
+  await hapus("tembolok", `konf:${sidik}`).catch(() => undefined);
   const sumber: Sumber = { ...opsi.kandidat, perluVerifikasi: true };
   return {
     ketemu: true,
@@ -964,29 +1019,29 @@ export async function generateFootnoteUntukParagraf(opsi: {
   }
 
   const keKandidatHasil = (n: NilaiKandidat): KandidatHasil => {
-    const kalimatIsi = pilihKalimatIsi(n.rujukan.cuplikan, modeSeleksi ? seleksi : paragraf);
+    const kalimatIsi = pilihKalimatIsi(n.rujukan.cuplikan, modeSeleksi ? seleksi : paragraf, {
+      dariMasadir: apakahMasadir(n.rujukan),
+    });
     return {
       sumber: rujukanKeSumber(n.rujukan),
       ...(kalimatIsi ? { kalimatIsi } : { tanpaKalimatIsi: true }),
       ...(typeof n.skorModel === "number" ? { skorModel: n.skorModel } : {}),
-      ...(n.rujukan.jenis === "jurnal" && !(n.rujukan.halaman ?? "").trim()
-        ? { halamanKosong: true }
-        : {}),
+      ...(!(n.rujukan.halaman ?? "").trim() ? { halamanKosong: true } : {}),
     };
   };
   const keTertahanHasil = async (t: TertahanKandidat): Promise<TertahanHasil> => {
     const sidik = sidikKandidatDariRujukan(t.rujukan);
     await terbitkanSidik(sidik, opsi.pemilik ?? "");
-    const kalimatIsi = pilihKalimatIsi(t.rujukan.cuplikan, modeSeleksi ? seleksi : paragraf);
+    const kalimatIsi = pilihKalimatIsi(t.rujukan.cuplikan, modeSeleksi ? seleksi : paragraf, {
+      dariMasadir: apakahMasadir(t.rujukan),
+    });
     return {
       sumber: rujukanKeSumber(t.rujukan),
       sidik,
       bidangSumber: t.bidangSumber,
       alasan: t.alasan,
       ...(kalimatIsi ? { kalimatIsi } : { tanpaKalimatIsi: true }),
-      ...(t.rujukan.jenis === "jurnal" && !(t.rujukan.halaman ?? "").trim()
-        ? { halamanKosong: true }
-        : {}),
+      ...(!(t.rujukan.halaman ?? "").trim() ? { halamanKosong: true } : {}),
     };
   };
 

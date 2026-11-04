@@ -138,7 +138,11 @@ export async function POST(req: Request) {
     // Penilaian MODEL hanya berjalan untuk akun Premium atau pemilik
     // kunci pribadi (agar pencarian gratis tidak membakar kolam
     // pemilik); aturan keras bidang yang deterministik selalu
-    // diterapkan ke semua akun.
+    // diterapkan ke semua akun. Opsi pinjaman mahasiswa ikut dihitung
+    // dan diteruskan persis seperti jalur Generate Footnote: akun
+    // yang pada jalur itu menilai memakai kunci pinjaman tidak boleh
+    // turun ke aturan keras saja di jalur ini (temuan R5 telaah
+    // silang Tahap 4).
     const bidangId = typeof body.bidangId === "string" ? body.bidangId.trim().slice(0, 60) : "";
     const judulProyek = typeof body.judulProyek === "string" ? body.judulProyek.trim().slice(0, 300) : "";
     const topikAr = typeof body.topikAr === "string" ? body.topikAr.trim().slice(0, 300) : "";
@@ -158,20 +162,36 @@ export async function POST(req: Request) {
         `${h.kitab.replace(/^\[[^\]]*\]\s*/, "").trim().toLowerCase()}|${(h.penerbit ?? "").trim().toLowerCase()}`;
       const { opsiKolamUntuk } = await import("@/lib/server/kunci-pribadi");
       const opsiP = await opsiKolamUntuk(u).catch(() => null);
-      const bisaNilaiModel = tierEfektif(u) === "premium" || Boolean(opsiP?.pribadi) || Boolean(opsiP?.wajibPribadi);
+      const bisaNilaiModel =
+        tierEfektif(u) === "premium" ||
+        Boolean(opsiP?.pribadi) ||
+        Boolean(opsiP?.wajibPribadi) ||
+        (opsiP?.pinjaman?.length ?? 0) > 0;
       if (bisaNilaiModel) {
         const bentuk = hasil.hasil.map((h) => ({
           kunci: kunciDari(h),
           judul: h.kitab.replace(/^\[[^\]]*\]\s*/, "").trim(),
           wadah: h.penerbit ?? "",
           jenis: /^\[مجلة\]/.test(h.kitab) ? "jurnal" : "buku",
+          // Isi kandidat ikut dinilai model, sama seperti jalur
+          // Generate Footnote (R5): gerbang membaca teks kutipan
+          // sumbernya, bukan hanya judul dan wadahnya.
+          isi: h.teks_kutipan?.trim() ? h.teks_kutipan : undefined,
           kalimat: h.kalimat,
         }));
+        const jumlahUnik = new Set(bentuk.map((b) => b.kunci)).size;
+        // Kegagalan total penilaian dilaporkan JUJUR sebagai semua
+        // kandidat unik belum dinilai (R3): angka 0 akan menelan
+        // peringatan dan memberi kesan gerbang sudah bekerja.
+        let penilaianGagalTotal = false;
         const { putusan, belumDinilai } = await nilaiUntukCariRujukan(bentuk, konteks, {
           pribadi: opsiP?.pribadi,
           wajibPribadi: opsiP?.wajibPribadi,
           pinjaman: opsiP?.pinjaman,
-        }).catch(() => ({ putusan: new Map(), belumDinilai: 0 }));
+        }).catch(() => {
+          penilaianGagalTotal = true;
+          return { putusan: new Map(), belumDinilai: jumlahUnik };
+        });
         for (const h of hasil.hasil) {
           const p = putusan.get(kunciDari(h));
           if (p) {
@@ -187,7 +207,9 @@ export async function POST(req: Request) {
         }
         if (belumDinilai > 0) {
           hasil.peringatan.push(
-            `${belumDinilai} kandidat belum dinilai gerbang bidang pada pencarian ini (batas penilaian per pencarian tercapai); kandidat itu belum punya putusan bidang.`,
+            penilaianGagalTotal
+              ? `${belumDinilai} kandidat belum dinilai gerbang bidang pada pencarian ini karena penilaian gagal berjalan; kandidat itu belum punya putusan bidang.`
+              : `${belumDinilai} kandidat belum dinilai gerbang bidang pada pencarian ini (batas penilaian per pencarian tercapai); kandidat itu belum punya putusan bidang.`,
           );
         }
       } else {

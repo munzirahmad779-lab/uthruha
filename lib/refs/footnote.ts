@@ -9,9 +9,54 @@ import { keAngkaArab, type Sumber } from "@/lib/engine/cite";
 
 export const TANDA_VERIFIKASI = "[ ! verifikasi ]";
 
+/** Hash FNV-1a 32-bit atas teks. Cukup untuk identitas stabil satu
+ *  kandidat antarsesi di klien; bukan alat keamanan. */
+function hashTeks(teks: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < teks.length; i++) {
+    h ^= teks.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+/** Normalisasi satu unsur identitas kanonis: tag jenis di kepala
+ *  judul ("[مجلة] ...") dibuang seperti kunci dedupe rute pencarian,
+ *  spasi diringkas, huruf dikecilkan. */
+function normalKanonis(teks: string | undefined): string {
+  return (teks ?? "")
+    .replace(/^\[[^\]]*\]\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Id SUMBER yang stabil dan deterministik untuk satu kandidat
+ * rujukan (menutup temuan S2 telaah silang Tahap 4). Penjaga duplikat
+ * B2 di dialog Pasang Footnote dan penahan duplikat daftar sumber
+ * sama-sama berkunci pada id sumber; id acak per konversi membuat
+ * hit yang sama tidak pernah dikenali sebagai duplikat. Identitas
+ * kanonisnya adalah judul + penulis + tahun ternormalisasi —
+ * pencocokan yang sama kelasnya dengan penjaga di alur seleksi
+ * (tanamSumber di tab Tulis mencocokkan DOI atau judul). RefCandidate
+ * tidak membawa DOI, jadi judul yang menanggung identitasnya; jilid
+ * dan halaman SENGAJA tidak ikut: keduanya milik penanda sitasi,
+ * bukan identitas sumbernya (satu sumber yang sama sah dirujuk pada
+ * banyak halaman berbeda).
+ */
+export function idStabilKandidat(c: RefCandidate): string {
+  const kanonis = [
+    normalKanonis(c.kitab),
+    normalKanonis(c.penulis),
+    c.tahun ? String(c.tahun) : "",
+  ].join("\n");
+  return `src-${hashTeks(kanonis)}`;
+}
+
 export function kandidatKeSumber(c: RefCandidate): Sumber {
   return {
-    id: `src-${Math.random().toString(36).slice(2, 9)}`,
+    id: idStabilKandidat(c),
     jenis: "kitab",
     penulis: c.penulis ?? "",
     judul: c.kitab,

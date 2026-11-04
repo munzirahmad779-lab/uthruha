@@ -11,6 +11,13 @@
  * yang sama dengan produksi). Kunci penyedia asli dikosongkan dari env
  * proses uji agar failover tidak pernah menyentuh internet.
  *
+ * Perbaikan telaah silang Tahap 4 menambah: ambang kecocokan kalimat
+ * isi pada semua panjang cuplikan + perlakuan asal masadir (S1),
+ * identitas sumber stabil untuk penjaga duplikat dialog (S2),
+ * sidik sekali pakai dan rekam tanpa tanggal kedaluwarsa (R2),
+ * isi kandidat ikut dinilai di Cari Rujukan (R5), lencana halaman
+ * jujur untuk buku tanpa halaman (R4), serta penjaga statis R1/R3.
+ *
  * Jalankan: npx tsx scripts/test-tahap4-blok-footnote.ts
  */
 import { createServer } from "node:http";
@@ -101,11 +108,15 @@ async function main() {
   if (!alamat || typeof alamat === "string") throw new Error("stub tidak mendapat port");
   process.env.KOLAM_UJI_BASE = `http://127.0.0.1:${alamat.port}`;
 
-  const { generateFootnoteUntukParagraf, pasangFootnoteDisetujui, pilihKalimatIsi } =
+  const { generateFootnoteUntukParagraf, pasangFootnoteDisetujui, pilihKalimatIsi, sidikKandidatDariSumber } =
     await import("../lib/server/generate-footnote");
   const { nilaiUntukCariRujukan } = await import("../lib/server/gerbang-relevansi");
   const { simpanKeBank, simpanSidikParagraf } = await import("../lib/server/bank-rujukan");
+  const { simpan: simpanStore } = await import("../lib/server/store");
+  const { kandidatKeSumber } = await import("../lib/refs/footnote");
   type RujukanTamu = import("../lib/server/rujukan").RujukanTamu;
+  type Sumber = import("../lib/engine/cite").Sumber;
+  type RefCandidate = import("../lib/refs/types").RefCandidate;
 
   const JUDUL_PROYEK = "أثر أصول الفقه في الحياة المعاصرة";
   let nomor = 0;
@@ -203,6 +214,10 @@ async function main() {
     hasilA.tertahan?.some((t) => t.sumber.judul.includes("TERTAHAN-UJI") && t.sidik.length === 32) === true &&
     hasilA.kandidat?.some((k) => k.sumber.judul.includes("TERTAHAN-UJI")) !== true);
   cek("A11 ketemu karena ada kandidat yang bisa dipilih", hasilA.ketemu === true);
+  cek("A12 kandidat buku tanpa halaman membawa tanda halaman kosong (R4)",
+    hasilA.kandidat?.some((k) => k.sumber.judul.includes("دراسة تأصيلية مقارنة") && k.halamanKosong === true) === true);
+  cek("A13 kandidat jurnal berhalaman tidak membawa tanda halaman kosong (R4)",
+    hasilA.kandidat?.some((k) => k.sumber.judul.includes("حجية القياس") && !k.halamanKosong) === true);
 
   /* ============ Skenario B: gerbang gagal tertutup (alur kursor) ============ */
   const paragrafB =
@@ -264,7 +279,66 @@ async function main() {
       pasangPas.ketemu === true && pasangPas.sumber?.judul === sumberB.judul,
       pasangPas.sumber?.judul ?? "");
     cek("E5 kandidat lewat sidik ditandai perlu verifikasi", pasangPas.sumber?.perluVerifikasi === true);
+    const pasangUlang = await pasangFootnoteDisetujui({
+      sidik: sidikB,
+      kandidat: sumberB,
+      paragraf: paragrafB,
+      pemilik: "uji-pemilik",
+    });
+    cek("E6 sidik sekali pakai: pemasangan kedua dengan sidik yang sama ditolak (R2)",
+      pasangUlang.ketemu === false);
   }
+
+  /* ============ Skenario E lanjutan: tanggal rekam sidik (R2) ============ */
+  const kandidatR2: Sumber = {
+    id: "src-uji-r2",
+    jenis: "kitab",
+    penulis: "أحمد الباحث",
+    tahun: "2020",
+    judul: "كتاب الأصول في الفقه المقارن",
+    penerbit: "دار النشر العلمية",
+  };
+  const sidikR2 = sidikKandidatDariSumber(kandidatR2);
+  await simpanStore("tembolok", { id: `konf:${sidikR2}`, tipe: "konf", pemilik: "uji-pemilik" });
+  const pasangR2 = await pasangFootnoteDisetujui({
+    sidik: sidikR2,
+    kandidat: kandidatR2,
+    paragraf: paragrafB,
+    pemilik: "uji-pemilik",
+  });
+  cek("E7 rekam sidik tanpa tanggal pembuatan dianggap kedaluwarsa, bukan lolos (R2)",
+    pasangR2.ketemu === false);
+  const kandidatR3: Sumber = { ...kandidatR2, judul: "كتاب الأصول في الفقه المقارن (طبعة منقحة)" };
+  const sidikR3 = sidikKandidatDariSumber(kandidatR3);
+  await simpanStore("tembolok", {
+    id: `konf:${sidikR3}`,
+    tipe: "konf",
+    pemilik: "uji-pemilik",
+    dibuat: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+  });
+  const pasangR3 = await pasangFootnoteDisetujui({
+    sidik: sidikR3,
+    kandidat: kandidatR3,
+    paragraf: paragrafB,
+    pemilik: "uji-pemilik",
+  });
+  cek("E8 rekam sidik berumur 25 jam ditolak kedaluwarsa (R2)", pasangR3.ketemu === false);
+  const kandidatR4: Sumber = { ...kandidatR2, judul: "كتاب الأصول في الفقه المقارن (طبعة حديثة)" };
+  const sidikR4 = sidikKandidatDariSumber(kandidatR4);
+  await simpanStore("tembolok", {
+    id: `konf:${sidikR4}`,
+    tipe: "konf",
+    pemilik: "uji-pemilik",
+    dibuat: new Date().toISOString(),
+  });
+  const pasangR4 = await pasangFootnoteDisetujui({
+    sidik: sidikR4,
+    kandidat: kandidatR4,
+    paragraf: paragrafB,
+    pemilik: "uji-pemilik",
+  });
+  cek("E9 kontrol: rekam sidik segar bertanggal sah tetap memasang persis (R2)",
+    pasangR4.ketemu === true && pasangR4.sumber?.judul === kandidatR4.judul);
 
   /* ============ Skenario C: regresi alur kursor lama ============ */
   const paragrafC =
@@ -375,6 +449,33 @@ async function main() {
     putusan.size === 7, `putusan=${putusan.size}`);
   cek("F4 kandidat di luar batas penilaian dihitung belum dinilai, bukan diloloskan",
     belumDinilai === 1 && !putusan.has("n7"), `belumDinilai=${belumDinilai}`);
+  const f5 = await nilaiUntukCariRujukan(
+    [{
+      kunci: "isi",
+      judul: "دراسات أصولية معاصرة في المنهج والتأصيل",
+      wadah: "دار النشر العلمية",
+      jenis: "buku",
+      isi: "TERTAHAN-UJI: نص هذا الكتاب يخالف مجال المشروع مخالفة صريحة.",
+      kalimat: "القياس عند الأصوليين",
+    }],
+    konteksF,
+    undefined,
+  );
+  cek("F5 isi kandidat Cari Rujukan ikut dinilai model: judul bersih, isi tertahan (R5)",
+    f5.putusan.get("isi")?.lolos === false, f5.putusan.get("isi")?.statusPenilaian ?? "");
+  const f6 = await nilaiUntukCariRujukan(
+    [{
+      kunci: "isi",
+      judul: "دراسات أصولية معاصرة في المنهج والتأصيل",
+      wadah: "دار النشر العلمية",
+      jenis: "buku",
+      kalimat: "القياس عند الأصوليين",
+    }],
+    konteksF,
+    undefined,
+  );
+  cek("F6 kontrol: kandidat yang sama tanpa isi dinilai dari judul dan lolos (R5)",
+    f6.putusan.get("isi")?.lolos === true);
 
   /* ============ Skenario G: pemilih kalimat isi ============ */
   const cuplikanPanjang =
@@ -392,6 +493,59 @@ async function main() {
     pilihKalimatIsi(cuplikanAsing, seleksiA) === undefined);
   cek("G4 cuplikan pendek tampil utuh apa adanya",
     pilihKalimatIsi("نص قصير عن القياس عند الأصوليين.", seleksiA) === "نص قصير عن القياس عند الأصوليين.");
+  const cuplikanBoilerplate =
+    "This peer-reviewed journal is published quarterly by the Faculty of Letters, hosting scholarly studies in history, linguistics, and cultural heritage contributed by researchers from universities across the region and abroad, with rigorous double-blind review for every submission.";
+  cek("G5 cuplikan pendek boilerplate jurnal tanpa satu kata pun sama tidak tampil sebagai kalimat isi (S1)",
+    pilihKalimatIsi(cuplikanBoilerplate, seleksiA) === undefined);
+  const cuplikanIndustri =
+    "يدور هذا البحث حول القياس الدقيق لأبعاد المنتج الصناعي في المصانع الحديثة وخطوط إنتاجها المتطورة والمتفرعة. " +
+    "كما يعرض لأنواع خطوط التجميع وطرق ضبط الجودة ومراحل فحص العينات قبل التغليف والشحن إلى الأسواق المحلية الواسعة. " +
+    "وتوثق الدراسة تكاليف التشغيل والصيانة الدورية للمعدات الثقيلة في ورش التصنيع بمناطق صناعية متعددة ومتباعدة. " +
+    "وتختم بعرض جداول الإنتاج الشهرية ونسب الهدر في المواد الخام وخطط التوسع المستقبلية للمصنع الجديد الكبير.";
+  cek("G6 kalimat beririsan tepat satu batang kata homonim (قياس industri) tidak terpilih sebagai kalimat isi (S1)",
+    pilihKalimatIsi(cuplikanIndustri, seleksiA) === undefined);
+  const cuplikanMasadirSatuBatang =
+    "نقل صاحب الكتاب عن شيوخه أن القياس عندهم مرتبة تالية للنص والإجماع في ترتيب الأدلة المعتبرة.";
+  cek("G7a kutipan satu batang kata tanpa perlakuan asal tetap di bawah ambang umum (S1)",
+    pilihKalimatIsi(cuplikanMasadirSatuBatang, seleksiA) === undefined);
+  cek("G7b kutipan masadir satu batang kata tampil lewat perlakuan asal adapternya (S1)",
+    (pilihKalimatIsi(cuplikanMasadirSatuBatang, seleksiA, { dariMasadir: true }) ?? "").includes("القياس عندهم"));
+  const cuplikanDuaKalimat = "دراسة موجزة في القياس وأركانه. وتناولت موقف الأصوليين منه قديما وحديثا.";
+  cek("G8 cuplikan pendek dua kalimat yang bersama menyentuh acuan melewati ambang tampil utuh (S1)",
+    pilihKalimatIsi(cuplikanDuaKalimat, seleksiA) === cuplikanDuaKalimat);
+
+  /* ============ Skenario I: identitas sumber stabil (S2) ============ */
+  const hitI: RefCandidate = {
+    source: "turath",
+    kitab: "المستصفى في أصول الفقه",
+    penulis: "أبو حامد الغزالي",
+    jilid: 1,
+    halaman_cetak: 45,
+    penerbit: "دار الكتب العلمية",
+    kota: "بيروت",
+    tahun: 1993,
+    teks_kutipan: "القياس إلحاق فرع بأصل في حكمه لعلة جامعة بينهما.",
+    url_sumber: "https://example.org/mustasfa",
+    skor: 0.9,
+    mode: "api",
+    perluVerifikasi: false,
+  };
+  const sumberI1 = kandidatKeSumber(hitI);
+  const sumberI2 = kandidatKeSumber({ ...hitI });
+  cek("I1 konversi hit yang sama dua kali menghasilkan id sumber yang sama (S2)",
+    sumberI1.id === sumberI2.id && sumberI1.id.length > 4, sumberI1.id);
+  cek("I2 halaman dan jilid berbeda tidak mengubah identitas sumber; keduanya milik penanda (S2)",
+    kandidatKeSumber({ ...hitI, halaman_cetak: 99, jilid: 2 }).id === sumberI1.id);
+  cek("I3 tahun terbit berbeda menghasilkan sumber yang berbeda (S2)",
+    kandidatKeSumber({ ...hitI, tahun: 2005 }).id !== sumberI1.id);
+  const polaDialog = /\[\[ref:([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+  const drafI = `نص الفقرة الأولى في هذا الباب. [[ref:${sumberI1.id}|hlm:45]] ويليه شرح آخر في الموضوع نفسه.`;
+  let hitungI = 0;
+  for (const m of drafI.matchAll(polaDialog)) {
+    if ((m[1] ?? "").trim() === sumberI2.id) hitungI++;
+  }
+  cek("I4 penghitung duplikat dialog mengenali pemasangan kedua hit yang sama sebagai duplikat (S2)",
+    hitungI === 1, `duplikat=${hitungI}`);
 
   /* ============ Skenario H: pengawatan statis ============ */
   const baca = (rel: string) => readFileSync(path.join(process.cwd(), rel), "utf8");
@@ -410,6 +564,16 @@ async function main() {
   const dialogPasang = baca("components/workspace/pasang-footnote.tsx");
   cek("H5 dialog pasang meminta konfirmasi sadar untuk sumber tertahan gerbang",
     dialogPasang.includes("gerbangTertahan") && dialogPasang.includes("konfirmasiGerbang"));
+  cek("H6 rute Cari Rujukan melaporkan gagal total penilaian secara jujur, bukan nol (R3)",
+    ruteCari.includes("jumlahUnik") && ruteCari.includes("penilaianGagalTotal") && !ruteCari.includes("belumDinilai: 0"));
+  cek("H7 RefFinder meminta konfirmasi sadar sebelum Sisip hit tertahan (R1)",
+    refFinder.includes("konfirmasiSisipTertahan") && refFinder.includes("blokirSisipTertahan"));
+  const footnoteRefs = baca("lib/refs/footnote.ts");
+  cek("H8 kandidatKeSumber memakai id stabil deterministik, bukan acak (S2)",
+    footnoteRefs.includes("idStabilKandidat") && !footnoteRefs.includes("Math.random"));
+  const gerbangTs = baca("lib/server/gerbang-relevansi.ts");
+  cek("H9 gerbang Cari Rujukan meneruskan isi kandidat ke penilaian model (R5)",
+    gerbangTs.includes("isi: k.isi") && ruteCari.includes("isi: h.teks_kutipan"));
 
   stub.close();
   console.log(`\nHASIL: ${lulus} PASS, ${gagal} FAIL`);

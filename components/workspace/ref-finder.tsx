@@ -79,6 +79,17 @@ export function RefFinder({
   const kalimat = useMemo(() => pecahKalimat(paragraf), [paragraf]);
   const bolehPilih = pilih.length < pedoman.maksFootnotePerParagraf;
 
+  /** Hit terpilih yang tertahan gerbang bidang (Tahap 4, temuan R1
+   *  telaah silang): jalur Sisip wajib meminta konfirmasi sadar yang
+   *  sama kelasnya dengan dialog Pasang Footnote, bukan hanya lencana
+   *  pasif pada kartu. */
+  const pilihTertahan = useMemo(
+    () => pilih.filter((h) => h.gerbang && !h.gerbang.lolos),
+    [pilih],
+  );
+  const [konfirmasiSisipTertahan, setKonfirmasiSisipTertahan] = useState(false);
+  const blokirSisipTertahan = pilihTertahan.length > 0 && !konfirmasiSisipTertahan;
+
   /** Kelompokkan hasil per kalimat — sesuai spesifikasi: cocok per kalimat. */
   const perKalimat = useMemo(() => {
     if (!res) return [];
@@ -95,6 +106,7 @@ export function RefFinder({
     setGalat("");
     setRes(null);
     setPilih([]);
+    setKonfirmasiSisipTertahan(false);
     setBatas(null);
     if (kalimat.length === 0) {
       setGalat("Tuliskan dulu satu paragraf Arab (minimal satu kalimat).");
@@ -137,6 +149,9 @@ export function RefFinder({
   }
 
   function toggle(h: RefHit) {
+    // Pilihan berubah: pengakuan untuk hit tertahan harus diberikan
+    // ulang terhadap susunan terpilih yang baru.
+    setKonfirmasiSisipTertahan(false);
     setPilih((kini) => {
       const ada = kini.find((x) => x.id === h.id);
       if (ada) return kini.filter((x) => x.id !== h.id);
@@ -149,6 +164,7 @@ export function RefFinder({
   function tambahManual() {
     if (!manual.trim()) return;
     const kandidat = kandidatManual(manual, kalimat[0] ?? "");
+    setKonfirmasiSisipTertahan(false);
     setPilih((kini) => {
       if (kini.length >= pedoman.maksFootnotePerParagraf) return kini;
       if (kini.some((x) => x.id === kandidat.id)) return kini;
@@ -160,6 +176,9 @@ export function RefFinder({
 
   function sisip() {
     if (pilih.length === 0) return;
+    // Penjaga kedua di luar keadaan tombol: hit tertahan tidak pernah
+    // tersisip tanpa pengakuan sadar pada panel terpilih.
+    if (blokirSisipTertahan) return;
     const urut = [...pilih].sort((a, b) => {
       const pa = paragraf.indexOf(a.kalimat);
       const pb = paragraf.indexOf(b.kalimat);
@@ -759,7 +778,33 @@ export function RefFinder({
                       </p>
                     </div>
                   ))}
-                  <button type="button" onClick={sisip} className="btn-primary w-full">
+                  {pilihTertahan.length > 0 && (
+                    <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2.5">
+                      <p role="alert" className="text-[12px] font-semibold leading-relaxed text-red-700">
+                        Peringatan gerbang relevansi bidang: {pilihTertahan.length} dari sumber terpilih
+                        tertahan untuk proyek bidang Anda
+                        {pilihTertahan.some((h) => h.gerbang?.bidangSumber)
+                          ? ` (bidang sumber: ${[...new Set(pilihTertahan.map((h) => h.gerbang?.bidangSumber).filter(Boolean))].join(", ")})`
+                          : ""}
+                        . Menyisipkannya berarti memasangnya juga.
+                      </p>
+                      <label className="mt-2 flex items-start gap-2 text-[12px] leading-relaxed text-red-700">
+                        <input
+                          type="checkbox"
+                          checked={konfirmasiSisipTertahan}
+                          onChange={(e) => setKonfirmasiSisipTertahan(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 shrink-0"
+                        />
+                        <span>Saya sudah memeriksa isi sumber yang tertahan ini dan tetap menyisipkannya dengan tanggung jawab saya.</span>
+                      </label>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={sisip}
+                    disabled={blokirSisipTertahan}
+                    className="btn-primary w-full disabled:opacity-40"
+                  >
                     <IconSparkle className="h-4 w-4" /> Sisipkan ke naskah
                   </button>
                 </div>
