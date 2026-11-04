@@ -83,6 +83,9 @@ interface CrossrefItem {
   URL?: string;
   type?: string;
   score?: number;
+  publisher?: string;
+  volume?: string;
+  issue?: string;
   published?: { "date-parts"?: number[][] };
 }
 
@@ -134,9 +137,16 @@ export async function cariJurnal(
 
         out.push({
           source: "turath", // dipetakan agar kompatibel dengan engine tampilan
-          kitab: `[مجلة] ${judul}`,
+          // Judul BERSIH (Tahap 6): tag "[مجلة]" tidak lagi disisipkan
+          // ke judul; jenis dan nama jurnal hidup sebagai bidang data.
+          kitab: judul,
+          jenis: "artikel",
+          jurnal: namaJurnal,
+          doi: it.DOI || undefined,
+          volume: it.volume || undefined,
+          nomor: it.issue || undefined,
           penulis: penulis || undefined,
-          penerbit: namaJurnal,
+          penerbit: it.publisher || undefined,
           tahun: tahun ? Number(tahun) : undefined,
           teks_kutipan: `بحث منشور في: ${namaJurnal}${tahun ? ` (سنة ${tahun})` : ""}. المعرف الرقمي: ${it.DOI || "-"}`,
           url_sumber: link || "https://doi.org",

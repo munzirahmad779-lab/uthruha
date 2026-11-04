@@ -42,6 +42,19 @@ export interface RefCandidate {
   source: RefSourceId;
   kitab: string;
   penulis?: string;
+  /** Jenis sumber sebagai DATA terstruktur (Tahap 6). Dulu jenis
+   *  artikel jurnal disisipkan sebagai tag teks "[مجلة]" di kepala
+   *  judul dan mencemari semua permukaan; sekarang jenis hidup di
+   *  bidang ini dan judul selalu judul bersih. */
+  jenis?: import("@/lib/engine/cite").JenisSumber;
+  /** Nama jurnal untuk kandidat artikel (bukan lagi disisipkan ke
+   *  penerbit atau judul). */
+  jurnal?: string;
+  /** DOI bersih (tanpa awalan https://doi.org/) bila diketahui. */
+  doi?: string;
+  /** Volume dan nomor terbitan jurnal. */
+  volume?: string;
+  nomor?: string;
   jilid?: number;
   /** Nomor halaman cetak (bukan halaman digital/PDF). */
   halaman_cetak?: number;

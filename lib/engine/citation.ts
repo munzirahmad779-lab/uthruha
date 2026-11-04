@@ -8,7 +8,7 @@
  * jurnal, bab, dan skripsi/tesis. Kasus eksotik (surat kabar, arsip, wawancara)
  * jatuh ke pola umum, bukan ditebak detailnya.
  */
-import { catatanKaki, entriDaftarPustaka, keAngkaArab, type Sumber } from "@/lib/engine/cite";
+import { bersihkanJudul, catatanKaki, entriDaftarPustaka, keAngkaArab, type Sumber } from "@/lib/engine/cite";
 import type { PedomanRules } from "@/lib/refs/pedoman";
 
 export type GayaSitasi = "turabian9" | "chicago17" | "apa7" | "arab-klasik";
@@ -85,19 +85,20 @@ export function footnoteGaya(s: Sumber, gaya: GayaSitasi, opsi: OpsiFootnote = {
   // Turabian 9 & Chicago 17 — pola notes yang sama untuk jenis-jenis ini.
   const penulis = namaPertama(s);
   const hl = halamanJilid(opsi, s);
+  const judul = bersihkanJudul(s.judul);
   switch (s.jenis) {
     case "artikel": {
       const vol = [s.volume && `vol. ${s.volume}`, s.nomor && `no. ${s.nomor}`].filter(Boolean).join(", ");
-      const inti = `${penulis}, "${s.judul}," ${miring(s.jurnal ?? "")}${vol ? ` ${vol}` : ""} (${s.tahun})`;
+      const inti = `${penulis}, "${judul}," ${miring(s.jurnal ?? "")}${vol ? ` ${vol}` : ""} (${s.tahun})`;
       return `${inti}${hl ? `: ${hl}` : ""}.`;
     }
     case "bab": {
-      const inti = `${penulis}, "${s.judul}," dalam ${miring(s.jurnal ?? s.catatan ?? "")}`;
+      const inti = `${penulis}, "${judul}," dalam ${miring(s.jurnal ?? s.catatan ?? "")}`;
       return `${inti} ${tempatTerbit(s)}${hl ? `, ${hl}` : ""}.`;
     }
     default: {
       const sunting = s.muhaqqiq ? `, disunting oleh ${s.muhaqqiq}` : s.penerjemah ? `, diterjemahkan oleh ${s.penerjemah}` : "";
-      const inti = `${penulis}, ${miring(s.judul)}${sunting} ${tempatTerbit(s)}`;
+      const inti = `${penulis}, ${miring(judul)}${sunting} ${tempatTerbit(s)}`;
       return `${inti}${hl ? `, ${hl}` : ""}.`;
     }
   }
@@ -107,24 +108,25 @@ export function footnoteGaya(s: Sumber, gaya: GayaSitasi, opsi: OpsiFootnote = {
 export function daftarPustakaGaya(s: Sumber, gaya: GayaSitasi): string {
   if (gaya === "arab-klasik") return entriDaftarPustaka(s);
   const penulis = namaPenulis(s);
+  const judul = bersihkanJudul(s.judul);
   if (gaya === "apa7") {
     if (s.jenis === "artikel") {
       const vol = [s.volume && `${s.volume}`, s.nomor && `(${s.nomor})`].filter(Boolean).join("");
       const doi = s.doi ? ` https://doi.org/${s.doi.replace(/^https?:\/\/doi\.org\//, "")}` : "";
-      return `${penulis} (${s.tahun}). ${s.judul}. ${miring(s.jurnal ?? "")}${vol ? `, ${vol}` : ""}.${doi}`;
+      return `${penulis} (${s.tahun}). ${judul}. ${miring(s.jurnal ?? "")}${vol ? `, ${vol}` : ""}.${doi}`;
     }
     const kotaPenerbit = [s.kota, s.penerbit].filter(Boolean).join(": ");
-    return `${penulis} (${s.tahun}). ${miring(s.judul)}. ${kotaPenerbit}.`.replace(/\s+/g, " ");
+    return `${penulis} (${s.tahun}). ${miring(judul)}. ${kotaPenerbit}.`.replace(/\s+/g, " ");
   }
   // Turabian/Chicago bibliography: nama dibalik untuk entri pertama.
   if (s.jenis === "artikel") {
     const vol = [s.volume, s.nomor && `no. ${s.nomor}`].filter(Boolean).join(", ");
     const doi = s.doi ? ` https://doi.org/${s.doi.replace(/^https?:\/\/doi\.org\//, "")}` : "";
-    return `${penulis}. "${s.judul}." ${miring(s.jurnal ?? "")} ${vol} (${s.tahun}).${doi}`.replace(/\s+/g, " ");
+    return `${penulis}. "${judul}." ${miring(s.jurnal ?? "")} ${vol} (${s.tahun}).${doi}`.replace(/\s+/g, " ");
   }
   const sunting = s.muhaqqiq ? `. Disunting oleh ${s.muhaqqiq}` : "";
   const kotaPenerbit = [s.kota, s.penerbit].filter(Boolean).join(": ");
-  return `${penulis}. ${miring(s.judul)}${sunting}. ${kotaPenerbit}${s.tahun ? `, ${s.tahun}` : ""}.`.replace(/\s+/g, " ");
+  return `${penulis}. ${miring(judul)}${sunting}. ${kotaPenerbit}${s.tahun ? `, ${s.tahun}` : ""}.`.replace(/\s+/g, " ");
 }
 
 /** Susun daftar pustaka: urut penulis (kolator Arab/Latin campuran), satu gaya. */
@@ -157,7 +159,7 @@ function pangkasSlotKosong(template: string, nilai: Record<string, string>): str
 function isiTemplate(template: string, s: Sumber, opsi: OpsiFootnote = {}, angkaArab = false): string {
   const nilai: Record<string, string> = {
     penulis: s.penulis,
-    judul: s.judul,
+    judul: bersihkanJudul(s.judul),
     kota: s.kota ?? "",
     penerbit: s.penerbit ?? "",
     tahun: s.tahun,
@@ -224,11 +226,11 @@ export function footnoteSingkat(s: Sumber, opsi: OpsiFootnote = {}, angkaArab = 
   const jil = opsi.jilid ?? s.jilid;
   let hasil: string;
   if (s.jenis === "artikel") {
-    const bag = [penulisSingkat(s.penulis), `“${judulSingkat(s.judul)}”`];
+    const bag = [penulisSingkat(s.penulis), `“${judulSingkat(bersihkanJudul(s.judul))}”`];
     if (hal) bag.push(`hlm. ${hal}`);
     hasil = bag.filter(Boolean).join(", ") + ".";
   } else {
-    const bag = [penulisSingkat(s.penulis), judulSingkat(s.judul)];
+    const bag = [penulisSingkat(s.penulis), judulSingkat(bersihkanJudul(s.judul))];
     if (jil) bag.push(`ج ${jil}`);
     if (hal) bag.push(`ص ${hal}`);
     hasil = bag.filter(Boolean).join("، ") + ".";

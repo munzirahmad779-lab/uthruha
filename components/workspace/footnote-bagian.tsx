@@ -3,10 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Project } from "@/lib/engine/project";
-import type { Sumber } from "@/lib/engine/cite";
+import { bersihkanJudul, type Sumber } from "@/lib/engine/cite";
 import { strukturProyek } from "@/lib/content/struktur";
-import { composeSection } from "@/lib/engine/compose";
-import { buatKompilator, cariMarker, type EntriKompilasi, type MarkerSitasi } from "@/lib/engine/marker";
+import { composeNaskah, composeNaskahPerBab, composeSection } from "@/lib/engine/compose";
+import {
+  buatKompilator,
+  cariMarker,
+  kompilasiMarker,
+  type EntriKompilasi,
+  type HasilKompilasi,
+  type MarkerSitasi,
+} from "@/lib/engine/marker";
+import { kampusProyek, modePerBab } from "@/lib/engine/hawamisy";
 import { CopyButton } from "@/components/ui";
 
 /**
@@ -53,6 +61,10 @@ export function kompilasiBagian(p: Project, bagian: string, teksAktif?: string):
   const k = buatKompilator(p);
   const st = strukturProyek(p);
   for (const c of st.chapters) {
+    // Batas bab eksplisit dari struktur: pada mode per-bab kompilator
+    // menyetel ulang nomor + keadaan sudah-dikutip di sini (no-op
+    // pada mode bersambung).
+    k.babBaru();
     for (const s of c.sections) {
       if (s.id === bagian) {
         const sebelum = k.takDikenal.length;
@@ -88,8 +100,10 @@ export interface KemunculanPenanda {
 export function kemunculanBagian(p: Project, bagian: string, teksAktif?: string): KemunculanPenanda[] {
   const perId = new Set(p.sumber.map((s) => s.id));
   const st = strukturProyek(p);
+  const perBab = modePerBab(p);
   let berjalan = 0;
   for (const c of st.chapters) {
+    if (perBab) berjalan = 0;
     for (const s of c.sections) {
       const teks = teksBagian(p, s.id, bagian, s.id === bagian ? teksAktif : undefined);
       const semua = cariMarker(teks);
@@ -110,6 +124,36 @@ export function kemunculanBagian(p: Project, bagian: string, teksAktif?: string)
     }
   }
   return [];
+}
+
+/**
+ * Kompilasi DOKUMEN utuh dengan batas bab eksplisit. Pada mode
+ * bersambung hasilnya persis kompilasiMarker(composeNaskah(p))
+ * (jalur lama, byte-identik). Pada mode per-bab (As'adiyah), tiap
+ * bab dikompilasi dengan kompilator yang sama sesudah babBaru():
+ * nomor mulai dari 1 per bab, bentuk penuh terulang pada kemunculan
+ * pertama tiap bab, dan definisi footnote ditaruh di akhir babnya
+ * masing-masing — bukan ditebak dari teks (syarat REVIEW-TAHAP-5).
+ * Semua permukaan dokumen (ekspor, tab Rujukan, pratinjau dialog
+ * Pasang) memakai fungsi ini agar nomornya selalu sepakat.
+ */
+export function kompilasiDokumen(p: Project): HasilKompilasi {
+  if (!modePerBab(p)) return kompilasiMarker(composeNaskah(p), p);
+  const k = buatKompilator(p);
+  const { awal, bab } = composeNaskahPerBab(p);
+  const potongan: string[] = [k.proses(awal).diganti];
+  for (const babMd of bab) {
+    k.babBaru();
+    const { diganti, entriBaru } = k.proses(babMd);
+    const definisi = entriBaru.map((e) => `[^${e.nomor}]: ${e.teks}`).join("\n");
+    potongan.push(entriBaru.length > 0 ? `${diganti}\n\n${definisi}` : diganti);
+  }
+  return {
+    markdown: potongan.join("\n\n---\n\n"),
+    takDikenal: k.takDikenal,
+    fragmen: k.fragmen,
+    jumlah: k.jumlah,
+  };
 }
 
 export function footnoteBagian(p: Project, bagian: string): EntriFootnote[] {
@@ -160,7 +204,7 @@ export function FootnoteBagian({
     <div className="mt-3 rounded-xl border border-ink-900/10 bg-white/60 px-3 py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11.5px] font-semibold text-ink-800">
-          Footnote bagian ini — langsung sesuai {p.pedoman ? "pedoman kampus" : "gaya sitasi proyek"} ({daftar.length})
+          Footnote bagian ini — langsung sesuai {p.pedoman ? "pedoman kampus" : kampusProyek(p) ? "hawamisy template pedoman kampus" : "gaya sitasi proyek"} ({daftar.length})
         </span>
         <div className="flex flex-wrap items-center gap-1.5">
           {p.sumber.length > 0 ? (
@@ -173,7 +217,7 @@ export function FootnoteBagian({
               >
                 {p.sumber.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.judul.slice(0, 42) || s.id}
+                    {bersihkanJudul(s.judul).slice(0, 42) || s.id}
                   </option>
                 ))}
               </select>

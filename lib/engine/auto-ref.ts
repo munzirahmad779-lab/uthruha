@@ -238,6 +238,10 @@ const LABEL_JENIS_ARAB: Record<JenisSumber, string> = {
   skripsi: "رسالة علمية",
   web: "موقع إلكتروني",
   terjemahan: "كتاب مترجم",
+  ensiklopedia: "موسوعة",
+  wawancara: "مقابلة",
+  hadis: "حديث",
+  koran: "مقال في صحيفة",
 };
 
 const TEMPLATE_ALASAN: Record<string, string[]> = {

@@ -44,6 +44,49 @@ export function kumpulkanFootnote(md: string): DefinisiFootnote {
   return def;
 }
 
+/** Satu kemunculan definisi footnote, berurutan sesuai dokumen. */
+export interface DefinisiBerurutan {
+  label: string;
+  teks: string;
+}
+
+/**
+ * Kumpulkan definisi footnote sebagai DAFTAR BERURUTAN kemunculan,
+ * bukan peta label → teks. Pada dokumen mode per-bab (Tahap 6) label
+ * yang sama (`[^1]`) sah muncul di beberapa bab dengan teks berbeda;
+ * peta akan menimpa definisi bab awal dengan bab akhir. Daftar ini
+ * mempertahankan semuanya sesuai urutan dokumen, dan rujukan
+ * dipasangkan ke definisi per kemunculan (rujukan ke-k label L
+ * berpasangan dengan definisi ke-k label L). Untuk dokumen berlabel
+ * unik hasilnya setara persis dengan kumpulkanFootnote.
+ */
+export function kumpulkanFootnoteBerurutan(md: string): DefinisiBerurutan[] {
+  const hasil: DefinisiBerurutan[] = [];
+  const baris = md.replace(/\r\n/g, "\n").split("\n");
+  let aktif: DefinisiBerurutan | null = null;
+
+  for (const b of baris) {
+    const m = b.match(POLA_DEFINISI);
+    if (m) {
+      aktif = { label: m[1], teks: m[2].trim() };
+      hasil.push(aktif);
+      continue;
+    }
+    if (aktif && /^\s{2,}\S/.test(b) && !POLA_DEFINISI.test(b)) {
+      const isi = b.trim();
+      if (isi) aktif.teks = `${aktif.teks} ${isi}`.trim();
+      continue;
+    }
+    if (b.trim() === "") {
+      aktif = null;
+      continue;
+    }
+    aktif = null;
+  }
+
+  return hasil;
+}
+
 /** Buang baris definisi footnote dari badan naskah (dipakai pratinjau & ekspor). */
 export function buangDefinisi(md: string): string {
   return md

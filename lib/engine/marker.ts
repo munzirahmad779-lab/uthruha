@@ -17,6 +17,7 @@
  *   HasilKompilasi.takDikenal. Keluaran penanda yang DIKENAL tidak berubah.
  */
 import { footnoteGaya, footnotePedoman, footnoteSingkat, gayaSah } from "@/lib/engine/citation";
+import { footnoteKampus, kampusProyek, modePerBab } from "@/lib/engine/hawamisy";
 import type { Project } from "@/lib/engine/project";
 
 export interface MarkerSitasi {
@@ -218,6 +219,16 @@ export interface HasilProsesKompilasi {
 
 export interface Kompilator {
   proses: (teks: string) => HasilProsesKompilasi;
+  /**
+   * Tandai awal bab baru. Hanya berdampak pada mode penomoran
+   * per-bab (template As'adiyah): nomor mulai lagi dari 1 dan
+   * keadaan sudah-dikutip disetel ulang, sehingga kemunculan pertama
+   * satu sumber di bab baru kembali berbentuk penuh — persis bunyi
+   * SPEC-PEDOMAN hal. PDF 34 (syarat REVIEW-TAHAP-5 butir 5). Pada
+   * mode bersambung (Mangkoso dan proyek tanpa template) pemanggilan
+   * ini tidak mengubah apa pun.
+   */
+  babBaru: () => void;
   readonly takDikenal: MarkerSitasi[];
   /** Fragmen penanda rusak yang diganti teks peringatan selama proses. */
   readonly fragmen: { mentah: string; posisi: number }[];
@@ -240,7 +251,18 @@ export function buatKompilator(p: Project): Kompilator {
   const takDikenal: MarkerSitasi[] = [];
   const fragmen: { mentah: string; posisi: number }[] = [];
   const sudahDikutip = new Set<string>();
+  const perBab = modePerBab(p);
+  // Lapisan format sitasi, dari atas: (1) pedoman kampus UNGGAHAN
+  // (p.pedoman) — perilaku lama yang tidak berubah; (2) hawamisy
+  // template pedoman bawaan (Tahap 6) untuk proyek bertemplate
+  // Mangkoso/As'adiyah; (3) gaya proyek umum (Turabian dst.).
+  const kampus = p.pedoman?.formatFootnote ? null : kampusProyek(p);
   let jumlah = 0;
+  /** Jumlah definisi saat bab aktif mulai; nomor tampil = selisihnya. */
+  let basisBab = 0;
+  /** Id sumber terakhir yang dikutip (untuk format 3 Mangkoso:
+   *  pengulangan langsung tanpa sumber lain di antaranya). */
+  let terakhirId: string | null = null;
 
   return {
     takDikenal,
@@ -249,6 +271,12 @@ export function buatKompilator(p: Project): Kompilator {
       return jumlah;
     },
     definisi,
+    babBaru() {
+      if (!perBab) return;
+      basisBab = definisi.length;
+      sudahDikutip.clear();
+      terakhirId = null;
+    },
     proses(teks: string) {
       const entriBaru: EntriKompilasi[] = [];
       const sesudahPenanda = teks.replace(POLA, (mentah, idRaw: string, hlm?: string, jil?: string) => {
@@ -258,19 +286,23 @@ export function buatKompilator(p: Project): Kompilator {
           takDikenal.push({ mentah, id, halaman: hlm, jilid: jil, posisi: 0 });
           return teksPenandaTakDikenal(id);
         }
-        const nomor = definisi.length + 1;
+        const nomor = definisi.length - basisBab + 1;
         const opsi = { halaman: hlm?.trim() || undefined, jilid: jil?.trim() || undefined };
         const pertama = !sudahDikutip.has(id);
+        const langsungBerulang = terakhirId === id;
         sudahDikutip.add(id);
+        terakhirId = id;
         // Pedoman kampus adalah lapisan teratas: bila proyek punya pedoman,
         // template footnote pedoman yang dipakai, bukan gaya proyek.
         const teksFootnote = p.pedoman?.formatFootnote
           ? pertama
             ? footnotePedoman(sumber, p.pedoman, opsi)
             : footnoteSingkat(sumber, opsi, p.pedoman.angkaArab)
-          : pertama || gaya === "apa7"
-            ? footnoteGaya(sumber, gaya, opsi)
-            : footnoteSingkat(sumber, opsi, false);
+          : kampus
+            ? footnoteKampus(sumber, kampus, opsi, { pertama, langsungBerulang })
+            : pertama || gaya === "apa7"
+              ? footnoteGaya(sumber, gaya, opsi)
+              : footnoteSingkat(sumber, opsi, false);
         definisi.push(`[^${nomor}]: ${teksFootnote}`);
         entriBaru.push({ nomor, teks: teksFootnote });
         jumlah++;

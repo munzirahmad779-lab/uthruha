@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { Project } from "@/lib/engine/project";
 import type { Sumber } from "@/lib/engine/cite";
 import { strukturProyek } from "@/lib/content/struktur";
-import { composeNaskah, composeSection } from "@/lib/engine/compose";
-import { cariMarker, kompilasiMarker } from "@/lib/engine/marker";
+import { composeSection } from "@/lib/engine/compose";
+import { cariMarker } from "@/lib/engine/marker";
+import { bersihkanJudul } from "@/lib/engine/cite";
+import { normalisasiDoi, normalisasiJudul } from "@/lib/engine/referensi";
+import { footnoteKampus, kampusProyek } from "@/lib/engine/hawamisy";
+import { kompilasiDokumen } from "@/components/workspace/footnote-bagian";
 import { footnoteGaya, footnotePedoman, gayaSah } from "@/lib/engine/citation";
 
 /**
@@ -140,6 +144,18 @@ export function PasangFootnote({
   onTutup: () => void;
   onTerpasang: (pesan: string, drafBaru?: Record<string, string>) => void;
 }) {
+  // Resolusi identitas lintas jalur (Tahap 6): bila karya yang sama
+  // sudah tersimpan di proyek dengan id lain (mis. rekaman lama
+  // ber-id acak dari Generate), penanda menempel pada rekaman yang
+  // SUDAH ADA itu — bukan menambah rekaman kedua untuk karya yang
+  // sama. Pencocokan: id stabil, DOI bersih, judul ternormalisasi.
+  const sumberEfektif =
+    p.sumber.find(
+      (s) =>
+        s.id === sumber.id ||
+        (sumber.doi && s.doi && normalisasiDoi(s.doi) === normalisasiDoi(sumber.doi)) ||
+        normalisasiJudul(s.judul) === normalisasiJudul(sumber.judul),
+    ) ?? sumber;
   const st = useMemo(() => strukturProyek(p), [p]);
   const semuaBagian = useMemo(
     () =>
@@ -173,8 +189,8 @@ export function PasangFootnote({
     // gerbang konfirmasi duplikat tidak menyala (L2 telaah Tahap 5,
     // dikerjakan di Tahap 6).
     const teks = p.draf[sectionId] ?? "";
-    return cariMarker(teks).filter((m) => m.id === sumber.id).length;
-  }, [p.draf, sectionId, sumber.id]);
+    return cariMarker(teks).filter((m) => m.id === sumberEfektif.id).length;
+  }, [p.draf, sectionId, sumberEfektif.id]);
 
   const halamanKosong = !halaman.trim();
   const blokirArtikel = sumber.jenis === "artikel" && halamanKosong;
@@ -207,7 +223,7 @@ export function PasangFootnote({
     [paragraf, paragrafIdx],
   );
 
-  const penanda = ` [[ref:${sumber.id}${halaman.trim() ? `|hlm:${halaman.trim()}` : ""}${jilid.trim() ? `|jilid:${jilid.trim()}` : ""}]]`;
+  const penanda = ` [[ref:${sumberEfektif.id}${halaman.trim() ? `|hlm:${halaman.trim()}` : ""}${jilid.trim() ? `|jilid:${jilid.trim()}` : ""}]]`;
 
   const drafBaru = useMemo(() => {
     if (modeBaru) {
@@ -227,15 +243,20 @@ export function PasangFootnote({
       halaman: halaman.trim() || undefined,
       jilid: jilid.trim() || undefined,
     };
+    const kampusCadangan = p.pedoman?.formatFootnote ? null : kampusProyek(p);
     const teksCadangan = p.pedoman?.formatFootnote
-      ? footnotePedoman(sumber, p.pedoman, opsi)
-      : footnoteGaya(sumber, gayaSah(p.gayaSitasi), opsi);
+      ? footnotePedoman(sumberEfektif, p.pedoman, opsi)
+      : kampusCadangan
+        ? footnoteKampus(sumberEfektif, kampusCadangan, opsi)
+        : footnoteGaya(sumberEfektif, gayaSah(p.gayaSitasi), opsi);
     const bayangan: Project = {
       ...p,
-      sumber: p.sumber.some((s) => s.id === sumber.id) ? p.sumber : [...p.sumber, sumber],
+      sumber: p.sumber.some((s) => s.id === sumberEfektif.id) ? p.sumber : [...p.sumber, sumberEfektif],
       draf: { ...p.draf, [sectionId]: drafBaru },
     };
-    const hasil = kompilasiMarker(composeNaskah(bayangan), bayangan);
+    // Kompilasi dokumen sadar batas bab: pada mode per-bab nomor
+    // pratinjau adalah nomor lokal babnya, sama seperti hasil ekspor.
+    const hasil = kompilasiDokumen(bayangan);
     const defs = [...hasil.markdown.matchAll(/^\[\^(\d+)\]: (.*)$/gm)].map((m) => ({
       nomor: m[1] ?? "?",
       teks: m[2] ?? "",
@@ -312,7 +333,7 @@ export function PasangFootnote({
     setMemasang(false);
     const drafMapBaru = { ...p.draf, [sectionId]: drafBaru };
     ubah({
-      sumber: p.sumber.some((s) => s.id === sumber.id) ? p.sumber : [...p.sumber, sumber],
+      sumber: p.sumber.some((s) => s.id === sumberEfektif.id) ? p.sumber : [...p.sumber, sumberEfektif],
       draf: drafMapBaru,
     });
     const labelBagian = semuaBagian.find((b) => b.id === sectionId)?.label ?? sectionId;
@@ -333,7 +354,7 @@ export function PasangFootnote({
           <button type="button" onClick={onTutup} className="btn-quiet !px-2 !py-0.5">✕</button>
         </div>
         <p className="mt-0.5 font-naskh text-[12.5px] leading-relaxed text-ink-700" dir="rtl">
-          {sumber.judul}
+          {bersihkanJudul(sumber.judul)}
         </p>
         {sumber.jurnal && (
           <p className="mt-0.5 font-naskh text-[11.5px] leading-relaxed text-ink-500" dir="rtl">

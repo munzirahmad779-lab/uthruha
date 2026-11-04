@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { strukturProyek } from "@/lib/content/struktur";
-import { composeNaskah } from "@/lib/engine/compose";
 import { buatDocx, unduh } from "@/lib/engine/export";
-import { susunDaftarPustaka } from "@/lib/engine/cite";
-import { daftarPustakaPedoman, gayaSah, susunDaftarPustakaGaya } from "@/lib/engine/citation";
-import { kompilasiMarker } from "@/lib/engine/marker";
+import { daftarPustakaProyek } from "@/lib/engine/daftar-pustaka";
+import { modePerBab } from "@/lib/engine/hawamisy";
 import type { Project } from "@/lib/engine/project";
+import { kompilasiDokumen } from "@/components/workspace/footnote-bagian";
 import { PemeriksaanSitasiPanel } from "@/components/workspace/pemeriksaan-sitasi-panel";
 import { IconDoc, IconDownload } from "@/components/icons";
 import { CopyButton, Note, Stat } from "@/components/ui";
@@ -25,26 +24,20 @@ export function ExportTab({ p, onBuka }: { p: Project; onBuka?: (sectionId: stri
   const [sedang, setSedang] = useState(false);
 
   const markdown = useMemo(() => {
-    const gaya = gayaSah(p.gayaSitasi);
-    const hasil = kompilasiMarker(composeNaskah(p), p);
+    // Kompilasi dokumen sadar batas bab (mode per-bab As'adiyah
+    // mulai dari 1 tiap bab; mode lain persis seperti sebelumnya)
+    // dan daftar pustaka SATU JALUR (daftarPustakaProyek) — bentuk
+    // entri di sini identik dengan tab Rujukan (Tahap 6).
+    const hasil = kompilasiDokumen(p);
     const isi = hasil.markdown;
     if (!pakaiRujukan || p.sumber.length === 0) return isi;
-    if (p.pedoman?.formatPustaka) {
-      // Pedoman kampus mengalahkan gaya proyek untuk daftar pustaka juga.
-      const entri = daftarPustakaPedoman(p.sumber, p.pedoman)
-        .map((e, i) => `${i + 1}. ${e}`)
-        .join("\n");
-      return `${isi}\n\n---\n\n# قائمة المراجع\n\n${entri}`;
-    }
-    if (gaya !== "arab-klasik") {
-      const entri = susunDaftarPustakaGaya(p.sumber, gaya)
-        .map((e, i) => `${i + 1}. ${e}`)
-        .join("\n");
-      return `${isi}\n\n---\n\n# قائمة المراجع\n\n${entri}`;
-    }
-    const daftar = susunDaftarPustaka(p.sumber)
-      .map((g) => `### ${g.judul}\n\n${g.entri.map((e, i) => `${i + 1}. ${e}`).join("\n")}`)
-      .join("\n\n");
+    const grup = daftarPustakaProyek(p);
+    const daftar =
+      grup.length === 1
+        ? grup[0]!.entri.map((e, i) => `${i + 1}. ${e}`).join("\n")
+        : grup
+            .map((g) => `### ${g.judul}\n\n${g.entri.map((e, i) => `${i + 1}. ${e}`).join("\n")}`)
+            .join("\n\n");
     return `${isi}\n\n---\n\n# قائمة المراجع\n\n${daftar}`;
   }, [p, pakaiRujukan]);
 
@@ -57,15 +50,26 @@ export function ExportTab({ p, onBuka }: { p: Project; onBuka?: (sectionId: stri
       const blob = buatDocx(
         p.judulAr || p.topikAr || "Naskah Kitabah",
         markdown,
-        ped
-          ? {
-              font: ped.fontArab,
-              ukuranNaskah: ped.ukuranNaskah,
-              ukuranFootnote: ped.ukuranFootnote,
-              spasi: ped.spasi,
-              marginCm: ped.marginCm,
-            }
-          : undefined,
+        {
+          ...(ped
+            ? {
+                font: ped.fontArab,
+                ukuranNaskah: ped.ukuranNaskah,
+                ukuranFootnote: ped.ukuranFootnote,
+                spasi: ped.spasi,
+                marginCm: ped.marginCm,
+              }
+            : {}),
+          // Mode per-bab (As'adiyah): Word menyetel ulang nomor
+          // footnote di tiap seksi bab; label bab dari struktur
+          // proyek (data terstruktur, bukan tebakan dari teks).
+          ...(modePerBab(p)
+            ? {
+                footnotePerBab: true,
+                labelBab: strukturProyek(p).chapters.map((c) => c.labelAr),
+              }
+            : {}),
+        },
       );
       unduh(blob, namaBerkas(p, "docx"));
     } finally {

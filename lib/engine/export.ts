@@ -2,8 +2,10 @@
 import {
   buangDefinisi,
   kumpulkanFootnote,
+  kumpulkanFootnoteBerurutan,
   nomorTampil,
   pecahCatatan,
+  type DefinisiBerurutan,
 } from "@/lib/refs/footnote-markdown";
 import { pecahBarisTabel } from "@/lib/engine/tabel-markdown";
 
@@ -123,6 +125,17 @@ export interface OpsiDokumen {
   spasi: number;
   /** Margin halaman dalam cm. */
   marginCm: number;
+  /**
+   * Penomoran footnote mulai dari 1 pada setiap bab (mode per-bab
+   * As'adiyah, Tahap 6): dokumen dipecah menjadi seksi Word per bab
+   * dengan numRestart eachSection, dan definisi footnote dipasangkan
+   * ke rujukannya per kemunculan (label [^n] yang sama sah muncul
+   * lagi di bab berikutnya dengan teks berbeda).
+   */
+  footnotePerBab?: boolean;
+  /** Label bab (labelAr dari struktur proyek) penanda batas seksi
+   *  bila footnotePerBab aktif — data terstruktur, bukan tebakan. */
+  labelBab?: string[];
 }
 
 export const DOK_DEFAULT: OpsiDokumen = {
@@ -189,17 +202,32 @@ export interface CatatanKaki {
 /** Id internal Word: 0 dan -1 dipakai separator; footnote asli mulai dari 1. */
 let CATATAN: CatatanKaki | undefined;
 
-function buatCatatanKaki(md: string): { catatan: CatatanKaki; dipakai: string[] } {
+function buatCatatanKaki(md: string): { catatan: CatatanKaki; berurutan: DefinisiBerurutan[] } {
   const definisi = kumpulkanFootnote(md);
-  const dipakai = Array.from(definisi.keys());
-  const peta = new Map<string, number>();
-  dipakai.forEach((nomor, i) => peta.set(nomor, i + 1));
+  const berurutan = kumpulkanFootnoteBerurutan(md);
+  // Pemasangan PER KEMUNCULAN (Tahap 6): rujukan ke-k untuk satu
+  // label berpasangan dengan definisi ke-k label itu, sesuai urutan
+  // dokumen. Pada dokumen berlabel unik (semua mode selain per-bab)
+  // hasilnya sama persis dengan pemetaan label → id yang lama; pada
+  // dokumen per-bab label yang sama muncul lagi di bab berikutnya
+  // dengan teks berbeda dan tetap berpasangan dengan benar, bukan
+  // tertimpa definisi bab terakhir.
+  const hitungRujukan = new Map<string, number>();
+  const idUntuk = (nomor: string): number | undefined => {
+    const ke = (hitungRujukan.get(nomor) ?? 0) + 1;
+    hitungRujukan.set(nomor, ke);
+    let lihat = 0;
+    for (let i = 0; i < berurutan.length; i++) {
+      if (berurutan[i]!.label === nomor) {
+        lihat++;
+        if (lihat === ke) return i + 1;
+      }
+    }
+    return undefined;
+  };
   return {
-    catatan: {
-      definisi,
-      idUntuk: (nomor) => peta.get(nomor),
-    },
-    dipakai,
+    catatan: { definisi, idUntuk },
+    berurutan,
   };
 }
 
@@ -257,9 +285,21 @@ function tabelWord(baris: string[][]): string {
  * Konversi markdown ringan (yang dipakai aplikasi ini) menjadi
  * WordprocessingML, sekaligus menyiapkan bagian footnote (footnotes.xml).
  */
+/** Isi sectPr satu seksi Word: sifat halaman yang sama seperti
+ *  seksi akhir dokumen, ditambah penomoran footnote yang mulai dari
+ *  1 pada tiap seksi (untuk mode per-bab). */
+function isiSectPr(): string {
+  const margin = Math.round(DOK.marginCm * 567);
+  return `${
+    DOK.footnotePerBab ? '<w:footnotePr><w:numRestart w:val="eachSection"/></w:footnotePr>' : ""
+  }<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="${margin}" w:right="${margin}" w:bottom="${margin}" w:left="${margin}" w:header="709" w:footer="709" w:gutter="0"/><w:bidi/><w:docGrid w:linePitch="360"/>`;
+}
+
 function dokumenDanCatatan(md: string): { body: string; footnotes: string } {
-  const { catatan, dipakai } = buatCatatanKaki(md);
+  const { catatan, berurutan } = buatCatatanKaki(md);
   CATATAN = catatan;
+  const labelBab = new Set(DOK.labelBab ?? []);
+  let sudahBab = false;
   const garis = buangDefinisi(md).replace(/\r\n/g, "\n").split("\n");
   const hasil: string[] = [];
   let i = 0;
@@ -297,6 +337,16 @@ function dokumenDanCatatan(md: string): { body: string; footnotes: string } {
       continue;
     }
     if (trim.startsWith("# ")) {
+      // Mode per-bab: judul bab (dari labelBab terstruktur) selain
+      // yang pertama membuka seksi Word baru, sehingga penomoran
+      // footnote Word mulai dari 1 lagi di bab itu (numRestart
+      // eachSection pada sectPr penutup seksi sebelumnya).
+      if (DOK.footnotePerBab && labelBab.has(trim.slice(2))) {
+        if (sudahBab) {
+          hasil.push(`<w:p><w:pPr><w:sectPr>${isiSectPr()}</w:sectPr></w:pPr></w:p>`);
+        }
+        sudahBab = true;
+      }
       hasil.push(par(trim.slice(2), { tebal: true, ukuran: Math.round(DOK.ukuranNaskah * 2) + 8, rata: "center", indent: false }));
       i += 1;
       continue;
@@ -344,7 +394,7 @@ function dokumenDanCatatan(md: string): { body: string; footnotes: string } {
     i += 1;
   }
 
-  return { body: hasil.join(""), footnotes: footnotesXml(dipakai, catatan.definisi) };
+  return { body: hasil.join(""), footnotes: footnotesXml(berurutan) };
 }
 
 /** Konversi markdown ringan menjadi WordprocessingML (tanpa bagian footnote). */
@@ -369,12 +419,14 @@ function runsFootnote(teks: string, ukuran: number): string {
     .join("");
 }
 
-/** Bangun `word/footnotes.xml` berisi definisi footnote. */
-function footnotesXml(dipakai: string[], definisi: Map<string, string>): string {
+/** Bangun `word/footnotes.xml` berisi definisi footnote, satu
+ *  elemen per KEMUNCULAN definisi sesuai urutan dokumen (id Word =
+ *  urutan kemunculan + 1, sama seperti pasangan rujukannya). */
+function footnotesXml(berurutan: DefinisiBerurutan[]): string {
   const ukuran = Math.round(DOK.ukuranFootnote * 2);
-  const isi = dipakai
-    .map((nomor, i) => {
-      const teks = definisi.get(nomor) ?? "";
+  const isi = berurutan
+    .map((d, i) => {
+      const teks = d.teks;
       return `<w:footnote w:id="${i + 1}"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:bidi/><w:jc w:val="both"/><w:spacing w:after="0" w:line="${barisSpasi()}" w:lineRule="auto"/><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr></w:pPr><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/><w:vertAlign w:val="superscript"/><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:footnoteRef/></w:r><w:r><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>${runsFootnote(teks, ukuran)}</w:p></w:footnote>`;
     })
     .join("");
@@ -428,7 +480,7 @@ export function buatDocx(judul: string, markdown: string, opsi?: Partial<OpsiDok
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <w:body>
 ${body}
-<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="${Math.round(DOK.marginCm * 567)}" w:right="${Math.round(DOK.marginCm * 567)}" w:bottom="${Math.round(DOK.marginCm * 567)}" w:left="${Math.round(DOK.marginCm * 567)}" w:header="709" w:footer="709" w:gutter="0"/><w:bidi/><w:docGrid w:linePitch="360"/></w:sectPr>
+<w:sectPr>${isiSectPr()}</w:sectPr>
 </w:body>
 </w:document>`;
 

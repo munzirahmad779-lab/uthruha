@@ -56,7 +56,11 @@ export async function cariArchive(
           if (out.some(x => x.url_sumber?.includes(d.identifier))) continue;
           out.push({
             source: "turath",
-            kitab: `[مخطوط/طبعة] ${d.title}`,
+            // Judul bersih (Tahap 6): tag "[مخطوط/طبعة]" tidak lagi
+            // disisipkan ke judul; sifat naskahnya sudah tercantum
+            // pada teks kutipan dan catatan verifikasi di bawah.
+            kitab: d.title,
+            jenis: "kitab",
             penulis: d.creator || undefined,
             tahun: d.year ? Number.parseInt(d.year, 10) || undefined : undefined,
             teks_kutipan: d.description ? d.description.slice(0, 220) : "نسخة إلكترونية مطبوعة/مخطوطة متوفرة في أرشيف المخطوطات والكتب.",

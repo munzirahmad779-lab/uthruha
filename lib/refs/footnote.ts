@@ -5,7 +5,7 @@
  */
 import type { RefCandidate } from "@/lib/refs/types";
 import type { PedomanRules } from "@/lib/refs/pedoman";
-import { keAngkaArab, type Sumber } from "@/lib/engine/cite";
+import { bersihkanJudul, keAngkaArab, type Sumber } from "@/lib/engine/cite";
 
 export const TANDA_VERIFIKASI = "[ ! verifikasi ]";
 
@@ -21,14 +21,29 @@ function hashTeks(teks: string): string {
 }
 
 /** Normalisasi satu unsur identitas kanonis: tag jenis di kepala
- *  judul ("[مجلة] ...") dibuang seperti kunci dedupe rute pencarian,
- *  spasi diringkas, huruf dikecilkan. */
+ *  judul dibuang dengan bersihkanJudul yang sama seperti sanitasi
+ *  simpan/tampil (Tahap 6), pemisah nama diseragamkan, spasi
+ *  diringkas, huruf dikecilkan. */
 function normalKanonis(teks: string | undefined): string {
-  return (teks ?? "")
-    .replace(/^\[[^\]]*\]\s*/, "")
+  return bersihkanJudul(teks ?? "")
+    .replace(/[،;]/g, ",")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+}
+
+/**
+ * Id sumber stabil dari identitas kanonis judul + penulis + tahun.
+ * Dipakai BERSAMA oleh jalur dialog Cari Rujukan (kandidatKeSumber)
+ * dan jalur Generate Footnote (rujukanKeSumber di server), supaya
+ * karya yang sama yang tiba lewat dua fitur itu memperoleh id yang
+ * sama dan saling dikenali sebagai satu sumber (menutup L1 telaah
+ * Tahap 4 di Tahap 6). Penulis diterima sebagai string tunggal yang
+ * sudah digabung pemanggilnya.
+ */
+export function idStabilDariIdentitas(judul: string, penulis: string, tahun: string): string {
+  const kanonis = [normalKanonis(judul), normalKanonis(penulis), tahun ? String(tahun) : ""].join("\n");
+  return `src-${hashTeks(kanonis)}`;
 }
 
 /**
@@ -46,20 +61,22 @@ function normalKanonis(teks: string | undefined): string {
  * banyak halaman berbeda).
  */
 export function idStabilKandidat(c: RefCandidate): string {
-  const kanonis = [
-    normalKanonis(c.kitab),
-    normalKanonis(c.penulis),
-    c.tahun ? String(c.tahun) : "",
-  ].join("\n");
-  return `src-${hashTeks(kanonis)}`;
+  return idStabilDariIdentitas(c.kitab, c.penulis ?? "", c.tahun ? String(c.tahun) : "");
 }
 
 export function kandidatKeSumber(c: RefCandidate): Sumber {
   return {
     id: idStabilKandidat(c),
-    jenis: "kitab",
+    // Jenis sebagai data (Tahap 6): kandidat artikel jurnal menjadi
+    // Sumber berjenis "artikel" dengan nama jurnal dan DOI pada
+    // bidangnya, bukan kitab bertajuk "[مجلة] …".
+    jenis: c.jenis ?? "kitab",
     penulis: c.penulis ?? "",
-    judul: c.kitab,
+    judul: bersihkanJudul(c.kitab),
+    jurnal: c.jurnal || undefined,
+    doi: c.doi || undefined,
+    volume: c.volume || undefined,
+    nomor: c.nomor || undefined,
     kota: c.kota ?? "",
     penerbit: c.penerbit ?? "",
     tahun: c.tahun ? String(c.tahun) : "",
@@ -82,13 +99,13 @@ function isiAngka(n: number, p: PedomanRules): string {
 function isiTemplate(template: string, c: RefCandidate, p: PedomanRules): string {
   const peta: Record<string, string> = {
     penulis: nilai(c.penulis, p),
-    judul: nilai(c.kitab, p),
+    judul: nilai(bersihkanJudul(c.kitab), p),
     kota: nilai(c.kota, p),
     penerbit: nilai(c.penerbit, p),
     tahun: nilai(c.tahun, p),
     jilid: nilai(c.jilid, p),
     halaman: nilai(c.halaman_cetak, p),
-    kitab: nilai(c.kitab, p),
+    kitab: nilai(bersihkanJudul(c.kitab), p),
     situs: nilai(c.url_sumber, p),
   };
   return template

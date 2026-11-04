@@ -1,4 +1,17 @@
-export type JenisSumber = "kitab" | "artikel" | "bab" | "skripsi" | "web" | "terjemahan";
+export type JenisSumber =
+  | "kitab"
+  | "artikel"
+  | "bab"
+  | "skripsi"
+  | "web"
+  | "terjemahan"
+  // Jenis tambahan Tahap 6: ke-12 format hawamisy SPEC-PEDOMAN dipilih
+  // dari JENIS sebagai data terstruktur, jadi ensiklopedia, wawancara,
+  // hadis, dan koran/majalah berkala perlu nilai jenisnya sendiri.
+  | "ensiklopedia"
+  | "wawancara"
+  | "hadis"
+  | "koran";
 
 export interface Sumber {
   id: string;
@@ -22,6 +35,21 @@ export interface Sumber {
   doi?: string;
   url?: string;
   penerjemah?: string;
+  /** Tanggal terbit (web, format 7 Mangkoso) atau tanggal wawancara
+   *  (format 11) atau tanggal akses (web As'adiyah) — teks bebas persis
+   *  seperti yang ditulis mahasiswa, mis. "10 أكتوبر 2021". */
+  tanggal?: string;
+  /** Media wawancara (format 11 Mangkoso): telepon, tatap muka, dst. */
+  media?: string;
+  /** Nomor hadis (format 12 Mangkoso; takhrij As'adiyah). Untuk hadis,
+   *  yang dicantumkan adalah nomor ini, bukan nomor halaman. */
+  nomorHadis?: string;
+  /** Kitab/bagian tematis takhrij As'adiyah, mis. "كتاب السلام". */
+  bagianTematis?: string;
+  /** Bab tematis takhrij As'adiyah, mis. "باب الطاعون والطيرة". */
+  babTematis?: string;
+  /** Derajat hadis (takhrij As'adiyah, untuk selain Bukhari-Muslim). */
+  derajatHadis?: string;
   tahqiq?: string;
   /** Schema v2: nama muhaqqiq (kanonis); tahqiq lama dipetakan ke sini saat migrasi. */
   muhaqqiq?: string;
@@ -47,7 +75,29 @@ export const JENIS_LABEL: Record<JenisSumber, { id: string; ar: string }> = {
   skripsi: { id: "Skripsi / tesis / disertasi", ar: "رسالة علمية" },
   web: { id: "Laman web", ar: "موقع إلكتروني" },
   terjemahan: { id: "Karya terjemahan", ar: "كتاب مترجم" },
+  ensiklopedia: { id: "Ensiklopedia", ar: "موسوعة" },
+  wawancara: { id: "Wawancara", ar: "مقابلة" },
+  hadis: { id: "Hadis (takhrij)", ar: "حديث" },
+  koran: { id: "Artikel koran / majalah", ar: "مقال في صحيفة" },
 };
+
+/**
+ * Buang tag jenis di kepala judul ("[مجلة] …", "[كتاب] …") — sanitasi
+ * judul Tahap 6. Tag semacam itu lahir di adapter jurnal lama dan
+ * mencemari judul di semua permukaan (simpan, tampil, footnote,
+ * daftar pustaka). Jenis hidup sebagai bidang data `jenis`, bukan
+ * teks judul. Hanya kelompok kurung di PALING AWAL yang dibuang, dan
+ * hanya bila isinya pendek tanpa spasi (ciri tag mesin); judul yang
+ * sah tidak pernah dimulai begitu. Makna judul tidak berubah.
+ */
+export function bersihkanJudul(judul: string): string {
+  let j = (judul ?? "").trim();
+  let m: RegExpExecArray | null;
+  while ((m = /^\[([^\s[\]]{1,24})\]\s*/.exec(j)) !== null) {
+    j = j.slice(m[0].length).trim();
+  }
+  return j;
+}
 
 const ANGKA_ARAB = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
 
@@ -76,7 +126,7 @@ export function kutipanDalamTeks(s: Sumber, opsi: OpsiSitasi = {}): string {
 
 /** Catatan kaki gaya kitab: Penulis، Judul، (Kota: Penerbit، Tahun)، ج، ص. */
 export function catatanKaki(s: Sumber, opsi: OpsiSitasi = {}): string {
-  const judul = s.judul.trim();
+  const judul = bersihkanJudul(s.judul);
   const kotaPenerbit = [s.kota, s.penerbit].filter(Boolean).join(": ");
   const kurung = kotaPenerbit
     ? `(${kotaPenerbit}${s.tahun ? `، ${num(s.tahun, opsi)}` : ""})`
@@ -95,7 +145,7 @@ export function catatanKaki(s: Sumber, opsi: OpsiSitasi = {}): string {
 export function entriDaftarPustaka(s: Sumber, opsi: OpsiSitasi = {}): string {
   const bagian: string[] = [];
   bagian.push(s.penulis.replace(/\s*$/, "") + ".");
-  bagian.push(s.judul + ".");
+  bagian.push(bersihkanJudul(s.judul) + ".");
   if (s.tahqiq) bagian.push(`تحقيق: ${s.tahqiq}.`);
   if (s.penerjemah) bagian.push(`ترجمة: ${s.penerjemah}.`);
   if (s.edisi) bagian.push(`${s.edisi}.`);
@@ -123,12 +173,13 @@ export function entriDaftarPustaka(s: Sumber, opsi: OpsiSitasi = {}): string {
 /** Entri gaya Indonesia (APA 7 ringkas) untuk naskah berbahasa Indonesia. */
 export function entriIndonesia(s: Sumber): string {
   const nama = s.penulis.split("،").reverse().join(", ").trim();
+  const judul = bersihkanJudul(s.judul);
   const inti =
     s.jenis === "artikel"
-      ? `${nama} (${s.tahun}). ${s.judul}. ${s.jurnal ?? ""}${s.volume ? `, ${s.volume}` : ""}${s.nomor ? `(${s.nomor})` : ""}.${s.doi ? ` https://doi.org/${s.doi}` : ""}`
+      ? `${nama} (${s.tahun}). ${judul}. ${s.jurnal ?? ""}${s.volume ? `, ${s.volume}` : ""}${s.nomor ? `(${s.nomor})` : ""}.${s.doi ? ` https://doi.org/${s.doi}` : ""}`
       : s.jenis === "web"
-        ? `${nama} (${s.tahun}). ${s.judul}. ${s.url ?? ""}`
-        : `${nama} (${s.tahun}). ${s.judul}. ${[s.kota, s.penerbit].filter(Boolean).join(": ")}.`;
+        ? `${nama} (${s.tahun}). ${judul}. ${s.url ?? ""}`
+        : `${nama} (${s.tahun}). ${judul}. ${[s.kota, s.penerbit].filter(Boolean).join(": ")}.`;
   return inti.replace(/\s+/g, " ").trim();
 }
 
@@ -136,10 +187,11 @@ const collator = new Intl.Collator("ar");
 
 export function susunDaftarPustaka(items: Sumber[]): { judul: string; entri: string[] }[] {
   const grup: { judul: string; jenis: JenisSumber[] }[] = [
-    { judul: "المصادر والمراجع العربية", jenis: ["kitab", "terjemahan", "bab"] },
-    { judul: "المقالات في المجلات العلمية", jenis: ["artikel"] },
+    { judul: "المصادر والمراجع العربية", jenis: ["kitab", "terjemahan", "bab", "ensiklopedia", "hadis"] },
+    { judul: "المقالات في المجلات العلمية", jenis: ["artikel", "koran"] },
     { judul: "الرسائل العلمية", jenis: ["skripsi"] },
     { judul: "المواقع الإلكترونية", jenis: ["web"] },
+    { judul: "المقابلات", jenis: ["wawancara"] },
   ];
 
   return grup

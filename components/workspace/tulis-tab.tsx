@@ -16,7 +16,8 @@ import {
   sisipPenandaKeDraf,
   targetDariKursor,
 } from "@/components/workspace/pasang-footnote";
-import type { Sumber } from "@/lib/engine/cite";
+import { bersihkanJudul, type Sumber } from "@/lib/engine/cite";
+import { normalisasiDoi, normalisasiJudul } from "@/lib/engine/referensi";
 import { FootnoteBagian, kemunculanBagian, kompilasiBagian } from "@/components/workspace/footnote-bagian";
 import { EditorPenanda, type FokusPenanda } from "@/components/workspace/editor-penanda";
 import { pecahSegmen } from "@/lib/engine/marker";
@@ -289,10 +290,15 @@ export function TulisTab({
       const sumberBaru = data.sumber;
       // Rujukan yang sama sudah tersimpan? Pakai yang lama agar sitasi
       // berulang mendapat nomor dan bentuk singkat yang benar.
+      // Pencocokan memakai identitas ternormalisasi (Tahap 6): id
+      // stabil, DOI bersih, atau judul ternormalisasi yang kebal tag
+      // jenis warisan — karya yang sama dari jalur Generate dan dari
+      // dialog Cari Rujukan kini saling dikenali (L1 Tahap 4).
       const sudahAda = p.sumber.find(
         (s) =>
-          (sumberBaru.doi && s.doi && s.doi.toLowerCase() === sumberBaru.doi.toLowerCase()) ||
-          s.judul.trim().toLowerCase() === sumberBaru.judul.trim().toLowerCase(),
+          s.id === sumberBaru.id ||
+          (sumberBaru.doi && s.doi && normalisasiDoi(s.doi) === normalisasiDoi(sumberBaru.doi)) ||
+          normalisasiJudul(s.judul) === normalisasiJudul(sumberBaru.judul),
       );
       const sumberFinal = sudahAda ?? sumberBaru;
       if (
@@ -380,10 +386,17 @@ export function TulisTab({
       posisi?: { awal: number; akhir: number; teks: string };
     },
   ): Promise<boolean> {
+    // Judul dibersihkan di titik tanam (Tahap 6): sumber yang masuk
+    // daftar proyek tidak boleh membawa tag jenis pada judulnya.
+    sumberBaru = { ...sumberBaru, judul: bersihkanJudul(sumberBaru.judul) };
+    // Penjaga duplikat lintas jalur (Tahap 6): id stabil, DOI bersih,
+    // atau judul ternormalisasi — sumber warisan bertajuk tercemar
+    // tag tetap dikenali sebagai karya yang sama.
     const sudahAda = p.sumber.find(
       (s) =>
-        (sumberBaru.doi && s.doi && s.doi.toLowerCase() === sumberBaru.doi.toLowerCase()) ||
-        s.judul.trim().toLowerCase() === sumberBaru.judul.trim().toLowerCase(),
+        s.id === sumberBaru.id ||
+        (sumberBaru.doi && s.doi && normalisasiDoi(s.doi) === normalisasiDoi(sumberBaru.doi)) ||
+        normalisasiJudul(s.judul) === normalisasiJudul(sumberBaru.judul),
     );
     const sumberFinal = sudahAda ?? sumberBaru;
     if (
@@ -994,7 +1007,19 @@ export function TulisTab({
               const gabung = `${teks.trim()}\n\n${blok}`;
               setTeks(gabung);
               sinkron.current = gabung;
-              ubah({ draf: { ...p.draf, [bagian]: gabung }, sumber: [...p.sumber, ...sumberBaru] });
+              // Sumber sisipan yang identitasnya sudah ada di proyek
+              // (id stabil / DOI / judul ternormalisasi) tidak digandakan
+              // (Tahap 6, duplikat lintas jalur L1 Tahap 4).
+              const segar = sumberBaru.filter(
+                (b) =>
+                  !p.sumber.some(
+                    (s) =>
+                      s.id === b.id ||
+                      (b.doi && s.doi && normalisasiDoi(s.doi) === normalisasiDoi(b.doi)) ||
+                      normalisasiJudul(s.judul) === normalisasiJudul(b.judul),
+                  ),
+              );
+              ubah({ draf: { ...p.draf, [bagian]: gabung }, sumber: [...p.sumber, ...segar] });
               setCariRujukan(false);
             }}
           />

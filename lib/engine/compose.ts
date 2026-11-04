@@ -1068,11 +1068,18 @@ export function rapikanNaskah(md: string): string {
   return hasil.join("\n\n");
 }
 
-export function composeNaskah(p: Project): string {
+/**
+ * Potongan dokumen per bab (Tahap 6): batas bab EKSPILIT yang dipakai
+ * kompilasi per-bab (penomoran hawamisy As'adiyah mulai dari 1 tiap
+ * bab) tanpa menebak batas dari teks. `awal` adalah kepala dokumen
+ * (judul + meta), `bab` berisi markdown tiap bab (judul bab + semua
+ * bagiannya). composeNaskah merangkai potongan ini persis seperti
+ * sebelumnya, jadi keluaran datarnya tidak berubah.
+ */
+export function composeNaskahPerBab(p: Project): { awal: string; bab: string[] } {
   const st = strukturProyek(p);
-  const bagian: string[] = [];
-  bagian.push(`# ${p.judulAr || p.topikAr || "عنوان البحث"}`);
-  bagian.push(
+  const awal = [
+    `# ${p.judulAr || p.topikAr || "عنوان البحث"}`,
     [
       `**نوع البحث:** ${st.labelAr} (${st.labelId})`,
       `**المنهج:** ${getMetode(p.metode).labelAr}`,
@@ -1080,18 +1087,25 @@ export function composeNaskah(p: Project): string {
       `**الباحث:** [الاسم]`,
       `**السنة:** ${keAngkaArab(new Date().getFullYear())}`,
     ].join("  \n"),
-  );
+  ].join("\n\n---\n\n");
+  const bab: string[] = [];
   for (const chapter of st.chapters) {
-    bagian.push(`# ${chapter.labelAr}`);
+    const potongan: string[] = [`# ${chapter.labelAr}`];
     for (const section of chapter.sections) {
       const draf = p.draf[section.id];
       if (draf && draf.trim().length > 20) {
-        bagian.push(draf.trim());
+        potongan.push(draf.trim());
       } else {
         const hasil = composeSection(p, section.id);
-        bagian.push(`> *(مسودة تلقائية — لم تُراجع بعد)*\n\n${rapikanNaskah(hasil.markdown)}`);
+        potongan.push(`> *(مسودة تلقائية — لم تُراجع بعد)*\n\n${rapikanNaskah(hasil.markdown)}`);
       }
     }
+    bab.push(potongan.join("\n\n---\n\n"));
   }
-  return bagian.join("\n\n---\n\n");
+  return { awal, bab };
+}
+
+export function composeNaskah(p: Project): string {
+  const { awal, bab } = composeNaskahPerBab(p);
+  return [awal, ...bab].join("\n\n---\n\n");
 }

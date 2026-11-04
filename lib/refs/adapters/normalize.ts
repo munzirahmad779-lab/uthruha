@@ -7,6 +7,7 @@
  */
 import type { AdapterMode, RefCandidate, SourceId } from "@/lib/refs/types";
 import { bersihkanKutipan, skorMirip } from "@/lib/refs/score";
+import { bersihkanJudul } from "@/lib/engine/cite";
 
 type Bebas = Record<string, unknown>;
 
@@ -65,7 +66,9 @@ export function dariItemJson(
 
   return {
     source,
-    kitab: judul || "[ ! verifikasi ]",
+    // Judul dibersihkan dari tag jenis di titik masuk kandidat ini
+    // juga (Tahap 6): judul tercemar tidak boleh mengalir ke simpan.
+    kitab: judul ? bersihkanJudul(judul) : "[ ! verifikasi ]",
     penulis,
     jilid,
     halaman_cetak: halaman,

@@ -3,20 +3,19 @@
 import { useMemo, useState } from "react";
 import {
   JENIS_LABEL,
+  bersihkanJudul,
   catatanKaki,
-  entriDaftarPustaka,
   entriIndonesia,
   kutipanDalamTeks,
   sumberBaru,
-  susunDaftarPustaka,
   type JenisSumber,
   type Sumber,
 } from "@/lib/engine/cite";
 import type { Project } from "@/lib/engine/project";
 import { cariDuplikat, parseImpor } from "@/lib/engine/referensi";
-import { GAYA_LABEL, daftarPustakaPedoman, gayaSah, type GayaSitasi } from "@/lib/engine/citation";
-import { composeNaskah } from "@/lib/engine/compose";
-import { kompilasiMarker } from "@/lib/engine/marker";
+import { GAYA_LABEL, gayaSah, type GayaSitasi } from "@/lib/engine/citation";
+import { daftarPustakaProyek, entriPustakaProyek } from "@/lib/engine/daftar-pustaka";
+import { kompilasiDokumen } from "@/components/workspace/footnote-bagian";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { CopyButton, Field, Note } from "@/components/ui";
 import { PedomanPanel } from "@/components/workspace/pedoman-panel";
@@ -93,21 +92,18 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     }
   }
 
-  // Daftar pustaka: pedoman kampus adalah lapisan teratas — bila proyek punya
-  // pedoman, entri disusun dari template pustaka pedoman (bukan format bawaan).
-  const daftar = useMemo(
-    () =>
-      p.pedoman?.formatPustaka
-        ? [{ judul: "قائمة المراجع", entri: daftarPustakaPedoman(p.sumber, p.pedoman) }]
-        : susunDaftarPustaka(p.sumber),
-    [p.sumber, p.pedoman],
-  );
+  // Daftar pustaka SATU JALUR (Tahap 6): perumus yang sama dengan
+  // tab Ekspor (daftarPustakaProyek) — hawamisy kampus, pedoman
+  // unggahan, gaya proyek, atau arab klasik. Dulu tab ini memilih
+  // perumus sendiri dan mengabaikan gaya proyek, jadi satu sumber
+  // bisa tampil berbeda antara dua tab.
+  const daftar = useMemo(() => daftarPustakaProyek(p), [p]);
 
   // Footnote yang benar-benar terpakai di naskah, SUDAH bernomor mengikuti
   // urutan sitasi dan terformat pedoman/gaya — siap salin ke dokumen mahasiswa
   // tanpa kode penanda [[ref:…]] sama sekali.
   const footnoteNaskah = useMemo(() => {
-    const hasil = kompilasiMarker(composeNaskah(p), p);
+    const hasil = kompilasiDokumen(p);
     return [...hasil.markdown.matchAll(/^\[\^(\d+)\]: (.*)$/gm)].map((m) => ({
       nomor: m[1] ?? "",
       teks: m[2] ?? "",
@@ -134,7 +130,13 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     }
     setPeringatanDuplikat("");
     // Cek DOI cocok-judul: DOI tertukar/asal tempel tidak boleh lolos diam-diam.
-    let entri: Sumber = { ...baru, id: baru.id || `src-${Date.now().toString(36)}` };
+    // Judul dibersihkan dari tag jenis di titik simpan ini (Tahap 6):
+    // tag seperti [مجلة] tidak boleh masuk data tersimpan lagi.
+    let entri: Sumber = {
+      ...baru,
+      judul: bersihkanJudul(baru.judul),
+      id: baru.id || `src-${Date.now().toString(36)}`,
+    };
     if (baru.doi?.trim()) {
       const h = await verifikasiDoi(baru.doi, baru.judul);
       if (h.status === "tidak-cocok" || h.status === "tidak-ditemukan") {
@@ -200,8 +202,9 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     const diterima: Sumber[] = [];
     let ditolak = 0;
     for (const e of hasil.entri) {
-      if (cariDuplikat(e, [...p.sumber, ...diterima])) ditolak++;
-      else diterima.push(e);
+      const bersih: Sumber = { ...e, judul: bersihkanJudul(e.judul) };
+      if (cariDuplikat(bersih, [...p.sumber, ...diterima])) ditolak++;
+      else diterima.push(bersih);
     }
     if (diterima.length > 0) ubah({ sumber: [...p.sumber, ...diterima] });
     setPesanImpor(
@@ -563,7 +566,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
                         </span>
                       )}
                       <span className="truncate text-[12.5px] font-semibold text-ink-900">
-                        {s.judul || "(tanpa judul)"}
+                        {bersihkanJudul(s.judul) || "(tanpa judul)"}
                       </span>
                     </p>
                     <p className="mt-0.5 truncate text-right font-naskh text-[13px] text-ink-600" dir="rtl">
@@ -589,7 +592,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
                     {[
                       { label: "Dalam teks", nilai: kutipanDalamTeks(s) },
                       { label: "Catatan kaki", nilai: catatanKaki(s) },
-                      { label: "Daftar pustaka", nilai: entriDaftarPustaka(s) },
+                      { label: "Daftar pustaka", nilai: entriPustakaProyek(p, s) },
                       { label: "Gaya Indonesia (APA)", nilai: entriIndonesia(s) },
                     ].map((f) => (
                       <div key={f.label} className="flex items-start gap-2 rounded-lg bg-parchment-100/70 px-2.5 py-2">

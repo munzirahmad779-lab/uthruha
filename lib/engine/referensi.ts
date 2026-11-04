@@ -4,11 +4,14 @@
  * Prinsip anti-karang: parser hanya memindahkan field yang benar-benar ada
  * di teks impor; yang tidak ada dibiarkan kosong, bukan ditebak.
  */
-import { sumberBaru, type JenisSumber, type Sumber } from "@/lib/engine/cite";
+import { bersihkanJudul, sumberBaru, type JenisSumber, type Sumber } from "@/lib/engine/cite";
 
-/** Judul ternormalisasi untuk perbandingan: buang harakat, tanda baca, kecilkan. */
+/** Judul ternormalisasi untuk perbandingan: tag jenis di kepala
+ *  dibuang dulu (Tahap 6 — judul warisan tercemar "[مجلة] …" harus
+ *  tetap dikenali sama dengan judul bersihnya), lalu buang harakat,
+ *  tanda baca, kecilkan. */
 export function normalisasiJudul(judul: string): string {
-  return judul
+  return bersihkanJudul(judul)
     .toLowerCase()
     .replace(/[\u064B-\u0652\u0670]/g, "")
     .replace(/[^\p{L}\p{N}]+/gu, " ")

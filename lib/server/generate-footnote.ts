@@ -49,7 +49,7 @@ import {
   simpanKeBank,
   simpanSidikParagraf,
 } from "./bank-rujukan";
-import { ambil, hapus, idAcak, simpan } from "./store";
+import { ambil, hapus, simpan } from "./store";
 import { getBidang } from "@/lib/content/bidang";
 import {
   bidangMilikProyek,
@@ -57,7 +57,8 @@ import {
   nilaiRelevansi,
   type KonteksProyek,
 } from "./gerbang-relevansi";
-import type { Sumber } from "@/lib/engine/cite";
+import { bersihkanJudul, type Sumber } from "@/lib/engine/cite";
+import { idStabilDariIdentitas } from "@/lib/refs/footnote";
 import { cari as cariTurath, cariKonsep as cariKonsepTurath } from "@/lib/refs/adapters/turath";
 import { cari as cariShamela } from "@/lib/refs/adapters/shamela";
 import { ekstrakKonsep } from "@/lib/refs/konsep";
@@ -321,13 +322,18 @@ export function indeksKalimatSeleksi(paragraf: string, seleksi: string): number 
  *  halaman sitasi, sedangkan masadir dari Turath/Shamela justru membawa
  *  jilid dan halaman cetak yang persis — itu nilai utamanya. */
 export function rujukanKeSumber(r: RujukanTamu): Sumber {
+  const judul = bersihkanJudul(r.judul);
   return {
-    id: idAcak("src-"),
+    // Id STABIL (Tahap 6, menutup L1 Tahap 4): identitas kanonis
+    // yang sama dengan jalur dialog Cari Rujukan, bukan id acak —
+    // karya yang sama dari dua jalur kini ber-id sama dan penjaga
+    // duplikat di titik tanam mengenalinya sebagai satu sumber.
+    id: idStabilDariIdentitas(judul, r.penulis.join("، "), r.tahun ?? ""),
     jenis: r.jenis === "jurnal" ? "artikel" : "kitab",
     penulis: r.penulis.join("، "),
     penulisDaftar: r.penulis,
     tahun: r.tahun ?? "",
-    judul: r.judul,
+    judul,
     penerbit: r.jenis === "buku" ? r.wadah || undefined : undefined,
     jurnal: r.jenis === "jurnal" ? r.wadah || undefined : undefined,
     jilid: r.jilid || undefined,
@@ -638,10 +644,14 @@ function hashSidik(teks: string): string {
   return createHash("sha256").update(teks).digest("hex").slice(0, 32);
 }
 
-/** Tupel kanonis kandidat dari bentuk RujukanTamu (sisi server). */
+/** Tupel kanonis kandidat dari bentuk RujukanTamu (sisi server).
+ *  Judul dibersihkan dari tag jenis (Tahap 6) di kedua bentuk tupel
+ *  agar sidik kandidat yang disetujui pengguna tetap cocok dengan
+ *  sidik Sumber hasil rujukanKeSumber yang kini menyimpan judul
+ *  bersih. */
 function tupelDariRujukan(r: RujukanTamu): string {
   return [
-    r.judul.trim(),
+    bersihkanJudul(r.judul),
     r.penulis.join("، "),
     r.tahun ?? "",
     r.wadah ?? "",
@@ -657,7 +667,7 @@ function tupelDariRujukan(r: RujukanTamu): string {
  *  Pemetaan jenis dan wadah meniru rujukanKeSumber persis. */
 function tupelDariSumber(s: Sumber): string {
   return [
-    (s.judul ?? "").trim(),
+    bersihkanJudul(s.judul ?? ""),
     s.penulis ?? "",
     s.tahun ?? "",
     s.jurnal ?? s.penerbit ?? "",
