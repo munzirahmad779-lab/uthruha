@@ -22,8 +22,8 @@ export default function KunciPage() {
           <h1 className="mt-3 text-xl font-bold text-ink-900">Kunci API saya</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-ink-700">
             Fitur AI Kitabah untuk akun mahasiswa memakai kunci API milik Anda sendiri,
-            supaya kuota Anda tidak bercampur dengan pengguna lain. Kedua kunci di bawah
-            ini gratis dibuat, tanpa kartu kredit.
+            terpisah dari kuota pemilik dan dari pengguna di luar kelas Anda. Kedua
+            kunci di bawah ini gratis dibuat, tanpa kartu kredit.
           </p>
           <KunciForm />
         </div>

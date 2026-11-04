@@ -234,6 +234,12 @@ export async function panggilKolam(opsi: {
   /** True = HANYA kunci pribadi yang boleh dipakai (akun mahasiswa):
    *  kolam premium/umum tidak disentuh sama sekali. */
   wajibPribadi?: boolean;
+  /** Kunci pinjaman kelompok (ketetapan pemilik 4 Nov 2026 siang):
+   *  kunci mahasiswa lain yang tidak login hari ini. Hanya dipakai
+   *  pada mode wajibPribadi, sebagai grup SESUDAH kunci sendiri,
+   *  dengan label pemilik kuncinya (`gemini-pribadi-<userId>`)
+   *  agar keadaan/cooldown tetap per kunci. */
+  pinjaman?: { userId: string; gemini?: string; groq?: string }[];
 }): Promise<HasilKolam> {
   const gagal: PercobaanGagal[] = [];
   const sekarang = Date.now();
@@ -245,12 +251,23 @@ export async function panggilKolam(opsi: {
     if (kunciPribadi && opsi.pribadi) {
       grup.push([{ kunci: kunciPribadi, label: `${p.id}-pribadi-${opsi.pribadi.userId}` }]);
     }
+    // Grup pinjaman: kunci teman sekelompok yang tidak login hari ini,
+    // hanya pada mode wajibPribadi, sesudah kunci sendiri.
+    const kunciPinjaman: { kunci: string; label: string }[] = [];
+    if (opsi.wajibPribadi && opsi.pinjaman) {
+      for (const pinjam of opsi.pinjaman) {
+        const k =
+          p.id === "gemini" ? pinjam.gemini : p.id === "groq" ? pinjam.groq : undefined;
+        if (k) kunciPinjaman.push({ kunci: k, label: `${p.id}-pribadi-${pinjam.userId}` });
+      }
+    }
+    if (kunciPinjaman.length > 0) grup.push(kunciPinjaman);
     if (!opsi.wajibPribadi) {
       if (opsi.premium && p.kunciPremium.length > 0) {
         grup.push(p.kunciPremium.map((k, i) => ({ kunci: k, label: `${p.id}-premium#${i + 1}` })));
       }
       grup.push(p.kunci.map((k, i) => ({ kunci: k, label: `${p.id}#${i + 1}` })));
-    } else if (!kunciPribadi) {
+    } else if (!kunciPribadi && kunciPinjaman.length === 0) {
       gagal.push({ label: p.id, alasan: "kunci pribadi untuk penyedia ini belum diisi" });
       continue;
     }

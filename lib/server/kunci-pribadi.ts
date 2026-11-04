@@ -11,13 +11,22 @@
  * Aturan pakai (ditegakkan pemanggil lewat opsiKolamUntuk):
  *  - Akun bertanda mahasiswa: kunci pribadi WAJIB. Tanpa kunci, fitur
  *    AI berhenti dengan pesan jujur (bukan diam-diam memakai kolam).
- *    Kunci pribadi gagal/habis → fitur berhenti; kolam pemilik tidak
- *    dipakai sebagai cadangan untuk akun mahasiswa.
+ *    Kolam pemilik tidak pernah dipakai untuk akun mahasiswa.
+ *  - KOLAM PINJAMAN KELOMPOK (ketetapan pemilik 4 Nov 2026 siang):
+ *    kunci mahasiswa dikelola sebagai kelompok. Kunci sendiri selalu
+ *    dicoba lebih dulu. Bila kunci sendiri habis limit hariannya,
+ *    cadangan SATU-SATUNYA adalah kunci teman sekelompok yang SAMA
+ *    SEKALI TIDAK LOGIN pada hari berjalan (WITA) — kuota hariannya
+ *    yang menganggur dialihkan ke teman yang limit. Teman yang sudah
+ *    login hari ini kuncinya tidak pernah dipinjam: jatahnya aman.
+ *    Yang boleh meminjam hanya mahasiswa yang juga punya kunci
+ *    (ikut menyumbang), dan status pinjaman dinilai ulang pada
+ *    setiap panggilan dari cap loginTerakhir di record pengguna.
  *  - Premium lain yang mengisi kunci pribadi: kuncinya dicoba lebih
  *    dulu, kolam tetap menjadi cadangan.
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import { ambil, hapus, simpan } from "./store";
+import { ambil, hapus, semua, simpan } from "./store";
 import { tierEfektif, type Pengguna } from "./identitas";
 
 export type NamaPenyediaPribadi = "gemini" | "groq";
@@ -128,9 +137,53 @@ export function kunciPribadiSah(k: unknown): k is string {
   return typeof k === "string" && k.length >= 20 && k.length <= 200 && !/\s/.test(k);
 }
 
+export interface KunciPinjaman {
+  userId: string;
+  gemini?: string;
+  groq?: string;
+}
+
+/** Tanggal kalender WITA (YYYY-MM-DD) dari sebuah momen. */
+export function tanggalWITA(d: Date): string {
+  const bagian = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Makassar",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const ambilBagian = (t: string) => bagian.find((b) => b.type === t)?.value ?? "";
+  return `${ambilBagian("year")}-${ambilBagian("month")}-${ambilBagian("day")}`;
+}
+
+/**
+ * Daftar kunci pinjaman yang sah untuk peminjam ini, dinilai SEKARANG:
+ * mahasiswa lain yang punya kunci TETAPI cap login terakhirnya bukan
+ * hari ini (WITA) — termasuk yang belum pernah login sama sekali.
+ * Mahasiswa yang sudah login hari ini tidak pernah masuk daftar.
+ * Urutan stabil menurut id agar perilaku bisa diuji.
+ */
+export async function daftarPinjamanUntuk(peminjamId: string): Promise<KunciPinjaman[]> {
+  const hariIni = tanggalWITA(new Date());
+  const pengguna = await semua("pengguna");
+  const hasil: KunciPinjaman[] = [];
+  for (const r of pengguna) {
+    if (r.id === peminjamId || r.mahasiswa !== true) continue;
+    const login = typeof r.loginTerakhir === "string" ? r.loginTerakhir : null;
+    if (login && tanggalWITA(new Date(login)) === hariIni) continue;
+    const mentah = await ambilKunciPribadi(r.id);
+    if (mentah.gemini || mentah.groq) hasil.push({ userId: r.id, ...mentah });
+  }
+  hasil.sort((a, b) => a.userId.localeCompare(b.userId));
+  return hasil;
+}
+
 export interface OpsiKolamPengguna {
   pribadi?: { userId: string; gemini?: string; groq?: string };
   wajibPribadi?: boolean;
+  /** Cadangan kelompok untuk akun mahasiswa: kunci teman yang tidak
+   *  login hari ini (lihat daftarPinjamanUntuk). Hanya bermakna bila
+   *  wajibPribadi true. */
+  pinjaman?: KunciPinjaman[];
   /** True bila akun mahasiswa belum mengisi kunci apa pun: pemanggil
    *  wajib menolak dengan kode KUNCI_PRIBADI sebelum memanggil AI. */
   perluIsiKunci: boolean;
@@ -149,6 +202,7 @@ export async function opsiKolamUntuk(u: Pengguna): Promise<OpsiKolamPengguna> {
     return {
       pribadi: { userId: u.id, ...mentah },
       wajibPribadi: true,
+      pinjaman: await daftarPinjamanUntuk(u.id),
       perluIsiKunci: false,
     };
   }

@@ -62,6 +62,7 @@ export async function POST(req: Request) {
       premium: true,
       pribadi: opsiP.pribadi,
       wajibPribadi: opsiP.wajibPribadi,
+      pinjaman: opsiP.pinjaman,
     });
     return NextResponse.json({ jawaban: hasil.teks, penyedia: hasil.penyedia, model: hasil.model });
   } catch {

@@ -82,6 +82,7 @@ function parseKataKunci(raw: string): KataKunciMentah | null {
 type OpsiKolamTerusan = {
   pribadi?: { userId: string; gemini?: string; groq?: string };
   wajibPribadi?: boolean;
+  pinjaman?: { userId: string; gemini?: string; groq?: string }[];
 };
 
 async function kalimatKunciDariAI(paragraf: string, kolam?: OpsiKolamTerusan): Promise<string[] | null> {
@@ -94,6 +95,7 @@ async function kalimatKunciDariAI(paragraf: string, kolam?: OpsiKolamTerusan): P
       premium: true,
       pribadi: kolam?.pribadi,
       wajibPribadi: kolam?.wajibPribadi,
+      pinjaman: kolam?.pinjaman,
     });
     if (!hasil.teks) return null;
     const k = parseKataKunci(hasil.teks);

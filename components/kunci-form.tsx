@@ -123,7 +123,11 @@ export function KunciForm() {
           Akun Anda terdaftar sebagai mahasiswa: fitur Premium Kitabah berjalan di atas
           kunci API Anda sendiri, bukan kuota pemilik. Isi minimal satu kunci agar fitur
           AI bisa bekerja; dua-duanya lebih baik karena keduanya bergantian bila satu
-          sedang habis kuota hariannya.
+          sedang habis kuota hariannya. Kunci sekelas dikelola sebagai kelompok dengan
+          aturan yang adil: selama Anda masuk pada hari itu, kunci Anda hanya dipakai
+          Anda. Bila kunci Anda habis limit hariannya, Anda bisa terbantu kunci teman
+          yang sama sekali tidak masuk pada hari itu; dan sebaliknya, pada hari Anda
+          sama sekali tidak masuk, kuota kunci Anda bisa membantu teman yang limit.
         </p>
       )}
       {(Object.keys(INFO) as Penyedia[]).map((p) => {

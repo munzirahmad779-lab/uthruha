@@ -90,7 +90,11 @@ export async function POST(req: NextRequest) {
     paragraf,
     judulProyek,
     kalimatKursor,
-    kolam: { pribadi: opsiP.pribadi, wajibPribadi: opsiP.wajibPribadi },
+    kolam: {
+      pribadi: opsiP.pribadi,
+      wajibPribadi: opsiP.wajibPribadi,
+      pinjaman: opsiP.pinjaman,
+    },
   });
   return NextResponse.json(hasil);
 }

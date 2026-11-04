@@ -94,7 +94,11 @@ async function panggilLLMMentah(
   user: string,
   maksToken: number,
   premium = false,
-  kolam?: { pribadi?: { userId: string; gemini?: string; groq?: string }; wajibPribadi?: boolean },
+  kolam?: {
+    pribadi?: { userId: string; gemini?: string; groq?: string };
+    wajibPribadi?: boolean;
+    pinjaman?: { userId: string; gemini?: string; groq?: string }[];
+  },
 ): Promise<{ sumber: string; isi: string } | null> {
   // Fase 3 (H): jalur utama kini KOLAM KUNCI (Gemini → Groq → Cloudflare →
   // slot DeepSeek/Meta) dengan rotasi + cooldown per kunci. Rantai lama di
@@ -109,6 +113,7 @@ async function panggilLLMMentah(
       premium,
       pribadi: kolam?.pribadi,
       wajibPribadi: kolam?.wajibPribadi,
+      pinjaman: kolam?.pinjaman,
     });
     if (hasil.teks) return { sumber: `kolam:${hasil.penyedia}`, isi: hasil.teks };
   } catch {
@@ -200,7 +205,11 @@ export async function POST(req: NextRequest) {
   if (opsiP.perluIsiKunci) {
     return NextResponse.json({ error: PESAN_PERLU_KUNCI, kode: "KUNCI_PRIBADI" }, { status: 403 });
   }
-  const kolamPribadi = { pribadi: opsiP.pribadi, wajibPribadi: opsiP.wajibPribadi };
+  const kolamPribadi = {
+    pribadi: opsiP.pribadi,
+    wajibPribadi: opsiP.wajibPribadi,
+    pinjaman: opsiP.pinjaman,
+  };
 
   const body = await req.json().catch(() => null);
   const teks = typeof body?.teks === "string" ? body.teks.trim().slice(0, 2000) : "";
