@@ -413,6 +413,45 @@ async function main() {
     hasilK.catatan.some((c) => c.includes("Inti kajian")) &&
     hasilK.kajian.every((k) => !k.sumber.dirasah?.temuan));
 
+  /* ============ M: luapan batas penilaian (tutup R1 telaah Tahap 7) ============ */
+  // Sepuluh kandidat unik sebidang, batas penilaian gerbang 8: dua
+  // terakhir tidak terjangkau nilaiUntukCariRujukan. Untuk akun
+  // penilai model keduanya WAJIB membawa putusan gagal tertutup
+  // "tidak-dinilai", bukan tampil tanpa putusan.
+  const hasilM = await cariKajianDirasah({
+    judulProyek: JUDUL,
+    bidangId: "fiqh",
+    bisaNilaiModel: true,
+    penyedia: async () =>
+      Array.from({ length: 10 }, (_, i) =>
+        ruj({
+          judul: `دراسة LUAPAN-${i + 1} في أصول الفقه`,
+          penulis: [`باحث رقم ${i + 1}`],
+          tahun: `${2010 + i}`,
+          cuplikan: `ملخص الدراسة LUAPAN-${i + 1} NILAI-UNIK-${i + 1}`,
+        }),
+      ),
+  });
+  const tanpaPutusanM = hasilM.kajian.filter((k) => !k.gerbang);
+  const tertahanM = hasilM.kajian.filter(
+    (k) => k.gerbang && !k.gerbang.lolos && k.gerbang.statusPenilaian === "tidak-dinilai",
+  );
+  cek(
+    "M1 luapan penilaian: tidak ada kandidat akun penilai model tanpa putusan",
+    hasilM.kajian.length === 10 && tanpaPutusanM.length === 0,
+    `${hasilM.kajian.length} kajian, ${tanpaPutusanM.length} tanpa putusan`,
+  );
+  cek(
+    "M2 luapan penilaian: yang di luar jatah tertahan tidak-dinilai dan perlu konfirmasi",
+    tertahanM.length === 2 && tertahanM.every((k) => k.gerbang?.perluKonfirmasi),
+    `${tertahanM.length} tertahan dari 10`,
+  );
+  cek(
+    "M3 luapan penilaian: belumDinilai tercatat 2 dengan jujur",
+    hasilM.belumDinilai === 2,
+    `${hasilM.belumDinilai}`,
+  );
+
   /* ============ L: metadata dan penjaga statis ============ */
   cek("L1 metadataMemadai menuntut judul, penulis, tahun",
     metadataMemadai(ruj({ judul: "دراسة كاملة" })) === true &&

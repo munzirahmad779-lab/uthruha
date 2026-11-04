@@ -184,6 +184,7 @@ export async function cariKajianDirasah(opsi: {
   // yang dinilai adalah kesesuaian kajian dengan penelitian ini.
   const gerbangPer = new Map<string, KandidatDirasah["gerbang"]>();
   let belumDinilai = 0;
+  let penilaianGagalTotal = false;
   if (layak.length > 0 && opsi.bisaNilaiModel) {
     const bentuk = layak.map((r) => {
       const s = rujukanKeSumber(r);
@@ -217,10 +218,46 @@ export async function cariKajianDirasah(opsi: {
     } else {
       // Penilaian gagal berjalan seluruhnya: TIDAK ada putusan, dan
       // itu dikatakan terus terang, bukan disembunyikan sebagai lolos.
+      penilaianGagalTotal = true;
       belumDinilai = bentuk.length;
       catatan.push(
         "Penilaian gerbang bidang gagal berjalan pada pencarian ini; semua kajian di bawah belum punya putusan bidang. Periksa sendiri kesesuaiannya sebelum memilih.",
       );
+    }
+    // Tutup R1 telaah Tahap 7 (pemilik: tahap verifikasi menyeluruh):
+    // kandidat akun penilai model tidak boleh tampil TANPA putusan,
+    // karena panel membaca ketiadaan putusan sebagai "aturan keras
+    // bersih; penilaian tidak berjalan untuk akun Anda", klaim yang
+    // salah pada dua keadaan ini: penilaian gagal total (nilai null
+    // di atas) dan luapan batas penilaian (kandidat di luar jatah
+    // nilaiUntukCariRujukan). Keduanya diisi putusan gagal tertutup
+    // berstatus "tidak-dinilai" (aturan keras tetap didahulukan,
+    // persis urutan nilaiRelevansi), sehingga kartu menampilkannya
+    // sebagai belum dinilai yang hanya bisa dipilih lewat konfirmasi
+    // sadar.
+    for (const r of layak) {
+      const s = rujukanKeSumber(r);
+      if (gerbangPer.has(s.id)) continue;
+      const bidangKeras = deteksiBidangSumber(s.judul, s.jurnal ?? s.penerbit ?? "");
+      if (bidangKeras && !bidangMilikProyek(bidangKeras, konteks)) {
+        gerbangPer.set(s.id, {
+          lolos: false,
+          perluKonfirmasi: true,
+          bidangSumber: bidangKeras,
+          alasan: `Judul atau nama jurnal menunjukkan bidang ${bidangKeras}, sedangkan proyek ini bidang ${konteks.bidangLabel || konteks.bidangId || "yang dipilih penulis"}.`,
+          statusPenilaian: "aturan-keras",
+        });
+      } else {
+        gerbangPer.set(s.id, {
+          lolos: false,
+          perluKonfirmasi: true,
+          bidangSumber: bidangKeras ?? "",
+          alasan: penilaianGagalTotal
+            ? "Penilaian model tidak tersedia (model gagal menjawab, misalnya kuota kunci habis atau layanan AI sedang terganggu), sehingga kajian ini BELUM dinilai kesesuaiannya. Aturan keras bidang bersih bukan bukti sesuai. Periksa sendiri abstraknya, atau pilih dengan konfirmasi dan tanggung jawab Anda."
+            : "Kajian ini belum dinilai pada pencarian ini karena batas penilaian per pencarian tercapai, sehingga kesesuaiannya belum teruji model. Periksa sendiri abstraknya, atau pilih dengan konfirmasi dan tanggung jawab Anda.",
+          statusPenilaian: "tidak-dinilai",
+        });
+      }
     }
   } else if (layak.length > 0) {
     // Tanpa penilaian model: aturan keras saja, putusannya hanya
