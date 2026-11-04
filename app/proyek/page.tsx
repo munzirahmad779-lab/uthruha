@@ -18,7 +18,7 @@ import {
 } from "@/lib/engine/project";
 import { IconArrowRight, IconBook, IconCopy, IconPlus, IconTrash } from "@/components/icons";
 import { Progress } from "@/components/ui";
-import { strukturKeDaftarIsi } from "@/lib/pedoman/skema-struktur";
+import { susunDaftarIsiOtomatis } from "@/lib/engine/daftar-isi-pedoman";
 import { TEMPLATE_PEDOMAN } from "@/lib/pedoman/template-pedoman";
 
 /** Kunci localStorage serah-terima dari uji coba tamu (components/uji-coba). */
@@ -51,10 +51,16 @@ export default function DaftarProyekPage() {
               const idxTpl =
                 serah.pedoman === "mangkoso" ? 0 : serah.pedoman === "asadiyah" ? 1 : -1;
               const tpl = idxTpl >= 0 ? TEMPLATE_PEDOMAN[idxTpl] : undefined;
+              const hasilTpl = tpl ? susunDaftarIsiOtomatis(tpl, judul.trim()) : null;
               const p = newProject({
                 judulAr: judul.trim(),
-                topikAr: judul.trim(),
-                ...(tpl ? { strukturPedoman: tpl, daftarIsi: strukturKeDaftarIsi(tpl) } : {}),
+                ...(tpl && hasilTpl
+                  ? {
+                      strukturPedoman: tpl,
+                      daftarIsi: hasilTpl.daftar,
+                      ...(hasilTpl.dariJudul ? { daftarIsiDariJudul: true } : {}),
+                    }
+                  : {}),
               });
               simpanProyek(p);
               // Daftarkan ke server seperti alur /mulai: 403 (batas

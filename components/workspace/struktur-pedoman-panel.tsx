@@ -5,11 +5,11 @@ import type { Project } from "@/lib/engine/project";
 import {
   PROMPT_PAKET_STRUKTUR,
   buatPromptPerbaikan,
-  strukturKeDaftarIsi,
   validasiTempelanStruktur,
   type GalatBidang,
   type StrukturPedoman,
 } from "@/lib/pedoman/skema-struktur";
+import { susunDaftarIsiOtomatis } from "@/lib/engine/daftar-isi-pedoman";
 import { TEMPLATE_PEDOMAN } from "@/lib/pedoman/template-pedoman";
 import { CopyButton, Note } from "@/components/ui";
 import { IconCheck, IconSparkle } from "@/components/icons";
@@ -68,12 +68,18 @@ export function StrukturPedomanPanel({
 
   function terapkan() {
     if (!pratinjau) return;
+    // Daftar isi disusun otomatis dari judul proyek + pedoman ini
+    // (Pembangunan Ulang Tahap 2): kerangka pedoman utuh, sub-bab materi
+    // bab isi diturunkan dari judul. Proyek warisan yang judulnya kosong
+    // memakai topikAr lamanya sebagai sumber judul.
+    const hasil = susunDaftarIsiOtomatis(pratinjau, p.judulAr || p.topikAr || "");
     ubah({
       strukturPedoman: pratinjau,
-      daftarIsi: strukturKeDaftarIsi(pratinjau),
+      daftarIsi: hasil.daftar,
+      daftarIsiDariJudul: hasil.dariJudul,
     });
     setPesan(
-      `Struktur "${pratinjau.namaPedoman}" diterapkan: daftar isi proyek kini mengikuti ${pratinjau.bab.length} bab pedoman. Lihat di tab Struktur.`,
+      `Struktur "${pratinjau.namaPedoman}" diterapkan: daftar isi proyek kini mengikuti ${pratinjau.bab.length} bab pedoman${hasil.dariJudul ? ", dengan sub-bab materi yang disusun dari judul penelitian Anda" : ""}. Lihat di tab Struktur.`,
     );
     setPratinjau(null);
     setTempel("");

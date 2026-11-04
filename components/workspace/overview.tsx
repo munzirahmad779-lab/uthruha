@@ -44,15 +44,6 @@ export function OverviewTab({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Topik / kalimat kunci (Arab)" className="sm:col-span-2">
-            <input
-              dir="rtl"
-              className="input text-right font-naskh text-[15px]"
-              value={p.topikAr}
-              onChange={(e) => ubah({ topikAr: e.target.value })}
-              placeholder="الوقف الإنتاجي وتنمية الاقتصاد المحلي"
-            />
-          </Field>
           <Field label="Lokasi (Arab)">
             <input
               dir="rtl"

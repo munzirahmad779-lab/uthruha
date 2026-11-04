@@ -208,7 +208,10 @@ export function TulisTab({
           judulProyek: p.judulAr ?? "",
           kalimatKursor: target.kalimatIdx,
           bidangId: p.bidangId,
-          topikAr: p.topikAr,
+          // Sinyal konteks gerbang relevansi: sejak Tahap 2 judul adalah
+          // masukan tema satu-satunya; topikAr warisan hanya cadangan
+          // untuk proyek lama yang judulnya masih kosong.
+          topikAr: p.topikAr || p.judulAr,
           ...(opsi?.paksaKonfirmasi ? { paksaKonfirmasi: true } : {}),
         }),
       });

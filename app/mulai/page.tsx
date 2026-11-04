@@ -9,7 +9,7 @@ import { KARYA_LABEL, type KaryaType, type Metode } from "@/lib/content/types";
 import { hapusProyek, newProject, simpanProyek } from "@/lib/engine/project";
 import { composeSection } from "@/lib/engine/compose";
 import { strukturProyek } from "@/lib/content/struktur";
-import { strukturKeDaftarIsi } from "@/lib/pedoman/skema-struktur";
+import { susunDaftarIsiOtomatis } from "@/lib/engine/daftar-isi-pedoman";
 import { TEMPLATE_PEDOMAN } from "@/lib/pedoman/template-pedoman";
 import {
   IconArrowRight,
@@ -49,7 +49,6 @@ export default function MulaiPage() {
   const [bidangId, setBidangId] = useState("quran");
   const [metode, setMetode] = useState<Metode>("kualitatif");
   const [judulAr, setJudulAr] = useState("");
-  const [topikAr, setTopikAr] = useState("");
   const [lokasi, setLokasi] = useState("");
   const [populasi, setPopulasi] = useState("");
   const [fenomenaAr, setFenomenaAr] = useState("");
@@ -77,13 +76,19 @@ export default function MulaiPage() {
   }, []);
 
   const bidang = useMemo(() => BIDANG.find((b) => b.id === bidangId) ?? BIDANG[0], [bidangId]);
-  // Daftar isi pratinjau dari template terpilih: sumber daftar centang
-  // langkah Titik mulai, dan bentuk akhirnya sama dengan yang dipasang
-  // selesai() ke proyek.
-  const daftarIsiTpl = useMemo(
-    () => (typeof pedomanIdx === "number" ? strukturKeDaftarIsi(TEMPLATE_PEDOMAN[pedomanIdx]!) : null),
-    [pedomanIdx],
+  // Daftar isi pratinjau dari template terpilih + judul: sumber daftar
+  // centang langkah Titik mulai, dan bentuk akhirnya sama dengan yang
+  // dipasang selesai() ke proyek. Sejak Pembangunan Ulang Tahap 2 daftar
+  // isi disusun OTOMATIS dari judul dan pedoman (susunDaftarIsiOtomatis):
+  // kerangka dari template, sub-bab materi bab isi dari konsep judul.
+  const hasilTpl = useMemo(
+    () =>
+      typeof pedomanIdx === "number"
+        ? susunDaftarIsiOtomatis(TEMPLATE_PEDOMAN[pedomanIdx]!, judulAr)
+        : null,
+    [pedomanIdx, judulAr],
   );
+  const daftarIsiTpl = hasilTpl?.daftar ?? null;
   const alihkanDiLuar = (id: string) =>
     setDiLuar((lama) => (lama.includes(id) ? lama.filter((x) => x !== id) : [...lama, id]));
   const presetDiLuar = (sampaiBab: number) => {
@@ -92,7 +97,7 @@ export default function MulaiPage() {
     setDiLuar(daftarIsiTpl.slice(0, sampaiBab).flatMap((b) => b.sections.map((s) => s.id)));
   };
   const bisaLanjut =
-    (langkah !== 3 || topikAr.trim().length > 2) &&
+    (langkah !== 3 || judulAr.trim().length > 2) &&
     (langkah !== 4 || pedomanIdx !== null);
   const terakhir = langkah === LANGKAH.length - 1;
 
@@ -103,7 +108,6 @@ export default function MulaiPage() {
       jenis,
       metode,
       bidangId,
-      topikAr: topikAr.trim(),
       judulAr: judulAr.trim(),
       lokasi: lokasi.trim(),
       populasi: populasi.trim(),
@@ -113,14 +117,22 @@ export default function MulaiPage() {
         .map((s) => s.replace(/^[-*\d.)\s]+/, "").trim())
         .filter(Boolean),
       // Template permanen yang dipilih di langkah Pedoman langsung menjadi
-      // struktur + daftar isi proyek sejak awal. "Pedoman Sendiri" tidak
-      // mengisi apa pun: struktur disusun dari panel Pedoman kampus.
-      ...(tpl ? { strukturPedoman: tpl, daftarIsi: strukturKeDaftarIsi(tpl) } : {}),
-      // Titik mulai: hanya id yang benar-benar ada di daftar isi template.
-      ...(tpl && diLuar.length > 0
+      // struktur + daftar isi proyek sejak awal, dengan daftar isi yang
+      // disusun otomatis dari judul (hasilTpl, sama dengan pratinjau
+      // langkah Titik mulai). "Pedoman Sendiri" tidak mengisi apa pun:
+      // struktur disusun dari panel Pedoman kampus.
+      ...(tpl && hasilTpl
+        ? {
+            strukturPedoman: tpl,
+            daftarIsi: hasilTpl.daftar,
+            ...(hasilTpl.dariJudul ? { daftarIsiDariJudul: true } : {}),
+          }
+        : {}),
+      // Titik mulai: hanya id yang benar-benar ada di daftar isi terpasang.
+      ...(tpl && hasilTpl && diLuar.length > 0
         ? {
             bagianDiLuar: diLuar.filter((id) =>
-              strukturKeDaftarIsi(tpl).some((b) => b.sections.some((s) => s.id === id)),
+              hasilTpl.daftar.some((b) => b.sections.some((s) => s.id === id)),
             ),
           }
         : {}),
@@ -129,7 +141,7 @@ export default function MulaiPage() {
     // langsung disusun otomatis dari data wizard saat proyek dibuat, supaya
     // mahasiswa membuka ruang kerja yang sudah berisi draf — bukan halaman
     // kosong. Yang disusun hanya bagian yang murni berasal dari data wizard
-    // (latar belakang dari topik/fenomena, rumusan dan tujuan dari rumusan
+    // (latar belakang dari judul/fenomena, rumusan dan tujuan dari rumusan
     // yang ditulis, manfaat, batasan, definisi). Bab isi tetap dikerjakan
     // lewat pencarian rujukan. Kegagalan menyusun tidak boleh menggagalkan
     // pembuatan proyek.
@@ -162,7 +174,7 @@ export default function MulaiPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: p.id,
-          judul: p.judulAr || p.topikAr || "Tanpa judul",
+          judul: p.judulAr || "Tanpa judul",
           kategoriId: bidangId,
         }),
       });
@@ -377,18 +389,9 @@ export default function MulaiPage() {
               </p>
               <div className="mt-5 grid gap-4">
                 <Field
-                  label="Topik / kalimat kunci penelitian (Arab)"
-                  hint="Contoh: تعليم اللغة العربية، الوقف الإنتاجي، منهج التفسير الموضوعي"
+                  label="Judul penelitian (Arab)"
+                  hint="Satu-satunya masukan tema: daftar isi tiap bab disusun otomatis dari judul ini dan pedoman yang Anda pilih. Judul yang jelas membuat susunannya jelas."
                 >
-                  <input
-                    className="input text-right font-naskh text-base"
-                    dir="rtl"
-                    value={topikAr}
-                    onChange={(e) => setTopikAr(e.target.value)}
-                    placeholder="مثال: تعليم اللغة العربية في المعاهد الإسلامية"
-                  />
-                </Field>
-                <Field label="Judul sementara (Arab)" hint="Boleh dikosongkan; bisa diisi nanti.">
                   <input
                     className="input text-right font-naskh text-base"
                     dir="rtl"
@@ -432,7 +435,7 @@ export default function MulaiPage() {
               </div>
               {!bisaLanjut && (
                 <p className="mt-3 text-[11px] font-medium text-amber-700">
-                  Isi topik penelitian dulu untuk melanjutkan.
+                  Isi judul penelitian dulu untuk melanjutkan.
                 </p>
               )}
             </div>
@@ -474,7 +477,7 @@ export default function MulaiPage() {
                         </span>
                         <span className="mt-1 block text-[12px] leading-relaxed text-ink-700">
                           {t.namaPedoman} — {t.bab.length} bab · {sub} sub-bab · {atr} aturan.
-                          Struktur resmi kampus, langsung terpasang sebagai daftar isi proyek.
+                          Struktur resmi kampus; daftar isi proyek disusun otomatis dari judul Anda mengikuti pedoman ini.
                         </span>
                       </span>
                     </button>
@@ -640,7 +643,7 @@ export default function MulaiPage() {
               )}
               <p className="mt-3 text-[12px] leading-relaxed text-ink-600">
                 Begitu proyek dibuat, <strong className="text-ink-900">draf Bab I langsung
-                tersusun otomatis dari data ini</strong> — latar belakang dari topik dan fenomena
+                tersusun otomatis dari data ini</strong> — latar belakang dari judul dan fenomena
                 Anda, rumusan dan tujuan dari pertanyaan di atas. Anda tinggal menyunting dan
                 mengembangkannya, bukan mulai dari halaman kosong.
               </p>

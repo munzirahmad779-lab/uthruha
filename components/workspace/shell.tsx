@@ -158,7 +158,7 @@ export function Workspace({ id }: { id: string }) {
           Proyek
         </Link>
         <span>/</span>
-        <span className="truncate text-ink-700">{proyek.topikAr || proyek.judulAr || "Tanpa judul"}</span>
+        <span className="truncate text-ink-700">{proyek.judulAr || proyek.topikAr || "Tanpa judul"}</span>
       </nav>
 
       <header className="mt-4 rounded-2xl border border-ink-900/10 bg-white/70 p-5 shadow-card">

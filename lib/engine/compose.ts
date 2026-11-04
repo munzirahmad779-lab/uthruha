@@ -192,7 +192,7 @@ const BAB: Record<string, BagianFn> = {
       `This study examines ${topic} within the field of Islamic/Arabic studies. It aims to describe the phenomenon as it actually occurs, analyse the factors that shape it, and formulate conclusions that are accountable to the primary sources and to field data.`,
       `The study employs a documented research method appropriate to its questions, drawing on classical and contemporary references. Data were collected and analysed systematically so that every finding presented in this article can be traced back to its evidence.`,
       "[Write the main findings here once the analysis is complete.]",
-      "Keywords: " + (p.topikAr || "research") + "; Islamic studies; Arabic scholarship",
+      "Keywords: " + (p.topikAr || p.judulAr || "research") + "; Islamic studies; Arabic scholarship",
     );
   },
 

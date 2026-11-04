@@ -26,7 +26,7 @@ function PanelDaftarIsiPedoman({
 
   function terapkanDari(d: BabKustom[], sumber: string) {
     if (sudahAda && !window.confirm(`Ganti daftar isi saat ini dengan daftar isi ${sumber}? Draf yang sudah ditulis tidak ikut terhapus.`)) return;
-    ubah({ daftarIsi: d });
+    ubah({ daftarIsi: d, daftarIsiDariJudul: false });
     setPesan(`Daftar isi dari ${sumber} diterapkan: ${d.length} bab, ${jumlahSub(d)} sub-bab. Silakan edit lagi bila perlu.`);
   }
 
@@ -99,7 +99,7 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
 
   function susunDariIsykal() {
     const hasil = susunDaftarIsiIsykal(p);
-    if (hasil) ubah({ daftarIsi: hasil });
+    if (hasil) ubah({ daftarIsi: hasil, daftarIsiDariJudul: false });
   }
 
   function terapkan(next: BabKustom[]) {
@@ -277,13 +277,21 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
             type="button"
             className="btn-quiet !py-1 !text-[11px]"
             onClick={() => {
-              if (window.confirm("Kembalikan ke daftar isi bawaan jenis karya? Daftar isi kustom dihapus.")) ubah({ daftarIsi: null });
+              if (window.confirm("Kembalikan ke daftar isi bawaan jenis karya? Daftar isi kustom dihapus.")) ubah({ daftarIsi: null, daftarIsiDariJudul: false });
             }}
           >
             Kembalikan ke bawaan
           </button>
         </div>
       </div>
+
+      {p.daftarIsiDariJudul && (
+        <p className="rounded-lg bg-parchment-100 px-3 py-2 text-[11.5px] leading-relaxed text-ink-600">
+          Susunan awal otomatis dari judul + pedoman: sub-bab materi pada bab isi diturunkan dari
+          judul penelitian Anda. Ini titik awal, bukan susunan terkunci — sunting, tambah, atau
+          hapus sesuai kebutuhan dan arahan pembimbing.
+        </p>
+      )}
 
       {daftar.map((b, i) => (
         <div key={b.id} className="rounded-xl border border-ink-900/10 bg-white/80 p-3">

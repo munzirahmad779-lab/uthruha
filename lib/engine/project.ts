@@ -23,6 +23,14 @@ export interface Project {
   /** Bahasa naskah yang dituju. */
   bahasa: "ar" | "id" | "en";
   judulAr: string;
+  /**
+   * WARISAN (Pembangunan Ulang Tahap 2, poin A6): field topik DIHAPUS
+   * dari wizard dan dari kewajiban pembuatan proyek; judul adalah
+   * satu-satunya masukan tema. Bidang ini dipertahankan pada tipe dan
+   * data tersimpan agar proyek lama tidak kehilangan nilainya; proyek
+   * baru selalu menyimpannya kosong dan konsumen membaca judul lebih
+   * dulu (fallback topikAr lama hanya untuk proyek warisan).
+   */
   topikAr: string;
   lokasi: string;
   populasi: string;
@@ -57,6 +65,14 @@ export interface Project {
    * mahasiswa (tambah/kurang/pindah sub-bab) di tab Struktur.
    */
   daftarIsi?: BabKustom[] | null;
+  /**
+   * Penanda asal daftar isi (Pembangunan Ulang Tahap 2): true bila
+   * daftar isi disusun otomatis dari judul + pedoman oleh
+   * susunDaftarIsiOtomatis sebagai TITIK AWAL yang bisa disunting.
+   * Editor menampilkannya sebagai catatan susunan awal; susunan ulang
+   * manual oleh mahasiswa menurunkannya kembali ke false.
+   */
+  daftarIsiDariJudul?: boolean;
   /**
    * Titik mulai (perintah pemilik, 3 Nov 2026): id sub-bab daftar isi yang
    * dinyatakan mahasiswa SUDAH dikerjakan di luar Kitabah (misalnya Bab 1
