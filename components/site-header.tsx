@@ -14,6 +14,7 @@ const NAV: { href: string; label: string; terkunci?: boolean }[] = [
   { href: "/alat", label: "Alat", terkunci: true },
   { href: "/jurnal", label: "Jurnal", terkunci: true },
   { href: "/panduan", label: "Panduan", terkunci: true },
+  { href: "/kunci", label: "Kunci API", terkunci: true },
 ];
 
 export function SiteHeader() {
@@ -43,7 +44,7 @@ export function SiteHeader() {
       }`}
     >
       <div className="wrap flex h-16 items-center justify-between gap-4">
-        <Link href="/" className="rounded-lg" aria-label="Kitabah — beranda">
+        <Link href="/" className="rounded-lg" aria-label="Kitabah · beranda">
           <BrandLockup />
         </Link>
 

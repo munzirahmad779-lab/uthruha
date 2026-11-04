@@ -89,17 +89,34 @@ async function panggilOpenAICompatible(opts: {
 }
 
 /** Panggil provider LLM berurutan (Groq → Cloudflare); kembalikan teks mentah. */
-async function panggilLLMMentah(system: string, user: string, maksToken: number, premium = false): Promise<{ sumber: string; isi: string } | null> {
+async function panggilLLMMentah(
+  system: string,
+  user: string,
+  maksToken: number,
+  premium = false,
+  kolam?: { pribadi?: { userId: string; gemini?: string; groq?: string }; wajibPribadi?: boolean },
+): Promise<{ sumber: string; isi: string } | null> {
   // Fase 3 (H): jalur utama kini KOLAM KUNCI (Gemini → Groq → Cloudflare →
   // slot DeepSeek/Meta) dengan rotasi + cooldown per kunci. Rantai lama di
   // bawah dipertahankan sebagai cadangan bila kolam belum terkonfigurasi.
   try {
     const { panggilKolam } = await import("@/lib/server/kolam");
-    const hasil = await panggilKolam({ sistem: system, pengguna: user, maksToken, json: true, premium });
+    const hasil = await panggilKolam({
+      sistem: system,
+      pengguna: user,
+      maksToken,
+      json: true,
+      premium,
+      pribadi: kolam?.pribadi,
+      wajibPribadi: kolam?.wajibPribadi,
+    });
     if (hasil.teks) return { sumber: `kolam:${hasil.penyedia}`, isi: hasil.teks };
   } catch {
     /* kolam kosong/gagal — jatuh ke rantai lama */
   }
+  // Akun mahasiswa (wajibPribadi) TIDAK boleh jatuh ke rantai lama:
+  // rantai ini memakai kunci env pemilik secara langsung.
+  if (kolam?.wajibPribadi) return null;
   const penyedia: Array<{ sumber: string; baseURL: string; apiKey: string; model: string }> = [];
   if (process.env.GROQ_API_KEY) {
     penyedia.push({
@@ -177,6 +194,13 @@ export async function POST(req: NextRequest) {
   }
   // Pemanggil Premium memakai kolam khusus premium lebih dulu.
   const premium = tierEfektif(penggunaSesi) === "premium";
+  // BYOK mahasiswa: tanpa kunci pribadi, berhenti jujur sebelum membakar apa pun.
+  const { opsiKolamUntuk, PESAN_PERLU_KUNCI } = await import("@/lib/server/kunci-pribadi");
+  const opsiP = await opsiKolamUntuk(penggunaSesi);
+  if (opsiP.perluIsiKunci) {
+    return NextResponse.json({ error: PESAN_PERLU_KUNCI, kode: "KUNCI_PRIBADI" }, { status: 403 });
+  }
+  const kolamPribadi = { pribadi: opsiP.pribadi, wajibPribadi: opsiP.wajibPribadi };
 
   const body = await req.json().catch(() => null);
   const teks = typeof body?.teks === "string" ? body.teks.trim().slice(0, 2000) : "";
@@ -220,7 +244,7 @@ export async function POST(req: NextRequest) {
   // ── Tahap kurasi v2 ──────────────────────────────────────────────────────
   const tahap = typeof body?.tahap === "string" ? body.tahap : "";
   if (tahap === "kata") {
-    const mentah = await panggilLLMMentah(PROMPT_KATA, teks, 500, premium);
+    const mentah = await panggilLLMMentah(PROMPT_KATA, teks, 500, premium, kolamPribadi);
     const kata = mentah ? parseKata(mentah.isi) : null;
     if (kata) return { json: { sumber: mentah!.sumber, kata }, ai: true };
     return {
@@ -238,7 +262,7 @@ export async function POST(req: NextRequest) {
       ? body.kata.filter((x: unknown) => typeof x === "string").slice(0, 12)
       : [];
     const user = `JUDUL: ${judul}\nKATA KUNCI TERPILIH: ${kataPilihan.join("، ") || "(belum ada — ambil dari judul)"}`;
-    const mentah = await panggilLLMMentah(PROMPT_KALIMAT, user, 800, premium);
+    const mentah = await panggilLLMMentah(PROMPT_KALIMAT, user, 800, premium, kolamPribadi);
     const kalimat = mentah ? parseKalimat(mentah.isi) : null;
     if (kalimat) return { json: { sumber: mentah!.sumber, kalimat }, ai: true };
     return {

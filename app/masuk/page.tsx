@@ -10,14 +10,14 @@ const PESAN_WA_PREMIUM =
   "Assalamu'alaikum, saya ingin meminta kunci premium Kitabah.\nNama: \nKampus: ";
 
 export const metadata: Metadata = {
-  title: "Masuk — Kitabah",
+  title: "Masuk · Kitabah",
   robots: { index: false, follow: false },
 };
 
 export default function MasukPage() {
   // TAHAN LOGIN GOOGLE (perintah pemilik, 28 Okt 2026): selama
   // UTH_LOGIN_GOOGLE_AKTIF belum "1", halaman ini adalah gerbang satu
-  // kolom kunci akses seperti semula — tanpa bagian Google sama sekali.
+  // kolom kunci akses seperti semula, tanpa bagian Google sama sekali.
   const googleAktif = loginGoogleAktif();
   return (
     <div className="wrap flex min-h-[70vh] items-center justify-center py-16">
@@ -43,6 +43,22 @@ export default function MasukPage() {
             )}
           </p>
           <MasukForm googleAktif={googleAktif} />
+          {googleAktif && (
+            <div className="mt-5 rounded-xl border border-gold-300/70 bg-parchment-50 p-4">
+              <p className="text-[13px] font-semibold text-ink-900">
+                Mahasiswa Ma'had Aly DDI Mangkoso
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-700">
+                Bila email Google Anda sudah didaftarkan dosen, cukup masuk dengan
+                Google saja, tanpa kunci akses: akun Anda langsung Premium. Sesudah
+                masuk, isi kunci API Anda sendiri di halaman{" "}
+                <a href="/kunci" className="font-semibold text-gold-700 underline underline-offset-2">
+                  Kunci API
+                </a>{" "}
+                agar fitur Premium berjalan di atas kuota API Anda sendiri.
+              </p>
+            </div>
+          )}
           <div className="mt-6 border-t border-ink-900/10 pt-5">
             <p className="text-[13px] font-semibold text-ink-900">
               Belum punya kunci? Pilih lapisnya, lalu minta lewat WhatsApp
@@ -77,12 +93,7 @@ export default function MasukPage() {
 
             <div className="mt-3 rounded-xl border border-gold-300/70 bg-parchment-50 p-4">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="text-[13px] font-bold text-ink-900">
-                  Premium{" "}
-                  <span className="ml-1 rounded-full bg-gold-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                    Diskon
-                  </span>
-                </p>
+                <p className="text-[13px] font-bold text-ink-900">Premium</p>
                 <p className="text-[13px] font-bold text-ink-900">
                   <s className="mr-1 font-semibold text-ink-400">Rp50.000</s>
                   Rp10.000

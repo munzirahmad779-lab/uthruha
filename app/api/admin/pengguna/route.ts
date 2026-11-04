@@ -22,7 +22,7 @@ import { ambil, perbarui } from "@/lib/server/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const AKSI = ["nonaktifkan", "aktifkan", "premium", "reset-perangkat"] as const;
+const AKSI = ["nonaktifkan", "aktifkan", "premium", "reset-perangkat", "mahasiswa", "bukan-mahasiswa"] as const;
 type Aksi = (typeof AKSI)[number];
 
 export async function POST(req: Request) {
@@ -88,6 +88,22 @@ export async function POST(req: Request) {
       userId,
       catatan: `Ikatan perangkat dikosongkan (${jumlah} perangkat terdaftar sebelumnya). Perangkat berikutnya yang masuk akan terdaftar ulang.`,
     });
+  }
+
+  // Mahasiswa Ma'had Aly (perintah pemilik 4 Nov 2026): tanda ini membuat
+  // tierEfektif selalu premium dan mengarahkan fitur AI ke kunci pribadi
+  // mahasiswa. Mencabut tanda mengembalikan akun ke lapis dasarnya.
+  if (aksi === "mahasiswa") {
+    await perbarui("pengguna", userId, { mahasiswa: true });
+    return NextResponse.json({
+      ok: true,
+      userId,
+      catatan: "Akun ditandai mahasiswa: premium aktif dan fitur AI memakai kunci API pribadinya.",
+    });
+  }
+  if (aksi === "bukan-mahasiswa") {
+    await perbarui("pengguna", userId, { mahasiswa: false });
+    return NextResponse.json({ ok: true, userId, catatan: "Tanda mahasiswa dicabut." });
   }
 
   // aksi === "premium": tempel 30 hari dari server, tanpa kunci ditempel

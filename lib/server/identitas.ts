@@ -58,6 +58,13 @@ export interface Pengguna {
   perangkatAkun?: { sidik: string; pertama: string; terakhir: string; label?: string }[];
   /** Cap waktu masuk terakhir (login Google / masuk identitas), untuk notif admin. */
   loginTerakhir?: string;
+  /** Mahasiswa Ma'had Aly bimbingan pemilik (perintah pemilik 4 Nov
+   *  2026): tierEfektif selalu premium selama tanda ini terpasang, dan
+   *  fitur AI memakai kunci API PRIBADI mahasiswa (lihat
+   *  lib/server/kunci-pribadi.ts), bukan kolam pemilik. Ditempel oleh
+   *  super admin atau otomatis dari daftar email mahasiswa saat login
+   *  Google pertama. */
+  mahasiswa?: boolean;
 }
 
 let sudahPeringatkanRahasia = false;
@@ -132,6 +139,23 @@ export async function verifikasiGoogle(
   }
 }
 
+/**
+ * Tempel tanda mahasiswa bila email ada di daftar mahasiswa aktif
+ * (koleksi "mahasiswa", id = email huruf kecil). Dipanggil saat login
+ * Google agar mahasiswa yang didaftarkan pemilik SEBELUM pernah masuk
+ * langsung premium pada kedatangan pertama, tanpa kunci akses.
+ */
+async function sinkronMahasiswa(u: Pengguna): Promise<Pengguna> {
+  if (u.mahasiswa) return u;
+  const daftar = (await ambil("mahasiswa", u.email.trim().toLowerCase())) as {
+    aktif?: unknown;
+  } | null;
+  if (!daftar || daftar.aktif === false) return u;
+  const baru = { ...u, mahasiswa: true };
+  await simpan("pengguna", baru as unknown as Record<string, unknown> & { id: string });
+  return baru;
+}
+
 /** Cari pengguna dari sub Google; buat baru (tier gratis) bila belum ada. */
 export async function cariAtauBuatPengguna(g: {
   sub: string;
@@ -142,12 +166,12 @@ export async function cariAtauBuatPengguna(g: {
   const id = `g-${g.sub}`;
   const ada = (await ambil("pengguna", id)) as unknown as Pengguna | null;
   if (ada) {
+    let hasil = ada;
     if (ada.email !== g.email || ada.nama !== g.nama || ada.foto !== g.foto) {
-      const baru = { ...ada, email: g.email, nama: g.nama, foto: g.foto };
-      await simpan("pengguna", baru as unknown as Record<string, unknown> & { id: string });
-      return baru;
+      hasil = { ...ada, email: g.email, nama: g.nama, foto: g.foto };
+      await simpan("pengguna", hasil as unknown as Record<string, unknown> & { id: string });
     }
-    return ada;
+    return sinkronMahasiswa(hasil);
   }
   const baru: Pengguna = {
     id,
@@ -159,7 +183,7 @@ export async function cariAtauBuatPengguna(g: {
     dibuat: new Date().toISOString(),
   };
   await simpan("pengguna", baru as unknown as Record<string, unknown> & { id: string });
-  return baru;
+  return sinkronMahasiswa(baru);
 }
 
 /** Pengguna dari cookie sesi; null bila tidak ada/tidak sah. */
@@ -202,8 +226,10 @@ export async function penggunaDariRequest(req: Request): Promise<Pengguna | null
   return penggunaDariCookie(req.headers.get("cookie"));
 }
 
-/** Tier efektif: premium hanya bila masa berlaku belum lewat. */
+/** Tier efektif: premium hanya bila masa berlaku belum lewat.
+ *  Mahasiswa terdaftar selalu premium selama tandanya terpasang. */
 export function tierEfektif(u: Pengguna): "gratis" | "premium" {
+  if (u.mahasiswa) return "premium";
   if (u.tier !== "premium") return "gratis";
   if (!u.premiumSampai) return "premium";
   return new Date(u.premiumSampai).getTime() > Date.now() ? "premium" : "gratis";

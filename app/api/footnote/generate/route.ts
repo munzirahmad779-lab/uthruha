@@ -60,6 +60,12 @@ export async function POST(req: NextRequest) {
       { status: 403 },
     );
   }
+  // BYOK mahasiswa: fitur ini berjalan di atas kunci pribadi mereka.
+  const { opsiKolamUntuk, PESAN_PERLU_KUNCI } = await import("@/lib/server/kunci-pribadi");
+  const opsiP = await opsiKolamUntuk(pengguna);
+  if (opsiP.perluIsiKunci) {
+    return NextResponse.json({ error: PESAN_PERLU_KUNCI, kode: "KUNCI_PRIBADI" }, { status: 403 });
+  }
 
   const perUser = await bolehLajuServer(`generate-footnote:user:${pengguna.id}`, 10, JENDELA_MS);
   if (!perUser.boleh) {
@@ -80,6 +86,11 @@ export async function POST(req: NextRequest) {
       ? Math.max(0, Math.floor(body.kalimatKursor))
       : undefined;
 
-  const hasil = await generateFootnoteUntukParagraf({ paragraf, judulProyek, kalimatKursor });
+  const hasil = await generateFootnoteUntukParagraf({
+    paragraf,
+    judulProyek,
+    kalimatKursor,
+    kolam: { pribadi: opsiP.pribadi, wajibPribadi: opsiP.wajibPribadi },
+  });
   return NextResponse.json(hasil);
 }

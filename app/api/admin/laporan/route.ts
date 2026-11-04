@@ -3,6 +3,7 @@ import { tolakTanpaSesi } from "@/lib/security/akses";
 import { apakahAdmin } from "@/lib/server/admin";
 import { penggunaDariRequest, tierEfektif, type Pengguna } from "@/lib/server/identitas";
 import { statusEmail } from "@/lib/server/email";
+import { statusKunciPribadi } from "@/lib/server/kunci-pribadi";
 import { statusKolam } from "@/lib/server/kolam";
 import { semua, type Rekam } from "@/lib/server/store";
 
@@ -43,6 +44,39 @@ export async function GET(req: Request) {
   const penggunaTyped = pengguna as unknown as Pengguna[];
   const premiumAktif = penggunaTyped.filter((x) => tierEfektif(x) === "premium").length;
 
+  // Daftar pengguna terbaru + status kunci pribadi (BYOK): pemilik perlu
+  // melihat mahasiswa mana yang sudah mengisi kunci API-nya sendiri.
+  const penggunaTerbaru = await Promise.all(
+    [...pengguna].sort(urutBaru).slice(0, 25).map(async (x) => {
+      const st = await statusKunciPribadi(teks(x.id, 120)).catch(() => null);
+      return {
+        id: teks(x.id, 120),
+        nama: teks(x.nama, 80),
+        email: teks(x.email, 120),
+        tier: tierEfektif(x as unknown as Pengguna),
+        premiumSampai: teks((x as { premiumSampai?: unknown }).premiumSampai, 40),
+        nonaktif: (x as { nonaktif?: unknown }).nonaktif === true,
+        mahasiswa: (x as { mahasiswa?: unknown }).mahasiswa === true,
+        kunciGemini: st?.gemini.ada ?? false,
+        kunciGroq: st?.groq.ada ?? false,
+        jumlahPerangkat: Array.isArray((x as { perangkatAkun?: unknown }).perangkatAkun)
+          ? ((x as { perangkatAkun?: unknown }).perangkatAkun as unknown[]).length
+          : 0,
+        perangkatDaftar: (Array.isArray((x as { perangkatAkun?: unknown }).perangkatAkun)
+          ? ((x as { perangkatAkun?: unknown }).perangkatAkun as { sidik?: unknown; pertama?: unknown; terakhir?: unknown; label?: unknown }[])
+          : []
+        ).map((d) => ({
+          sidik: teks(d.sidik, 8),
+          label: teks(d.label, 60) || "Perangkat tidak dikenal",
+          pertama: teks(d.pertama, 40),
+          terakhir: teks(d.terakhir, 40),
+        })),
+        dibuat: teks(x.dibuat, 40),
+        loginTerakhir: teks(x.loginTerakhir, 40),
+      };
+    }),
+  );
+
   const statusBayar: Record<string, number> = {};
   for (const b of pembayaran) {
     const s = teks(b.statusInternal, 60) || "tidak dikenal";
@@ -82,28 +116,7 @@ export async function GET(req: Request) {
       premiumAktif,
       gratis: pengguna.length - premiumAktif,
       nonaktif: penggunaTyped.filter((x) => x.nonaktif).length,
-      terbaru: [...pengguna].sort(urutBaru).slice(0, 25).map((x) => ({
-        id: teks(x.id, 120),
-        nama: teks(x.nama, 80),
-        email: teks(x.email, 120),
-        tier: tierEfektif(x as unknown as Pengguna),
-        premiumSampai: teks((x as { premiumSampai?: unknown }).premiumSampai, 40),
-        nonaktif: (x as { nonaktif?: unknown }).nonaktif === true,
-        jumlahPerangkat: Array.isArray((x as { perangkatAkun?: unknown }).perangkatAkun)
-          ? ((x as { perangkatAkun?: unknown }).perangkatAkun as unknown[]).length
-          : 0,
-        perangkatDaftar: (Array.isArray((x as { perangkatAkun?: unknown }).perangkatAkun)
-          ? ((x as { perangkatAkun?: unknown }).perangkatAkun as { sidik?: unknown; pertama?: unknown; terakhir?: unknown; label?: unknown }[])
-          : []
-        ).map((d) => ({
-          sidik: teks(d.sidik, 8),
-          label: teks(d.label, 60) || "Perangkat tidak dikenal",
-          pertama: teks(d.pertama, 40),
-          terakhir: teks(d.terakhir, 40),
-        })),
-        dibuat: teks(x.dibuat, 40),
-        loginTerakhir: teks(x.loginTerakhir, 40),
-      })),
+      terbaru: penggunaTerbaru,
     },
     proyekServer: {
       total: proyek.length,

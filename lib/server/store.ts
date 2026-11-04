@@ -26,7 +26,9 @@ export type Koleksi =
   | "sesiUji"
   | "perangkat"
   | "ipUji"
-  | "laju";
+  | "laju"
+  | "kunciPribadi"
+  | "mahasiswa";
 
 export type Rekam = Record<string, unknown> & { id: string };
 

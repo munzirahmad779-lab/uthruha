@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { panggilKolam } from "@/lib/server/kolam";
+import { opsiKolamUntuk, PESAN_PERLU_KUNCI } from "@/lib/server/kunci-pribadi";
 import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
 import { tolakTanpaSesi } from "@/lib/security/akses";
 import { bolehLajuServer } from "@/lib/server/laju-server";
@@ -47,8 +48,21 @@ export async function POST(req: Request) {
   const pesan = body?.pesan?.trim().slice(0, 2000) ?? "";
   if (!pesan) return NextResponse.json({ error: "Pesan kosong." }, { status: 400 });
 
+  // BYOK mahasiswa: chat berjalan di atas kunci pribadi mereka sendiri.
+  const opsiP = await opsiKolamUntuk(u);
+  if (opsiP.perluIsiKunci) {
+    return NextResponse.json({ error: PESAN_PERLU_KUNCI, kode: "KUNCI_PRIBADI" }, { status: 403 });
+  }
+
   try {
-    const hasil = await panggilKolam({ sistem: SISTEM_AGEN, pengguna: pesan, maksToken: 900, premium: true });
+    const hasil = await panggilKolam({
+      sistem: SISTEM_AGEN,
+      pengguna: pesan,
+      maksToken: 900,
+      premium: true,
+      pribadi: opsiP.pribadi,
+      wajibPribadi: opsiP.wajibPribadi,
+    });
     return NextResponse.json({ jawaban: hasil.teks, penyedia: hasil.penyedia, model: hasil.model });
   } catch {
     return NextResponse.json({ error: "Agen sedang tidak bisa menjawab. Coba lagi sebentar." }, { status: 503 });

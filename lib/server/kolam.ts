@@ -225,16 +225,35 @@ export async function panggilKolam(opsi: {
    *  lebih dulu, kunci umum menjadi cadangan. Pemanggil lain tidak pernah
    *  menerima kunci premium. */
   premium?: boolean;
+  /** Kunci API PRIBADI pemanggil (BYOK mahasiswa, 4 Nov 2026): untuk
+   *  penyedia gemini/groq, kunci ini menjadi grup PERTAMA. Label keadaan
+   *  per pengguna (`gemini-pribadi-<userId>`) agar cooldown satu
+   *  mahasiswa tidak menular ke mahasiswa lain. Nilai kunci tidak
+   *  pernah masuk store/log, sama seperti kunci kolam. */
+  pribadi?: { userId: string; gemini?: string; groq?: string };
+  /** True = HANYA kunci pribadi yang boleh dipakai (akun mahasiswa):
+   *  kolam premium/umum tidak disentuh sama sekali. */
+  wajibPribadi?: boolean;
 }): Promise<HasilKolam> {
   const gagal: PercobaanGagal[] = [];
   const sekarang = Date.now();
   for (const p of penyediaSemua()) {
     // Grup kunci yang boleh dipakai pemanggil ini, urut per prioritas.
     const grup: { kunci: string; label: string }[][] = [];
-    if (opsi.premium && p.kunciPremium.length > 0) {
-      grup.push(p.kunciPremium.map((k, i) => ({ kunci: k, label: `${p.id}-premium#${i + 1}` })));
+    const kunciPribadi =
+      p.id === "gemini" ? opsi.pribadi?.gemini : p.id === "groq" ? opsi.pribadi?.groq : undefined;
+    if (kunciPribadi && opsi.pribadi) {
+      grup.push([{ kunci: kunciPribadi, label: `${p.id}-pribadi-${opsi.pribadi.userId}` }]);
     }
-    grup.push(p.kunci.map((k, i) => ({ kunci: k, label: `${p.id}#${i + 1}` })));
+    if (!opsi.wajibPribadi) {
+      if (opsi.premium && p.kunciPremium.length > 0) {
+        grup.push(p.kunciPremium.map((k, i) => ({ kunci: k, label: `${p.id}-premium#${i + 1}` })));
+      }
+      grup.push(p.kunci.map((k, i) => ({ kunci: k, label: `${p.id}#${i + 1}` })));
+    } else if (!kunciPribadi) {
+      gagal.push({ label: p.id, alasan: "kunci pribadi untuk penyedia ini belum diisi" });
+      continue;
+    }
     if (grup.every((g) => g.length === 0)) {
       gagal.push({ label: p.id, alasan: "tidak ada kunci (slot kosong/belum diisi)" });
       continue;

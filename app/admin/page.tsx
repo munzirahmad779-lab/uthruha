@@ -35,6 +35,9 @@ interface Laporan {
       tier: string;
       premiumSampai: string;
       nonaktif: boolean;
+      mahasiswa: boolean;
+      kunciGemini: boolean;
+      kunciGroq: boolean;
       jumlahPerangkat: number;
       perangkatDaftar: { sidik: string; label: string; pertama: string; terakhir: string }[];
       dibuat: string;
@@ -70,7 +73,7 @@ function JudulBagian({ children }: { children: React.ReactNode }) {
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-ink-500";
 const td = "px-3 py-2 align-top text-[12.5px] text-ink-800";
 
-type AksiPengguna = "nonaktifkan" | "aktifkan" | "premium" | "reset-perangkat";
+type AksiPengguna = "nonaktifkan" | "aktifkan" | "premium" | "reset-perangkat" | "mahasiswa" | "bukan-mahasiswa";
 
 export default function AdminPage() {
   const [keadaan, setKeadaan] = useState<"memuat" | "tamu" | "bukan" | "siap" | "galat">("memuat");
@@ -78,6 +81,66 @@ export default function AdminPage() {
   const [konfirmasi, setKonfirmasi] = useState<string | null>(null);
   const [sibuk, setSibuk] = useState(false);
   const [pesanAksi, setPesanAksi] = useState("");
+  const [emailMahasiswa, setEmailMahasiswa] = useState<{ email: string; ditambahkan: string }[]>([]);
+  const [kotakEmail, setKotakEmail] = useState("");
+  const [pesanMahasiswa, setPesanMahasiswa] = useState("");
+
+  async function muatMahasiswa() {
+    try {
+      const res = await fetch("/api/admin/mahasiswa", { cache: "no-store" });
+      if (res.ok) {
+        const j = (await res.json()) as { emails: { email: string; ditambahkan: string }[] };
+        setEmailMahasiswa(j.emails);
+      }
+    } catch { /* daftar tampil kosong; tambah tetap bisa dicoba */ }
+  }
+
+  async function tambahMahasiswa() {
+    if (!kotakEmail.trim()) return;
+    setSibuk(true);
+    setPesanMahasiswa("");
+    try {
+      const res = await fetch("/api/admin/mahasiswa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: kotakEmail }),
+      });
+      const j = (await res.json().catch(() => null)) as { error?: string; ditambah?: number; akunDitandai?: number } | null;
+      if (!res.ok) {
+        setPesanMahasiswa(j?.error ?? "Gagal menambahkan.");
+      } else {
+        setPesanMahasiswa(
+          `${j?.ditambah ?? 0} email terdaftar; ${j?.akunDitandai ?? 0} akun yang sudah ada langsung ditandai mahasiswa.`,
+        );
+        setKotakEmail("");
+        await Promise.all([muatMahasiswa(), muat()]);
+      }
+    } catch {
+      setPesanMahasiswa("Gagal: jaringan bermasalah.");
+    }
+    setSibuk(false);
+  }
+
+  async function hapusMahasiswa(email: string) {
+    setSibuk(true);
+    setPesanMahasiswa("");
+    try {
+      const res = await fetch("/api/admin/mahasiswa", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setPesanMahasiswa(`${email} dicabut dari daftar mahasiswa.`);
+        await Promise.all([muatMahasiswa(), muat()]);
+      } else {
+        setPesanMahasiswa("Gagal mencabut email itu.");
+      }
+    } catch {
+      setPesanMahasiswa("Gagal: jaringan bermasalah.");
+    }
+    setSibuk(false);
+  }
 
   async function muat() {
     try {
@@ -94,6 +157,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     void muat();
+    void muatMahasiswa();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -212,6 +276,52 @@ export default function AdminPage() {
               </p>
             )}
 
+            <JudulBagian>Mahasiswa Ma'had Aly (Premium + kunci API sendiri)</JudulBagian>
+            <div className="mt-3 rounded-2xl border border-ink-900/10 bg-white/70 p-4">
+              <p className="text-[12px] leading-relaxed text-ink-600">
+                Daftarkan email Google mahasiswa di sini, bisa banyak sekaligus (satu per
+                baris). Mereka cukup masuk dengan Google, tanpa kunci akses: akun langsung
+                Premium, dan fitur AI berjalan di atas kunci API pribadi yang mereka isi
+                sendiri di halaman /kunci. Kunci mereka tidak lewat Vercel dan tidak
+                menghabiskan kolam Anda.
+              </p>
+              <textarea
+                value={kotakEmail}
+                onChange={(e) => setKotakEmail(e.target.value)}
+                rows={4}
+                placeholder={"nama1@gmail.com\nnama2@gmail.com\nnama3@gmail.com"}
+                className="mt-3 w-full rounded-lg border border-ink-900/15 px-3 py-2 text-[13px] text-ink-900 outline-none focus:border-gold-500"
+              />
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={sibuk || !kotakEmail.trim()}
+                  onClick={() => void tambahMahasiswa()}
+                  className="rounded-lg bg-ink-900 px-3 py-2 text-[13px] font-semibold text-white transition hover:bg-ink-700 disabled:opacity-50"
+                >
+                  Daftarkan email
+                </button>
+                {pesanMahasiswa && <p className="text-[12px] text-ink-700">{pesanMahasiswa}</p>}
+              </div>
+              {emailMahasiswa.length > 0 && (
+                <ul className="mt-3 space-y-1 border-t border-ink-900/10 pt-3">
+                  {emailMahasiswa.map((m) => (
+                    <li key={m.email} className="flex items-center justify-between gap-2 text-[12px]">
+                      <span className="text-ink-800">{m.email}</span>
+                      <button
+                        type="button"
+                        disabled={sibuk}
+                        onClick={() => void hapusMahasiswa(m.email)}
+                        className="rounded-lg border border-red-600/40 px-2 py-1 text-[11px] font-semibold text-red-700 disabled:opacity-50"
+                      >
+                        Cabut
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <JudulBagian>Pengguna dan proyek</JudulBagian>
             <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Kartu
@@ -267,7 +377,15 @@ export default function AdminPage() {
                       <tr key={x.id} className="border-b border-ink-900/5 last:border-0">
                         <td className={td}>{x.nama || "(tanpa nama)"}</td>
                         <td className={td}>{x.email}</td>
-                        <td className={td}>{x.tier === "premium" ? "Premium" : "Gratis"}</td>
+                        <td className={td}>
+                          {x.tier === "premium" ? "Premium" : "Gratis"}
+                          {x.mahasiswa && (
+                            <span className="block text-[11px] font-semibold text-gold-700">
+                              Mahasiswa · kunci: {x.kunciGemini ? "Gemini ✓" : "Gemini –"} /{" "}
+                              {x.kunciGroq ? "Groq ✓" : "Groq –"}
+                            </span>
+                          )}
+                        </td>
                         <td className={td}>{x.nonaktif ? "Nonaktif" : "Aktif"}</td>
                         <td className={td}>
                           {x.jumlahPerangkat === 0 ? (
@@ -342,6 +460,26 @@ export default function AdminPage() {
                                 {konfirmasi === `${x.id}:reset-perangkat` ? "Yakin reset perangkat?" : "Reset perangkat"}
                               </button>
                             )}
+                            {!x.nonaktif &&
+                              (x.mahasiswa ? (
+                                <button
+                                  type="button"
+                                  disabled={sibuk}
+                                  onClick={() => void tindak(x.id, "bukan-mahasiswa")}
+                                  className={btn + "border-ink-900/25 text-ink-700"}
+                                >
+                                  {konfirmasi === `${x.id}:bukan-mahasiswa` ? "Yakin cabut mahasiswa?" : "Cabut mahasiswa"}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={sibuk}
+                                  onClick={() => void tindak(x.id, "mahasiswa")}
+                                  className={btn + "border-gold-600/50 text-gold-700"}
+                                >
+                                  {konfirmasi === `${x.id}:mahasiswa` ? "Yakin jadikan mahasiswa?" : "Jadikan mahasiswa"}
+                                </button>
+                              ))}
                           </span>
                         </td>
                       </tr>

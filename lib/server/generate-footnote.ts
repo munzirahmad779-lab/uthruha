@@ -79,7 +79,12 @@ function parseKataKunci(raw: string): KataKunciMentah | null {
   }
 }
 
-async function kalimatKunciDariAI(paragraf: string): Promise<string[] | null> {
+type OpsiKolamTerusan = {
+  pribadi?: { userId: string; gemini?: string; groq?: string };
+  wajibPribadi?: boolean;
+};
+
+async function kalimatKunciDariAI(paragraf: string, kolam?: OpsiKolamTerusan): Promise<string[] | null> {
   try {
     const hasil = await panggilKolam({
       sistem: SYSTEM_PROMPT,
@@ -87,6 +92,8 @@ async function kalimatKunciDariAI(paragraf: string): Promise<string[] | null> {
       maksToken: 500,
       json: true,
       premium: true,
+      pribadi: kolam?.pribadi,
+      wajibPribadi: kolam?.wajibPribadi,
     });
     if (!hasil.teks) return null;
     const k = parseKataKunci(hasil.teks);
@@ -337,6 +344,8 @@ export async function generateFootnoteUntukParagraf(opsi: {
   paragraf: string;
   judulProyek?: string;
   kalimatKursor?: number;
+  /** BYOK: kunci pribadi pemanggil (wajib untuk akun mahasiswa). */
+  kolam?: OpsiKolamTerusan;
 }): Promise<HasilGenerate> {
   // Penanda sitasi lama dibuang dari semua pemrosesan (sidik, AI,
   // pencarian, pemilihan kalimat): penanda tidak mengandung tanda baca
@@ -350,7 +359,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
 
   // 2) AI menyusun kalimat kunci dari paragraf (kolam premium).
   if (!kalimatKunci) {
-    kalimatKunci = await kalimatKunciDariAI(paragraf);
+    kalimatKunci = await kalimatKunciDariAI(paragraf, opsi.kolam);
   }
   // 3) Cadangan tanpa AI: kalimat pertama paragraf sebagai kueri apa adanya.
   //    Potongan ini TEKS ASLI mahasiswa: boleh dipakai sesaat sebagai kueri
