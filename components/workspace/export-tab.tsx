@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { strukturProyek } from "@/lib/content/struktur";
+import { ringkasanPanjangProyek, strukturProyek } from "@/lib/content/struktur";
+import {
+  estimasiHalamanDariKata,
+  formatHalamanProyek,
+  hitungKataNaskah,
+} from "@/lib/engine/estimasi-halaman";
 import { buatDocx, unduh } from "@/lib/engine/export";
 import { daftarPustakaProyek } from "@/lib/engine/daftar-pustaka";
 import { modePerBab } from "@/lib/engine/hawamisy";
@@ -41,7 +46,14 @@ export function ExportTab({ p, onBuka }: { p: Project; onBuka?: (sectionId: stri
     return `${isi}\n\n---\n\n# قائمة المراجع\n\n${daftar}`;
   }, [p, pakaiRujukan]);
 
-  const kata = markdown.split(/\s+/).filter(Boolean).length;
+  // Panjang dokumen yang akan diunduh (Tahap 10): kata dihitung
+  // dengan penghitung kalibrasi dan halaman ditaksir pada format
+  // proyek, menggantikan konvensi 250 kata per halaman yang tidak
+  // terukur. Angka ini perkiraan, dinyatakan apa adanya.
+  const kata = hitungKataNaskah(markdown);
+  const formatEkspor = formatHalamanProyek(p);
+  const halamanDokumen = estimasiHalamanDariKata(kata, formatEkspor);
+  const panjang = ringkasanPanjangProyek(p);
 
   function docx() {
     setSedang(true);
@@ -98,7 +110,32 @@ export function ExportTab({ p, onBuka }: { p: Project; onBuka?: (sectionId: stri
         <Stat label="Kata" nilai={kata.toLocaleString("id-ID")} />
         <Stat label="Bagian" nilai={strukturProyek(p).chapters.reduce((a, c) => a + c.sections.length, 0)} />
         <Stat label="Rujukan" nilai={p.sumber.length} />
-        <Stat label="Halaman ±" nilai={Math.max(1, Math.round(kata / 250))} />
+        <Stat label="Halaman ±" nilai={halamanDokumen} />
+      </div>
+
+      <div className="rounded-xl border border-ink-900/10 bg-white/70 px-3 py-2.5">
+        <p className="text-[12.5px] font-semibold text-ink-800">Ringkasan panjang sebelum ekspor</p>
+        <p className="mt-1 text-[12px] leading-relaxed text-ink-600">
+          Dokumen ini berisi {kata.toLocaleString("id-ID")} kata, setara perkiraan ±
+          {halamanDokumen.toLocaleString("id-ID")} halaman pada format {formatEkspor.label}{" "}
+          (±{formatEkspor.kataPerHalaman} kata per halaman, terkalibrasi dari dokumen uji).
+          Perkiraan ini bukan jumlah halaman pasti; angka pastinya terlihat sesudah berkas
+          dibuka di pengolah kata Anda.
+        </p>
+        {panjang.baris.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {panjang.baris.map((b) => (
+              <li key={b.kunci} className="text-[12px] leading-relaxed text-ink-700">
+                {b.label}: ±
+                {b.halamanMentah.toLocaleString("id-ID", { maximumFractionDigits: 1 })} dari{" "}
+                {b.targetHalaman} halaman ({b.labelSumber}) —{" "}
+                <span className={b.tercapai ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>
+                  {b.tercapai ? "tercapai" : "belum tercapai"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <label className="flex items-center gap-2.5 rounded-xl border border-ink-900/10 bg-white/70 px-3 py-2.5">

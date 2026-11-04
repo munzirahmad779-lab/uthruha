@@ -2,7 +2,7 @@
 
 import { getBidang } from "@/lib/content/bidang";
 import { getMetode } from "@/lib/content/metode";
-import { strukturProyek } from "@/lib/content/struktur";
+import { ringkasanPanjangProyek, strukturProyek } from "@/lib/content/struktur";
 import { rumusanDefault, tujuanDefault } from "@/lib/engine/compose";
 import type { Project } from "@/lib/engine/project";
 import { IconArrowRight, IconCheck } from "@/components/icons";
@@ -28,10 +28,12 @@ export function OverviewTab({
   const terisi = st.chapters
     .flatMap((c) => c.sections)
     .filter((s) => (p.draf[s.id] ?? "").trim().length > 80).length;
-  const kata = Object.values(p.draf)
-    .join(" ")
-    .split(/\s+/)
-    .filter(Boolean).length;
+  // Panjang dan capaian target (Tahap 10): kata dihitung dengan
+  // penghitung yang sama dengan kalibrasi penaksir, halaman
+  // ditaksir pada format proyek, dan target tampil per sumber
+  // aturannya (pemilik web atau pedoman), tidak dicampur.
+  const panjang = ringkasanPanjangProyek(p);
+  const kata = panjang.kataTotal;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.45fr_1fr]">
@@ -146,7 +148,7 @@ export function OverviewTab({
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Bagian" nilai={`${terisi}/${total}`} />
           <Stat label="Kata" nilai={kata.toLocaleString("id-ID")} />
-          <Stat label="Halaman ±" nilai={Math.max(1, Math.round(kata / 250))} />
+          <Stat label="Halaman ±" nilai={panjang.halamanTotal} />
         </div>
 
         <div className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
@@ -173,6 +175,51 @@ export function OverviewTab({
             })}
           </div>
         </div>
+
+        {panjang.baris.length > 0 && (
+          <div className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
+            <h3 className="text-[13px] font-bold text-ink-900">Target panjang naskah</h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-600">
+              Perkiraan pada format {panjang.format.label} (±
+              {panjang.format.kataPerHalaman} kata per halaman, terkalibrasi dari dokumen
+              uji). Ini perkiraan untuk mengarahkan pekerjaan, bukan jumlah halaman pasti
+              dokumen akhir.
+            </p>
+            <ul className="mt-3 space-y-3">
+              {panjang.baris.map((b) => (
+                <li key={b.kunci}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[12px] font-medium text-ink-800">{b.label}</span>
+                    <span
+                      className={`shrink-0 text-[10px] font-semibold ${
+                        b.tercapai ? "text-emerald-700" : "text-amber-700"
+                      }`}
+                    >
+                      {b.tercapai ? "Tercapai" : "Belum tercapai"}
+                    </span>
+                  </div>
+                  <div className="mt-1.5">
+                    <Progress
+                      nilai={Math.min(
+                        100,
+                        Math.round((b.halamanMentah / b.targetHalaman) * 100),
+                      )}
+                    />
+                  </div>
+                  <p className="mt-1 text-[10.5px] leading-relaxed text-ink-500">
+                    ±{b.halamanMentah.toLocaleString("id-ID", { maximumFractionDigits: 1 })}{" "}
+                    dari {b.targetHalaman} halaman · {b.labelSumber}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-[11px] leading-relaxed text-ink-600">
+              Masih kurang dari target? Kembangkan bagian terkait lewat tombol Kembangkan
+              di tab Tulis (prompt siap tempel ke AI luar), bukan dengan mengulang frasa
+              yang sama.
+            </p>
+          </div>
+        )}
 
         <div className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
           <h3 className="text-[13px] font-bold text-ink-900">Langkah berikutnya</h3>

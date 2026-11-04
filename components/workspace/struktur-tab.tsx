@@ -2,6 +2,12 @@
 
 import { useMemo } from "react";
 import { strukturProyek } from "@/lib/content/struktur";
+import {
+  formatHalamanProyek,
+  halamanMentahDariKata,
+  hitungKataNaskah,
+  labelSumberTarget,
+} from "@/lib/engine/estimasi-halaman";
 import type { Project } from "@/lib/engine/project";
 import { MIN_KAJIAN_DIRASAH, statusDirasah } from "@/lib/engine/dirasah";
 import { cekKesesuaian } from "@/lib/pedoman/cek-kesesuaian";
@@ -21,6 +27,9 @@ export function StrukturTab({
   onSusun: (sectionId: string) => void;
 }) {
   const st = strukturProyek(p);
+  // Perkiraan halaman per bab pada format proyek (Tahap 10): basis
+  // yang sama dengan panel capaian di Ringkasan.
+  const formatStruktur = formatHalamanProyek(p);
   // Penanda kesesuaian template: dihitung lokal dari data proyek vs
   // template pedoman, tanpa panggilan API (lib/pedoman/cek-kesesuaian).
   const tanda = useMemo(() => cekKesesuaian(p), [p]);
@@ -82,7 +91,15 @@ export function StrukturTab({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {st.chapters.map((c) => (
+        {st.chapters.map((c) => {
+          const kataBab = c.sections.reduce(
+            (a, s) => a + hitungKataNaskah(p.draf[s.id] ?? ""),
+            0,
+          );
+          const halamanBab = halamanMentahDariKata(kataBab, formatStruktur);
+          const babTercapai =
+            c.targetHalaman !== undefined && halamanBab >= c.targetHalaman;
+          return (
           <section key={c.id} className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
             <header className="flex items-baseline justify-between gap-3 border-b border-dashed border-ink-900/15 pb-2.5">
               <h3 className="text-[13px] font-bold text-ink-900">{c.labelId}</h3>
@@ -90,6 +107,20 @@ export function StrukturTab({
                 {c.babAr}
               </span>
             </header>
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-500">
+              Perkiraan ±
+              {halamanBab.toLocaleString("id-ID", { maximumFractionDigits: 1 })} halaman
+              {c.targetHalaman !== undefined && (
+                <>
+                  {" "}
+                  dari target {c.targetHalaman} halaman (
+                  {labelSumberTarget(c.sumberTarget ?? "pemilik")}) —{" "}
+                  <span className={babTercapai ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>
+                    {babTercapai ? "tercapai" : "belum tercapai"}
+                  </span>
+                </>
+              )}
+            </p>
 
             <ul className="mt-2 divide-y divide-ink-900/5">
               {c.sections.map((s) => {
@@ -110,6 +141,9 @@ export function StrukturTab({
                         </p>
                         <p className="mt-0.5 text-[11px] text-ink-500">
                           {s.labelId} · target ±{s.targetKata.toLocaleString("id-ID")} kata
+                          {s.targetHalaman !== undefined
+                            ? ` · target ${s.targetHalaman} halaman (${labelSumberTarget(s.sumberTarget ?? "pemilik")})`
+                            : ""}
                           {kata > 0 ? ` · terisi ${kata}` : ""}
                           {s.butuhData ? " · data lapangan" : ""}
                           {diLuarSet.has(s.id) ? " · selesai di luar" : ""}
@@ -162,7 +196,8 @@ export function StrukturTab({
               })}
             </ul>
           </section>
-        ))}
+          );
+        })}
       </div>
 
       <DirasahPanel p={p} ubah={ubah} />
