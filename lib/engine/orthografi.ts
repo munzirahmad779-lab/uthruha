@@ -1,3 +1,5 @@
+import { FORMAT_STANDAR } from "@/lib/engine/estimasi-halaman";
+
 export type Tingkat = "info" | "saran" | "kritis";
 
 export interface Temuan {
@@ -299,7 +301,10 @@ export function periksaOrtografi(teks: string): LaporanOrtografi {
       kataLatin,
       rasioArab: semuaKata.length ? Math.round((kataArab / semuaKata.length) * 100) : 0,
       berharakat: hurufArab ? Math.round((harakatCount / hurufArab) * 100) : 0,
-      halamanPerkiraan: Math.max(1, Math.round(semuaKata.length / 250)),
+      // Pembagi memakai konstanta terkalibrasi format standar dari
+      // estimasi halaman (Tahap 10), bukan konvensi 250 lama, agar
+      // stat "Halaman ±" alat ini satu bahasa dengan permukaan lain.
+      halamanPerkiraan: Math.max(1, Math.round(semuaKata.length / FORMAT_STANDAR.kataPerHalaman)),
     },
   };
 }

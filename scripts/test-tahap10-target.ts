@@ -31,6 +31,7 @@ import {
   kataUntukHalaman,
 } from "../lib/engine/estimasi-halaman";
 import { KATA_PER_HALAMAN } from "../lib/refs/footnote";
+import { periksaOrtografi } from "../lib/engine/orthografi";
 import { periksaGerbang } from "../lib/engine/gerbang-mutu";
 import { buatPromptKembangkan } from "../lib/engine/ai-handoff";
 import {
@@ -91,6 +92,12 @@ cek(
   "A5 konstanta batas strip footnote sama dengan konstanta penaksir standar",
   KATA_PER_HALAMAN === FORMAT_STANDAR.kataPerHalaman,
   `${KATA_PER_HALAMAN} vs ${FORMAT_STANDAR.kataPerHalaman}`,
+);
+cek(
+  "A5b alat ortografi mandiri memakai pembagi terkalibrasi yang sama (tutup L2 telaah Tahap 10)",
+  periksaOrtografi(Array.from({ length: 6100 }, () => "كلمة").join(" ")).statistik
+    .halamanPerkiraan === Math.round(6100 / FORMAT_STANDAR.kataPerHalaman),
+  `6100 kata -> ${periksaOrtografi(Array.from({ length: 6100 }, () => "كلمة").join(" ")).statistik.halamanPerkiraan} halaman`,
 );
 cek(
   "A6 nol kata tertaksir nol halaman, bukan satu",
