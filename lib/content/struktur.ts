@@ -1024,6 +1024,7 @@ export function strukturProyek(p: Project): StrukturDef {
       labelId: b.labelId,
       labelAr: b.labelAr,
       babAr: b.babAr,
+      ...(b.labelAplikasi ? { labelAplikasi: true } : {}),
       sections: b.sections.flatMap((s) => [
         denganIsykal(keSectionDef(s, 1)),
         ...(s.anak ?? []).flatMap((a) => [

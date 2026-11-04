@@ -378,11 +378,20 @@ const KALIMAT_KEBUTUHAN =
 const PENANDA_PENDAPAT_ULAMA =
   "[تنبيه للباحث: يشترط الدليل أن تُدعَّم أسباب اختيار هذا العنوان برأي عالم أو خبير منقول من مصدر موثّق؛ فأضف ذلك الرأي هنا من مصادرك، ولم يُدرج هنا رأي جاهز حتى لا يُنسب قول إلى من لم يقله]";
 
-/** Kalimat tujuan: memakai tujuan pertama proyek (dari rumusannya sendiri). */
+/**
+ * Kalimat tujuan: merangkai DUA tujuan pertama proyek bila ada
+ * (menutup R2 telaah Tahap 3 pada tahap verifikasi menyeluruh;
+ * sebelumnya hanya tujuan pertama yang disebut, tujuan berikutnya
+ * hilang dari ringkasan pengantar khalfiyah walau uraian lengkapnya
+ * tetap ada di bagian ahdaf). Tujuan berbentuk frasa masdar, jadi
+ * rangkaian "إلى X، وY" sah secara susunan.
+ */
 function kalimatTujuan(p: Project, k: KonteksKhalfiya): string {
-  const tujuan = tujuanDefault(p)[0] ?? "الكشف عن أبعاد الموضوع المدروس";
+  const daftar = tujuanDefault(p).map((t) => t.trim()).filter(Boolean);
+  const pertama = daftar[0] ?? "الكشف عن أبعاد الموضوع المدروس";
+  const rangkaian = daftar[1] ? `${pertama}، و${daftar[1]}` : pertama;
   return isi(
-    `ويهدف هذا البحث إلى ${tujuan}، وذلك في إطار الإجابة عن أسئلة البحث التي صيغت في موضعها من هذا الفصل.`,
+    `ويهدف هذا البحث إلى ${rangkaian}، وذلك في إطار الإجابة عن أسئلة البحث التي صيغت في موضعها من هذا الفصل.`,
     k.v,
   );
 }

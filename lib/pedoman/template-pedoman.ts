@@ -106,6 +106,7 @@ const MANGKOSO: StrukturPedoman = SkemaStrukturPedoman.parse({
     {
       nomor: 2,
       nama: "Pembahasan I: Jawaban Rumusan Masalah Pertama",
+      labelAplikasi: true,
       namaAr: "الإجابة عن السؤال الأول",
       tujuan:
         "Bab isi pertama (من صلب الرسالة): memuat hasil kerja peneliti untuk menjawab pertanyaan pertama yang ada dalam rumusan masalah. Pedoman tidak memberi nama tetap untuk bab isi; judul bab mengikuti topik jawabannya.",
@@ -120,6 +121,7 @@ const MANGKOSO: StrukturPedoman = SkemaStrukturPedoman.parse({
     {
       nomor: 3,
       nama: "Pembahasan II: Jawaban Rumusan Masalah Kedua",
+      labelAplikasi: true,
       namaAr: "الإجابة عن السؤال الثاني",
       tujuan:
         "Bab isi kedua (من صلب الرسالة): memuat hasil kerja peneliti untuk menjawab pertanyaan kedua yang ada dalam rumusan masalah. Pedoman tidak memberi nama tetap untuk bab isi; judul bab mengikuti topik jawabannya.",
@@ -133,6 +135,7 @@ const MANGKOSO: StrukturPedoman = SkemaStrukturPedoman.parse({
     {
       nomor: 4,
       nama: "Pembahasan III: Jawaban Rumusan Masalah Ketiga",
+      labelAplikasi: true,
       namaAr: "الإجابة عن السؤال الثالث",
       tujuan:
         "Bab isi ketiga (من صلب الرسالة): memuat hasil kerja peneliti untuk menjawab pertanyaan ketiga yang ada dalam rumusan masalah. Pedoman tidak memberi nama tetap untuk bab isi; judul bab mengikuti topik jawabannya.",

@@ -7,6 +7,8 @@
  * proyek lama berformat template lama.
  * Jalankan: npx tsx scripts/test-tahap1-struktur.ts
  */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { TEMPLATE_PEDOMAN } from "../lib/pedoman/template-pedoman";
 import { strukturKeDaftarIsi } from "../lib/pedoman/skema-struktur";
 import { cekKesesuaian } from "../lib/pedoman/cek-kesesuaian";
@@ -238,6 +240,99 @@ cek(
     !!pPutaran.daftarIsi?.[1]?.tujuan &&
     (pPutaran.daftarIsi?.[1]?.aturan?.length ?? 0) > 0,
 );
+
+/* ---------- Penguatan R5 + penanda R3 (tahap verifikasi menyeluruh) ----------
+ * Telaah Tahap 1 mencatat sebagian pemeriksaan lama hanya memeriksa
+ * keberadaan frasa pada string template. Kelompok ini memeriksa
+ * PERILAKU data: bendera wajib, urutan sub-bab, aturan Bab 5, aturan
+ * format As'adiyah, dan proyeksi As'adiyah ke proyek. */
+cek(
+  "R5 Mangkoso: sub-bab jawaban isykal Bab 2/3/4 berstatus wajib false (pagar S1)",
+  [1, 2, 3].every((i) => mangkoso.bab[i]!.subBab.every((s) => s.wajib === false)),
+);
+cek(
+  "R5 Mangkoso: seluruh sub-bab Bab 1 dan Bab 5 wajib true",
+  mangkoso.bab[0]!.subBab.every((s) => s.wajib === true) &&
+    mangkoso.bab[4]!.subBab.every((s) => s.wajib === true),
+);
+cek(
+  "R5 Mangkoso: urutan sub-bab Bab 1 persis urutan template pedoman",
+  JSON.stringify(mangkoso.bab[0]!.subBab.map((s) => s.nama)) ===
+    JSON.stringify([
+      "Latar Belakang Masalah",
+      "Pengenalan Topik dan Batasan Penelitian",
+      "Rumusan Masalah",
+      "Penelitian Terdahulu",
+      "Tujuan Penelitian",
+      "Manfaat Penelitian",
+      "Definisi Istilah pada Judul",
+      "Metode Penelitian",
+      "Kerangka Konseptual",
+      "Sistematika Pembahasan",
+    ]),
+);
+const aturanBab5Mk = mangkoso.bab[4]!.aturan;
+cek(
+  "R5 Mangkoso Bab 5: aturan footnote bersambung dan kelompok wawancara wajib true",
+  aturanBab5Mk.some((a) => a.teks.includes("BERSAMBUNG") && a.wajib === true) &&
+    aturanBab5Mk.some((a) => a.teks.includes("wawancara") && a.wajib === true),
+);
+cek(
+  "R5 As'adiyah: lima bab, seluruh sub-bab wajib true, urutan Bab 1 tetap",
+  asadiyah.bab.length === 5 &&
+    asadiyah.bab.every((b) => b.subBab.every((s) => s.wajib === true)) &&
+    asadiyah.bab[0]!.subBab[0]!.nama === "Latar Belakang" &&
+    asadiyah.bab[0]!.subBab[7]!.nama === "Sumber dan Rujukan",
+);
+const aturanAsdSemua = asadiyah.bab.flatMap((b) => b.aturan);
+cek(
+  "R5 As'adiyah: aturan format Sakkal Majalla 16 Exactly 24 pt hadir dan wajib",
+  aturanAsdSemua.some(
+    (a) =>
+      a.teks.includes("Sakkal Majalla 16") &&
+      a.teks.includes("Exactly 24 pt") &&
+      a.teks.includes("margin kanan 4 cm") &&
+      a.wajib === true,
+  ),
+);
+const proyeksiAsd = strukturKeDaftarIsi(asadiyah);
+cek(
+  "R5 As'adiyah: proyeksi membawa tujuan dan aturan tiap bab ke daftar isi proyek",
+  proyeksiAsd.length === 5 &&
+    proyeksiAsd.every((b) => !!b.tujuan && (b.aturan?.length ?? 0) > 0) &&
+    proyeksiAsd.every((b) => b.labelAplikasi !== true),
+);
+cek(
+  "R3 Mangkoso: penanda labelAplikasi hanya pada bab isi 2/3/4 di data template",
+  [1, 2, 3].every((i) => mangkoso.bab[i]!.labelAplikasi === true) &&
+    mangkoso.bab[0]!.labelAplikasi !== true &&
+    mangkoso.bab[4]!.labelAplikasi !== true,
+);
+const proyeksiMk = strukturKeDaftarIsi(mangkoso);
+cek(
+  "R3 Mangkoso: penanda labelAplikasi terproyeksi ke BabKustom dan bertahan simpan-muat",
+  proyeksiMk[1]!.labelAplikasi === true &&
+    proyeksiMk[0]!.labelAplikasi !== true &&
+    migrasiProyek(JSON.parse(JSON.stringify({ ...pMk, daftarIsi: proyeksiMk }))).daftarIsi?.[1]
+      ?.labelAplikasi === true,
+);
+{
+  const sumberPanel = readFileSync(
+    path.join(process.cwd(), "components/workspace/struktur-pedoman-panel.tsx"),
+    "utf8",
+  );
+  const sumberStrukturTab = readFileSync(
+    path.join(process.cwd(), "components/workspace/struktur-tab.tsx"),
+    "utf8",
+  );
+  cek(
+    "R3 tampilan: penanda label aplikasi dirender di panel pratinjau dan tab Struktur",
+    sumberPanel.includes("labelAplikasi") &&
+      sumberPanel.includes("label aplikasi, bukan nama tetap pedoman") &&
+      sumberStrukturTab.includes("labelAplikasi") &&
+      sumberStrukturTab.includes("label aplikasi"),
+  );
+}
 
 console.log(gagal === 0 ? "\nSEMUA PASS" : `\n${gagal} GAGAL`);
 process.exit(gagal ? 1 : 0);

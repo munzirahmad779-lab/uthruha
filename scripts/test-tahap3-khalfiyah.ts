@@ -122,6 +122,10 @@ cek(
   parMk.length === 3 && parMk[2]!.includes("ويهدف هذا البحث إلى"),
   `${mdMk.length} karakter`,
 );
+cek(
+  "Mangkoso R2 verifikasi: kalimat tujuan merangkai dua tujuan pertama proyek",
+  parMk[2]!.includes("الكشف عن واقع") && parMk[2]!.includes("تحليل العوامل المؤثرة"),
+);
 cekBersih("Mangkoso lengkap", mdMk);
 cek(
   "Mangkoso: susun ulang deterministik (benih stabil)",

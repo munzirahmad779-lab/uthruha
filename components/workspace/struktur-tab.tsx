@@ -102,7 +102,14 @@ export function StrukturTab({
           return (
           <section key={c.id} className="rounded-2xl border border-ink-900/10 bg-white/70 p-4">
             <header className="flex items-baseline justify-between gap-3 border-b border-dashed border-ink-900/15 pb-2.5">
-              <h3 className="text-[13px] font-bold text-ink-900">{c.labelId}</h3>
+              <h3 className="text-[13px] font-bold text-ink-900">
+                {c.labelId}
+                {c.labelAplikasi && (
+                  <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 align-middle text-[9px] font-semibold uppercase tracking-wide text-amber-800">
+                    label aplikasi
+                  </span>
+                )}
+              </h3>
               <span className="font-arabic text-[12px] text-gold-700" dir="rtl">
                 {c.babAr}
               </span>

@@ -227,6 +227,11 @@ export function StrukturPedomanPanel({
                 <strong>
                   Bab {b.nomor}. {b.nama}
                 </strong>
+                {b.labelAplikasi && (
+                  <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-800">
+                    label aplikasi, bukan nama tetap pedoman
+                  </span>
+                )}
                 {b.subBab.length > 0 && (
                   <span className="text-ink-600"> — {b.subBab.map((s) => s.nama).join("; ")}</span>
                 )}

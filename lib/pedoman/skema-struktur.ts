@@ -42,6 +42,16 @@ export const SkemaBabStruktur = z.object({
    * misalnya As'adiyah).
    */
   menjawabIsykal: z.number().int().min(1, "menjawab isykal mulai dari 1").max(12).optional(),
+  /**
+   * Penanda bahwa NAMA bab ini adalah label penataan aplikasi, bukan
+   * nama tetap dari pedoman (SPEC-PEDOMAN M3 untuk "Pembahasan I/II/
+   * III" Mangkoso: pedoman tidak memberi nama tetap bab isi). Ikut
+   * terproyeksi ke BabKustom.labelAplikasi agar permukaan tampil
+   * (panel pratinjau, tab Struktur) dapat menandainya di samping
+   * nama, menutup R3 telaah Tahap 1 pada tahap verifikasi
+   * menyeluruh. Teks naskah dan ekspor tidak diubah penanda ini.
+   */
+  labelAplikasi: z.boolean().optional(),
   subBab: z.array(SkemaSubBabStruktur).max(20).default([]),
   aturan: z.array(SkemaAturan).max(30).default([]),
 });
@@ -232,6 +242,7 @@ export function strukturKeDaftarIsi(s: StrukturPedoman): BabKustom[] {
       // proyeksi lama membuangnya sehingga aturan pedoman gugur begitu
       // struktur menjadi daftar isi proyek.
       ...(typeof b.menjawabIsykal === "number" ? { isykalKe: b.menjawabIsykal } : {}),
+      ...(b.labelAplikasi ? { labelAplikasi: true } : {}),
       ...(b.tujuan ? { tujuan: b.tujuan } : {}),
       ...(b.aturan.length > 0 ? { aturan: b.aturan.map((a) => a.teks) } : {}),
       sections: b.subBab.map((sub, j) => ({

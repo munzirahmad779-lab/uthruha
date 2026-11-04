@@ -201,6 +201,12 @@ export interface BabKustom {
   /** Nomor isykal (1-based) yang diwakili bab ini, bila ada. */
   isykalKe?: number;
   /**
+   * Nama bab ini label penataan aplikasi, bukan nama tetap pedoman
+   * (terproyeksi dari struktur pedoman; penanda tampil di aplikasi,
+   * tidak masuk teks naskah atau ekspor).
+   */
+  labelAplikasi?: boolean;
+  /**
    * Tujuan bab menurut pedoman, ikut terproyeksi dari struktur pedoman
    * (Tahap 1: proyeksi lama membuangnya). Murni tambahan; proyek lama
    * tanpa bidang ini tetap sah.
@@ -259,6 +265,7 @@ export function sanitasiDaftarIsi(mentah: unknown): BabKustom[] | undefined {
       labelAr: typeof rec.labelAr === "string" ? rec.labelAr : "",
       babAr: typeof rec.babAr === "string" ? rec.babAr : "",
       ...(typeof rec.isykalKe === "number" ? { isykalKe: rec.isykalKe } : {}),
+      ...(rec.labelAplikasi === true ? { labelAplikasi: true } : {}),
       ...(typeof rec.tujuan === "string" && rec.tujuan.trim() ? { tujuan: rec.tujuan } : {}),
       ...(aturan.length > 0 ? { aturan } : {}),
       sections,

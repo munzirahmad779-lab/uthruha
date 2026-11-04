@@ -89,6 +89,8 @@ export interface ChapterDef {
   targetHalaman?: number;
   /** Asal target halaman bab: "pemilik" (perintah user) atau "pedoman". */
   sumberTarget?: "pemilik" | "pedoman";
+  /** Nama bab adalah label aplikasi, bukan nama tetap pedoman (dari BabKustom). */
+  labelAplikasi?: boolean;
 }
 
 export interface StrukturDef {
