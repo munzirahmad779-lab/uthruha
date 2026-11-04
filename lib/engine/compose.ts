@@ -93,13 +93,15 @@ function pilihBertag(
   seed: number,
   siap: Set<string>,
   pakai: Set<string>,
+  tolak?: (f: FrasaEntry) => boolean,
 ): FrasaEntry[] {
   const pool = FRASA.filter(
     (f) =>
       f.section === section &&
       tags.some((t) => f.tags.includes(t)) &&
       frasaSiap(f, siap) &&
-      !pakai.has(f.id),
+      !pakai.has(f.id) &&
+      !(tolak?.(f) ?? false),
   );
   const hasil = pool
     .map((f) => ({ f, k: hash(f.id + seed) }))
@@ -216,13 +218,92 @@ export function tujuanDefault(p: Project): string[] {
  * bank hanya dipilih bila semua variabel yang dirujuknya terisi.
  * ------------------------------------------------------------------ */
 
+/**
+ * Kata benda berawalan ya- yang lazim dalam frasa fenomena; BUKAN kata
+ * kerja, jadi tidak boleh memicu klasifikasi kalimat.
+ */
+const KATA_BENDA_AWALAN_YA = new Set([
+  "يوم", "يومي", "يومية", "يوميا", "يقين", "يقظة", "يتيم", "يتامى",
+  "يسر", "يد", "يمين", "يسار", "ينبوع", "ياسمين", "ياقوت",
+]);
+
+/** Kata ganti penghubung: kata kerja sesudahnya milik klausa relatif di
+ * dalam frasa benda, bukan klausa induk yang berdiri sendiri. */
+const KATA_PENGHUBUNG_RELATIF = new Set([
+  "الذي", "التي", "اللذان", "اللتان", "اللواتي", "اللائي", "الذين",
+]);
+
+/** Kata kerja pembuka klausa yang berdiri di awal teks fenomena. */
+const PEMBUKA_KLAUSA = new Set([
+  "أصبح", "أصبحت", "بات", "باتت", "صار", "صارت", "ظل", "ظلت", "ازداد", "ازدادت",
+]);
+
+/**
+ * Apakah teks fenomena proyek berbentuk KALIMAT (klausa yang berdiri
+ * sendiri), bukan frasa benda? Wizard sendiri meminta fenomena dalam
+ * bentuk "satu-dua kalimat" (hint kolom fenomena), jadi bentuk kalimat
+ * adalah bentuk masukan baku mahasiswa, bukan perkecualian.
+ *
+ * Pembedaan ini penting secara tata bahasa: frasa bank menelan
+ * {{fenomena}} di TENGAH kalimat pada posisi frasa benda (sesudah
+ * تنامي/تفاقم/تولي/في dan kawanannya). Fenomena frasa benda masuk ke
+ * posisi itu dengan sah; fenomena berbentuk klausa yang dipaksa masuk
+ * menghasilkan Arab yang tidak gramatikal (temuan S2 telaah Tahap 3:
+ * "في تنامي يلاحظ الباحث أن..."). Fenomena kalimat karena itu tidak
+ * boleh disematkan ke frasa bank; ia masuk khalfiyah hanya sebagai
+ * kalimat tersendiri lewat kalimatFenomena.
+ *
+ * Klasifikasi ini HEURISTIK, bukan pengurai tata bahasa. Tanda yang
+ * dipakai: (a) tanda akhir kalimat di dalam/di akhir teks; (b) kata
+ * pelengkap klausa (أنّ/أن/إنّ/بأن) di awal teks; (c) kata kerja masa
+ * kini berawalan ya- pada lima kata pertama, selama tidak dilindungi
+ * kata ganti penghubung di depannya (klausa relatif di dalam frasa
+ * benda tetap frasa benda); (d) kata kerja pembuka klausa di awal
+ * teks. Fenomena frasa benda yang memuat komplemen dalam bisa saja
+ * terklasifikasi kalimat; perlakuan kalimat tersendiri untuknya aman
+ * (tidak merusak kalimat lain) dan mahasiswa tetap dapat menyunting.
+ */
+export function fenomenaBerbentukKalimat(teks: string): boolean {
+  const t = (teks ?? "").trim();
+  if (!t) return false;
+  // (a) Tanda akhir kalimat: frasa benda tidak memuatnya.
+  if (/[.!؟]/.test(t)) return true;
+  const bersih = t.replace(/[\u064B-\u0652\u0670\u0640]/g, "");
+  const kata = bersih
+    .split(/\s+/)
+    .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""))
+    .filter((w) => w.length > 0);
+  if (kata.length === 0) return false;
+  // (d) Kata kerja pembuka klausa di awal teks.
+  if (PEMBUKA_KLAUSA.has(kata[0]!)) return true;
+  // (b) Kata pelengkap klausa pada enam kata pertama.
+  const pelengkap = ["أن", "أنّ", "إن", "إنّ", "بأن", "لأن"];
+  if (kata.slice(0, 6).some((w) => pelengkap.includes(w))) return true;
+  // (c) Kata kerja masa kini berawalan ya- pada lima kata pertama,
+  // kecuali bila dilindungi kata ganti penghubung di depannya.
+  const idxRelatif = kata.findIndex((w) => KATA_PENGHUBUNG_RELATIF.has(w));
+  for (let i = 0; i < Math.min(5, kata.length); i += 1) {
+    const w = kata[i]!;
+    if (idxRelatif >= 0 && idxRelatif < i) break;
+    if (/^ي/.test(w) && w.length >= 4 && !KATA_BENDA_AWALAN_YA.has(w)) return true;
+  }
+  return false;
+}
+
 interface KonteksKhalfiya {
   v: Vars;
   siap: Set<string>;
   pakai: Set<string>;
+  /** Fenomena proyek berbentuk kalimat: tidak boleh disematkan ke
+   * frasa bank; masuk hanya sebagai kalimat tersendiri. */
+  fenomenaKalimat: boolean;
 }
 
-/** Ambil kalimat dari bank frasa untuk satu peran paragraf. */
+/** Ambil kalimat dari bank frasa untuk satu peran paragraf.
+ * Bila fenomena proyek berbentuk kalimat, frasa yang menelan
+ * {{fenomena}} di tengah kalimatnya DITOLAK: semua slot fenomena di
+ * bank adalah posisi frasa benda, dan klausa yang dipaksa masuk ke
+ * sana merusak tata bahasa (temuan S2). */
 function ambilKalimat(
   k: KonteksKhalfiya,
   section: string,
@@ -230,7 +311,11 @@ function ambilKalimat(
   jumlah: number,
   seed: number,
 ): string[] {
-  return pilihBertag(section, tags, jumlah, seed, k.siap, k.pakai).map((f) => isi(f.ar, k.v));
+  const tolakFenomenaTersemat = (f: FrasaEntry) =>
+    k.fenomenaKalimat && f.ar.includes("{{fenomena}}");
+  return pilihBertag(section, tags, jumlah, seed, k.siap, k.pakai, tolakFenomenaTersemat).map(
+    (f) => isi(f.ar, k.v),
+  );
 }
 
 /**
@@ -242,6 +327,14 @@ function ambilKalimat(
 function kalimatFenomena(k: KonteksKhalfiya, sudahAda: string[] = []): string {
   if (!k.siap.has("fenomena")) {
     return "ويظهر ما سبق جليًّا في الظاهرة التي يلاحظها الباحث في الميدان.";
+  }
+  if (k.fenomenaKalimat) {
+    // Fenomena berbentuk kalimat berdiri sebagai kalimat tersendiri di
+    // dalam paragraf: teksnya utuh dari mahasiswa, hanya diberi tanda
+    // akhir kalimat bila belum ada. Ia TIDAK disematkan ke dalam
+    // kalimat lain (temuan S2).
+    const t = k.v.fenomena.trim();
+    return /[.!؟]$/.test(t) ? t : `${t}.`;
   }
   if (sudahAda.some((s) => s.includes(k.v.fenomena))) {
     return isi(
@@ -255,6 +348,20 @@ function kalimatFenomena(k: KonteksKhalfiya, sudahAda: string[] = []): string {
 /** Kalimat penutup kebutuhan penelitian (dipakai sebagai penghubung ke rumusan). */
 const KALIMAT_KEBUTUHAN =
   "ومن هنا تبرز الحاجة إلى إجراء هذه الدراسة للكشف عن أبعاد الموضوع، وتقديم إجابة علمية موثقة عن الأسئلة التي لم تُجب عنها الدراسات السابقة.";
+
+/**
+ * Penanda editorial unsur kedua khalfiyah As'adiyah (temuan R1 telaah
+ * Tahap 3). Pedoman As'adiyah mensyaratkan alasan memilih judul
+ * diperkuat pendapat ulama atau pakar, tetapi jalur susun tidak
+ * memiliki bahan kutipan yang sah dan DILARANG mengarang atribusi.
+ * Komponen itu karena itu tidak dihilangkan senyap dan tidak pula
+ * dikarang: ia ditandai terang-terangan di dalam draf sebagai
+ * pekerjaan mahasiswa dari sumber nyata. Penanda ini teks suntingan
+ * biasa (kurung siku + kata تنبيه), tidak memuat nama atau pendapat
+ * siapa pun, dan mudah dihapus sesudah mahasiswa mengisinya.
+ */
+const PENANDA_PENDAPAT_ULAMA =
+  "[تنبيه للباحث: يشترط الدليل أن تُدعَّم أسباب اختيار هذا العنوان برأي عالم أو خبير منقول من مصدر موثّق؛ فأضف ذلك الرأي هنا من مصادرك، ولم يُدرج هنا رأي جاهز حتى لا يُنسب قول إلى من لم يقله]";
 
 /** Kalimat tujuan: memakai tujuan pertama proyek (dari rumusannya sendiri). */
 function kalimatTujuan(p: Project, k: KonteksKhalfiya): string {
@@ -320,7 +427,12 @@ function paragrafPembukaKhalfiya(k: KonteksKhalfiya, seed: number): string {
 
 /** Rangkai khalfiyah proyek menjadi judul + paragraf-paragraf utuh. */
 function rangkaiKhalfiya(p: Project, v: Vars, seed: number): string {
-  const k: KonteksKhalfiya = { v, siap: varsTerisi(v), pakai: new Set<string>() };
+  const k: KonteksKhalfiya = {
+    v,
+    siap: varsTerisi(v),
+    pakai: new Set<string>(),
+    fenomenaKalimat: fenomenaBerbentukKalimat(v.fenomena),
+  };
   const judul = findSectionProyek(p, "khalfiya")?.section.headingAr ?? "خلفية البحث";
   const namaPedoman = p.strukturPedoman?.namaPedoman ?? "";
   const paragraf: string[] = [];
@@ -360,6 +472,9 @@ function rangkaiKhalfiya(p: Project, v: Vars, seed: number): string {
           "فاجتمع للباحث من الدوافع النظرية والواقعية ما يجعل هذا العنوان جديرًا بالدراسة والتحقيق، لما لنتائجه من أثر منتظر في فهم قضايا مجاله وتطوير معالجتها.",
           v,
         ),
+        // Komponen pendapat ulama/pakar yang disyaratkan pedoman tidak
+        // dikarang dan tidak dihilangkan senyap: ditandai (R1).
+        PENANDA_PENDAPAT_ULAMA,
       ].join(" "),
     );
     // Paragraf 3 — titik tolak: berangkat dari karya sebelumnya, menindak
@@ -878,7 +993,20 @@ export function composeSection(p: Project, sectionId: string, seed = 0): HasilKo
   }
 
   // Pangkas agar tidak melebihi 1 halaman DULU, baru sisipkan referensi.
-  markdown = pangkasSatuHalaman(markdown);
+  // PENGECUALIAN khalfiyah (temuan S1 telaah Tahap 3): unsur wajib
+  // pedoman pada bagian ini tersebar di SEMUA paragrafnya dan paragraf
+  // penutupnya justru memuat unsur yang paling menentukan (Mangkoso:
+  // tujuan dan manfaat; As'adiyah: titik tolak). Pemangkas bekerja per
+  // paragraf utuh tanpa penanda, sehingga pada masukan yang wajar
+  // paragraf penutup itu hilang SENYAP dari draf yang diterima
+  // mahasiswa lewat benih wizard dan tombol susun ulang. Panjang
+  // khalfiyah dibatasi oleh susunannya sendiri (tiga paragraf dari
+  // bank frasa dan bahan proyek), bukan oleh batas satu halaman yang
+  // dirancang untuk bagian-bagian biasa; kelengkapan unsur wajibnya
+  // didahulukan daripada batas itu.
+  if (sectionId !== "khalfiya") {
+    markdown = pangkasSatuHalaman(markdown);
+  }
 
   // Hasilkan kandidat footnote kontekstual (opsional — user memilih di UI).
   const kandidatFootnote = hasilkanKandidatFootnote(p, sectionId, markdown);

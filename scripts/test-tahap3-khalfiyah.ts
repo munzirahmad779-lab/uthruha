@@ -12,7 +12,8 @@ import { readFileSync } from "node:fs";
 import { TEMPLATE_PEDOMAN } from "../lib/pedoman/template-pedoman";
 import { susunDaftarIsiOtomatis } from "../lib/engine/daftar-isi-pedoman";
 import { newProject, type Project } from "../lib/engine/project";
-import { composeSection } from "../lib/engine/compose";
+import { composeSection, fenomenaBerbentukKalimat } from "../lib/engine/compose";
+import { pangkasSatuHalaman, BATAS_HALAMAN } from "../lib/engine/auto-ref";
 import {
   dekonstruksiHeuristik,
   susunParagrafKhalfiyah,
@@ -117,8 +118,8 @@ cek(
     parMk[2]!.includes("فائدته العملية"),
 );
 cek(
-  "Mangkoso: keluaran tidak terpangkas batas satu halaman compose",
-  mdMk.length <= 1800,
+  "Mangkoso: paragraf penutup sampai utuh lewat composeSection (jalur pengguna asli)",
+  parMk.length === 3 && parMk[2]!.includes("ويهدف هذا البحث إلى"),
   `${mdMk.length} karakter`,
 );
 cekBersih("Mangkoso lengkap", mdMk);
@@ -168,6 +169,168 @@ cek(
   parAs[2]!.includes("تنطلق هذه الدراسة"),
 );
 cekBersih("As'adiyah lengkap", mdAs);
+
+/* ------------- R1: penanda pendapat ulama/pakar As'adiyah ------------- */
+
+cek(
+  "R1 As'adiyah: komponen pendapat ulama/pakar DITANDAI di paragraf motivasi",
+  parAs[1]!.includes("تنبيه للباحث") && parAs[1]!.includes("عالم أو خبير"),
+);
+cek(
+  "R1 As'adiyah: penanda tidak mengarang nama atau pendapat siapa pun",
+  !/قال (الشيخ|الإمام|الأستاذ|الدكتور)/.test(parAs[1]!),
+);
+cek(
+  "R1 Mangkoso: tidak ada penanda As'adiyah pada khalfiyah Mangkoso",
+  !mdMk.includes("تنبيه للباحث"),
+);
+
+/* ------------- S1: pangkas tidak lagi membuang paragraf wajib ------------- */
+/* Fixture kaya/panjang yang keluaran mentahnya terbukti melewati batas
+ * 1800 pada instrumentasi telaah; paragraf penutup wajib sampai utuh
+ * lewat composeSection, jalur yang sama dengan benih wizard dan tombol
+ * susun ulang. */
+
+const JUDUL_PANJANG =
+  "أثر تطبيق منهج أصول الفقه في تنمية مهارات التفكير النقدي لدى طلبة المعاهد العالية الإسلامية في معالجة قضايا الحياة اليومية المعاصرة";
+const FENOMENA_PANJANG =
+  "ضعف توظيف طلبة المعهد العالي لأصول الفقه في معالجة قضايا الحياة اليومية والاجتماعية والمدرسية في بيئتهم المحلية والمجتمعية على حد سواء وبصورة متزايدة عاما بعد عام";
+
+function proyekKaya(tpl: typeof mangkoso): Project {
+  return newProject({
+    bidangId: "fiqh-ushul",
+    judulAr: JUDUL_PANJANG,
+    rumusan: RUMUSAN,
+    strukturPedoman: tpl,
+    daftarIsi: susunDaftarIsiOtomatis(tpl, JUDUL_PANJANG).daftar,
+    lokasi: "معهد دار الدعوة والإرشاد الإسلامي في منجكوسو بمحافظة سولاويسي الجنوبية",
+    populasi: "طلبة المعهد العالي في المستويات الدراسية الأربعة جميعها بلا استثناء",
+    fenomenaAr: FENOMENA_PANJANG,
+  });
+}
+
+const mdKayaMk = composeSection(proyekKaya(mangkoso), "khalfiya").markdown;
+const parKayaMk = paragrafProsa(mdKayaMk);
+cek(
+  "S1 Mangkoso panjang: fixture benar-benar melewati batas lama 1800",
+  mdKayaMk.length > BATAS_HALAMAN,
+  `${mdKayaMk.length} karakter`,
+);
+cek(
+  "S1 Mangkoso panjang: ketiga paragraf utuh, paragraf penutup tidak hilang",
+  parKayaMk.length === 3,
+  `${parKayaMk.length} paragraf`,
+);
+cek(
+  "S1 Mangkoso panjang: tujuan dan manfaat (unsur wajib 3-4) tetap sampai",
+  parKayaMk[2]!.includes("ويهدف هذا البحث إلى") &&
+    parKayaMk[2]!.includes("فائدته النظرية") &&
+    parKayaMk[2]!.includes("فائدته العملية"),
+);
+cekBersih("S1 Mangkoso panjang", mdKayaMk);
+
+const mdKayaAs = composeSection(proyekKaya(asadiyah), "khalfiya").markdown;
+const parKayaAs = paragrafProsa(mdKayaAs);
+cek(
+  "S1 As'adiyah panjang: ketiga paragraf utuh",
+  parKayaAs.length === 3,
+  `${parKayaAs.length} paragraf`,
+);
+cek(
+  "S1 As'adiyah panjang: titik tolak (unsur wajib 3) tetap sampai",
+  parKayaAs[2]!.includes("تنطلق هذه الدراسة"),
+);
+cekBersih("S1 As'adiyah panjang", mdKayaAs);
+
+cek(
+  "S1: pemangkas satu halaman sendiri tetap berlaku untuk bagian lain",
+  (() => {
+    const blok = "أ".repeat(900);
+    const hasilPangkas = pangkasSatuHalaman([blok, blok, blok].join("\n\n"));
+    return hasilPangkas.length <= BATAS_HALAMAN && hasilPangkas.split(/\n\n+/).length === 1;
+  })(),
+);
+
+/* ------------- S2: fenomena berbentuk kalimat ------------- */
+/* Bentuk masukan yang justru diminta wizard ("satu-dua kalimat") tidak
+ * boleh disematkan ke tengah kalimat frasa bank; ia berdiri sebagai
+ * kalimat tersendiri, dan probe tata bahasa telaah berbalik hasil. */
+
+const F_KALIMAT_1 =
+  "يلاحظ الباحث أن طلبة المعهد يدرسون أصول الفقه نظريا ولا يوظفونه في حياتهم اليومية";
+const F_KALIMAT_2 =
+  "طلبة المعهد العالي يدرسون أصول الفقه دراسة نظرية ولا يوظفونه في حياتهم اليومية.";
+const F_KALIMAT_3 = "يعاني كثير من طلبة المعهد من ضعف توظيف أصول الفقه في حياتهم اليومية";
+const F_FRASA = "ضعف توظيف أصول الفقه في معالجة قضايا الحياة اليومية لدى الطلبة";
+
+cek("S2 klasifikasi: contoh telaah (klausa أن) berbentuk kalimat", fenomenaBerbentukKalimat(F_KALIMAT_1));
+cek("S2 klasifikasi: kalimat nominal bertanda titik berbentuk kalimat", fenomenaBerbentukKalimat(F_KALIMAT_2));
+cek("S2 klasifikasi: kalimat berawalan kata kerja berbentuk kalimat", fenomenaBerbentukKalimat(F_KALIMAT_3));
+cek("S2 klasifikasi: frasa benda fixture tetap frasa", !fenomenaBerbentukKalimat(F_FRASA));
+cek("S2 klasifikasi: frasa pendek tetap frasa", !fenomenaBerbentukKalimat("ضعف التوظيف اليومي"));
+cek(
+  "S2 klasifikasi: frasa benda berklausa relatif tetap frasa",
+  !fenomenaBerbentukKalimat("ضعف متابعة الطلبة التي يظهر أثرها في تأخر كتابة الرسائل"),
+);
+cek("S2 klasifikasi: frasa panjang S1 tetap frasa", !fenomenaBerbentukKalimat(FENOMENA_PANJANG));
+
+function proyekFenomena(tpl: typeof mangkoso, fenomena: string): Project {
+  return newProject({
+    bidangId: "fiqh-ushul",
+    judulAr: JUDUL,
+    rumusan: RUMUSAN,
+    strukturPedoman: tpl,
+    daftarIsi: susunDaftarIsiOtomatis(tpl, JUDUL).daftar,
+    lokasi: "معهد دار الدعوة والإرشاد منجكوسو",
+    populasi: "طلبة المعهد العالي",
+    fenomenaAr: fenomena,
+  });
+}
+
+/** Sematan rusak: fenomena didahului kata penyemat frasa bank di tengah kalimat. */
+const tersematRusak = (md: string, fenomena: string): boolean => {
+  const awal = fenomena.replace(/[.!؟]$/, "").slice(0, 18);
+  return ["في ", "تنامي ", "تفاقم ", "تولي ", "موضوع ", "أن "].some((p) =>
+    md.includes(p + awal),
+  );
+};
+
+for (const [label, f] of [
+  ["klausa-an", F_KALIMAT_1],
+  ["nominal-titik", F_KALIMAT_2],
+  ["kata-kerja", F_KALIMAT_3],
+] as const) {
+  const mdF = composeSection(proyekFenomena(mangkoso, f), "khalfiya").markdown;
+  const parF = paragrafProsa(mdF);
+  const fBersih = f.replace(/[.]$/, "");
+  cek(`S2 Mangkoso ${label}: tetap 3 paragraf`, parF.length === 3, `${parF.length} paragraf`);
+  cek(
+    `S2 Mangkoso ${label}: fenomena hadir utuh sebagai kalimat tersendiri di paragraf pembuka`,
+    parF[0]!.includes(fBersih),
+  );
+  cek(
+    `S2 Mangkoso ${label}: tidak ada sematan klausa di tengah kalimat frasa`,
+    !tersematRusak(mdF, f),
+  );
+  cek(
+    `S2 Mangkoso ${label}: paragraf alasan tidak memuat sematan rusak`,
+    !tersematRusak(parF[1]!, f),
+  );
+  cekBersih(`S2 Mangkoso ${label}`, mdF);
+}
+
+const mdFAs = composeSection(proyekFenomena(asadiyah, F_KALIMAT_1), "khalfiya").markdown;
+const parFAs = paragrafProsa(mdFAs);
+cek(
+  "S2 As'adiyah klausa-an: fenomena tersendiri dan tidak tersemat rusak",
+  parFAs.length === 3 && parFAs[0]!.includes(F_KALIMAT_1) && !tersematRusak(mdFAs, F_KALIMAT_1),
+);
+cekBersih("S2 As'adiyah klausa-an", mdFAs);
+
+cek(
+  "S2 regresi frasa: fenomena frasa tetap tersemat sah di dalam kalimat prosa",
+  mdMk.includes("ضعف توظيف أصول الفقه في معالجة قضايا الحياة اليومية لدى الطلبة"),
+);
 
 /* ------------- Jalur compose: tanpa template kampus ------------- */
 
