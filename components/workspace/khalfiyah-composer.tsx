@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { HasilKhalfiyah } from "@/lib/engine/khalfiyah";
+import { SerahAiPanel } from "@/components/workspace/serah-ai-panel";
 
 export function KhalfiyahComposer() {
   const [judul, setJudul] = useState("");
@@ -11,6 +12,7 @@ export function KhalfiyahComposer() {
   const [activeTab, setActiveTab] = useState<
     "klaster" | "kasus" | "jurnal" | "maraji" | "narasi"
   >("klaster");
+  const [serahTerbuka, setSerahTerbuka] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -417,7 +419,7 @@ export function KhalfiyahComposer() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-3 mt-6">
+                <div className="flex flex-wrap gap-3 mt-6">
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(hasil.narasiLengkap);
@@ -426,6 +428,13 @@ export function KhalfiyahComposer() {
                     className="px-4 py-2 bg-gold-600 text-white rounded-lg hover:bg-gold-500"
                   >
                     نسخ النص
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSerahTerbuka((v) => !v)}
+                    className="px-4 py-2 border border-gold-600 text-ink-800 rounded-lg hover:bg-gold-500/10"
+                  >
+                    Kembangkan di AI luar
                   </button>
                   <button
                     onClick={() => {
@@ -443,6 +452,18 @@ export function KhalfiyahComposer() {
                     تنزيل الملف
                   </button>
                 </div>
+
+                {serahTerbuka && (
+                  <SerahAiPanel
+                    konteks={{
+                      judul,
+                      namaBagian: "خلفية البحث",
+                      teks: hasil.narasiLengkap,
+                    }}
+                    labelTeks="draf khalfiyah lengkap dari panel ini"
+                    onTutup={() => setSerahTerbuka(false)}
+                  />
+                )}
               </div>
             )}
           </div>

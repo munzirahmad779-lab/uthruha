@@ -22,6 +22,8 @@ import { FootnoteBagian, kemunculanBagian, kompilasiBagian } from "@/components/
 import { EditorPenanda, type FokusPenanda } from "@/components/workspace/editor-penanda";
 import { pecahSegmen } from "@/lib/engine/marker";
 import { BatasStrip } from "@/components/workspace/batas-strip";
+import { SerahAiPanel } from "@/components/workspace/serah-ai-panel";
+import type { KonteksKembangkan } from "@/lib/engine/ai-handoff";
 
 // Kelas id sama dengan POLA di marker.ts (tanpa spasi/kurung/pipa).
 const POLA_PENANDA = /\[\[ref:([^\s\]|[]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
@@ -133,6 +135,7 @@ export function TulisTab({
   const [seleksi, setSeleksi] = useState<{ teks: string; awal: number; akhir: number } | null>(null);
   const [fokusPenanda, setFokusPenanda] = useState<FokusPenanda | null>(null);
   const [panelKandidat, setPanelKandidat] = useState<PanelKandidat | null>(null);
+  const [serahTerbuka, setSerahTerbuka] = useState(false);
   const [kursor, setKursor] = useState<number | null>(null);
   const [pesanPasang, setPesanPasang] = useState("");
   const [sibukGenerate, setSibukGenerate] = useState(false);
@@ -643,6 +646,19 @@ export function TulisTab({
             <button type="button" onClick={susunUlang} className="btn-quiet">
               <IconSparkle className="h-3.5 w-3.5" /> Variasi
             </button>
+            <button
+              type="button"
+              onClick={() => setSerahTerbuka((v) => !v)}
+              disabled={!seleksi && !teks.trim()}
+              title={
+                seleksi
+                  ? "Susun prompt pengembangan untuk teks yang Anda blok, siap disalin ke AI luar"
+                  : "Susun prompt pengembangan untuk draf bagian ini, siap disalin ke AI luar"
+              }
+              className={`btn-quiet disabled:opacity-40 ${serahTerbuka ? "!bg-ink-900 !text-parchment-100" : ""}`}
+            >
+              <IconSparkle className="h-3.5 w-3.5" /> Kembangkan di AI luar
+            </button>
             <CopyButton teks={teks} />
             <button
               type="button"
@@ -994,6 +1010,31 @@ export function TulisTab({
             )}
           </div>
         )}
+
+        {serahTerbuka &&
+          (() => {
+            // Tahap 8: teks yang diserahkan adalah pilihan mahasiswa —
+            // teks yang diblok bila ada seleksi, selain itu draf bagian
+            // aktif ini; tidak pernah seluruh naskah diam-diam.
+            const konteksSerah: KonteksKembangkan = {
+              judul: p.judulAr,
+              namaBagian: aktif ? aktif.headingAr || aktif.labelId : bagian,
+              teks: seleksi ? seleksi.teks : teks,
+              namaPedoman: p.strukturPedoman?.namaPedoman,
+              targetKata: aktif?.targetKata,
+            };
+            return (
+              <SerahAiPanel
+                konteks={konteksSerah}
+                labelTeks={
+                  seleksi
+                    ? "teks yang Anda blok di editor"
+                    : `seluruh draf bagian aktif ini (${aktif?.labelId ?? bagian})`
+                }
+                onTutup={() => setSerahTerbuka(false)}
+              />
+            );
+          })()}
 
         {cariRujukan && (
           <RefFinder
