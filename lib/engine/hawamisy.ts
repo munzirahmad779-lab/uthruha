@@ -179,11 +179,62 @@ function catatanSyamilah(s: Sumber): string {
   return s.sumberImpor === "shamela" ? "(المكتبة الشاملة)" : "";
 }
 
+/**
+ * Token gelar akademik yang dikenali sebagai AWALAN nama penulis:
+ * bentuk Arab (أ. د. profesor-doktor, أ.م.د., د. doktor, أ. ustadz)
+ * dan bentuk Latin (Prof., Dr., Drs., Dra., Ir.). Hanya token ini,
+ * hanya di awal nama, dan hanya bila masih ada nama sesudahnya yang
+ * disaring; token wajib terpisah spasi dari nama agar nama orang
+ * yang kebetulan berawalan huruf serupa (أحمد, Drake, Irfan) tidak
+ * ikut terpotong.
+ */
+const TOKEN_GELAR: string[] = [
+  "أ. م. د.",
+  "أ.م.د.",
+  "أ. د.",
+  "أ.د.",
+  "أ. د",
+  "د.",
+  "أ.",
+  "Prof. Dr.",
+  "Prof.",
+  "Prof",
+  "Dr.",
+  "Drs.",
+  "Dra.",
+  "Ir.",
+];
+
+/**
+ * Nama penulis tanpa gelar akademik, untuk LAPISAN FORMAT saja
+ * (aturan umum pedoman dan format 6 Mangkoso: nama ditulis مجردا عن
+ * اللقب). Data nama tersimpan tidak pernah diubah fungsi ini: bila
+ * tidak ada token gelar yang dikenali di awal, string dikembalikan
+ * persis seperti diterima (byte-identik).
+ */
+export function penulisTanpaGelar(penulis: string): string {
+  let n = penulis.trim();
+  let terpotong = false;
+  for (;;) {
+    const token = TOKEN_GELAR.find(
+      (g) => n.startsWith(g) && n.length > g.length && /\s/.test(n.charAt(g.length)),
+    );
+    if (!token) break;
+    const sisa = n.slice(token.length).trim();
+    if (!sisa) break;
+    n = sisa;
+    terpotong = true;
+  }
+  return terpotong ? n : penulis;
+}
+
 /* ------------------------------------------------------------------ */
 /* Mangkoso (SPEC-PEDOMAN §2.5)                                        */
 /* ------------------------------------------------------------------ */
 
-function footnoteMangkoso(s: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnote): string {
+function footnoteMangkoso(sMentah: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnote): string {
+  // Nama penulis disaring gelarnya di lapisan format; data tersimpan utuh.
+  const s: Sumber = { ...sMentah, penulis: penulisTanpaGelar(sMentah.penulis) };
   const judul = bersihkanJudul(s.judul);
   const hal = halamanDari(s, opsi);
   const jilid = jilidDari(s, opsi);
@@ -192,11 +243,17 @@ function footnoteMangkoso(s: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnot
     // Format 3 & 4: nama masyhur pengarang saja; format 3 tanpa
     // judul (pengulangan langsung), format 4 dengan singkatan judul.
     const nomorHadis = (s.nomorHadis ?? "").trim();
+    // Untuk hadis: nomor hadis hanya dari bidang nomorHadis. Bila
+    // bidang itu kosong, halaman tampil berlabel ص. sebagai dirinya
+    // sendiri; angka halaman tidak pernah menyamar sebagai nomor
+    // hadis (SPEC format 12 membedakan keduanya secara tegas).
     const ekor =
       s.jenis === "hadis"
-        ? nomorHadis || hal
-          ? `رقم الحديث: ${nomorHadis || hal}`
-          : ""
+        ? nomorHadis
+          ? `رقم الحديث: ${nomorHadis}`
+          : hal
+            ? `ص. ${hal}`
+            : ""
         : s.jenis === "web"
           ? hal
             ? `ص. ${hal}`
@@ -213,9 +270,10 @@ function footnoteMangkoso(s: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnot
 
   switch (s.jenis) {
     case "artikel": {
-      // Format 6: pengarang tanpa gelar, judul artikel tegak dalam
-      // kutip, nama majalah miring, jilid/juz, kota: penerbit, tahun,
-      // halaman.
+      // Format 6: pengarang tanpa gelar (disaring penulisTanpaGelar
+      // di pintu fungsi ini, berlaku untuk semua format), judul
+      // artikel tegak dalam kutip, nama majalah miring, jilid/juz,
+      // kota: penerbit, tahun, halaman.
       const volume = (s.volume ?? "").trim() || jilid;
       const tempat = [s.kota, s.penerbit].filter((x) => (x ?? "").trim()).join(": ");
       return gabungArab([
@@ -260,7 +318,7 @@ function footnoteMangkoso(s: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnot
       return gabungArab([
         s.penulis,
         kutip(judul),
-        keterangan.length > 1 ? `(${keterangan.join("، ")})` : "",
+        keterangan.length > 0 ? `(${keterangan.join("، ")})` : "",
         hal ? `ص. ${hal}` : "",
       ]);
     }
@@ -282,15 +340,17 @@ function footnoteMangkoso(s: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnot
     }
     case "hadis": {
       // Format 12: mukhrij dan nama kitabnya, kota: penerbit, tahun,
-      // lalu NOMOR hadis (bukan halaman).
-      const nomor = (s.nomorHadis ?? "").trim() || hal;
+      // lalu NOMOR hadis (bukan halaman). Bila nomor hadis kosong,
+      // halaman tampil berlabel ص. sebagai dirinya sendiri; angka
+      // halaman tidak pernah dinyatakan sebagai nomor hadis.
+      const nomorHadis = (s.nomorHadis ?? "").trim();
       const tempat = [s.kota, s.penerbit].filter((x) => (x ?? "").trim()).join(": ");
       return gabungArab([
         s.penulis,
         judul,
         tempat,
         (s.tahun ?? "").trim(),
-        nomor ? `رقم الحديث: ${nomor}` : "",
+        nomorHadis ? `رقم الحديث: ${nomorHadis}` : hal ? `ص. ${hal}` : "",
       ]);
     }
     case "bab": {
@@ -328,7 +388,9 @@ function footnoteMangkoso(s: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnot
 /* As'adiyah (SPEC-PEDOMAN §3.6)                                       */
 /* ------------------------------------------------------------------ */
 
-function footnoteAsadiyah(s: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnote): string {
+function footnoteAsadiyah(sMentah: Sumber, opsi: OpsiFootnote, konteks: KonteksFootnote): string {
+  // Nama penulis disaring gelarnya di lapisan format; data tersimpan utuh.
+  const s: Sumber = { ...sMentah, penulis: penulisTanpaGelar(sMentah.penulis) };
   const judul = bersihkanJudul(s.judul);
   const hal = halamanDari(s, opsi);
   const jilid = jilidDari(s, opsi);
@@ -509,7 +571,9 @@ function urutHijaiyah(items: Sumber[]): Sumber[] {
 
 /** Entri daftar pustaka Mangkoso (§2.6): pengarang. judul miring.
  *  kota: penerbit, tahun. */
-export function entriPustakaMangkoso(s: Sumber): string {
+export function entriPustakaMangkoso(sMentah: Sumber): string {
+  // Nama penulis disaring gelarnya di lapisan format; data tersimpan utuh.
+  const s: Sumber = { ...sMentah, penulis: penulisTanpaGelar(sMentah.penulis) };
   const judul = bersihkanJudul(s.judul);
   switch (s.jenis) {
     case "artikel":
@@ -537,7 +601,7 @@ export function entriPustakaMangkoso(s: Sumber): string {
     }
     case "skripsi": {
       const keterangan = ["رسالة ماجستير أو دكتوراه", (s.penerbit ?? "").trim(), (s.tahun ?? "").trim()].filter(Boolean);
-      return [`${s.penulis}.`, `${kutip(judul)}.`, keterangan.length > 1 ? `(${keterangan.join("، ")}).` : ""]
+      return [`${s.penulis}.`, `${kutip(judul)}.`, keterangan.length > 0 ? `(${keterangan.join("، ")}).` : ""]
         .filter(Boolean)
         .join(" ");
     }
@@ -552,7 +616,9 @@ export function entriPustakaMangkoso(s: Sumber): string {
 /** Entri daftar pustaka As'adiyah (butir ي): nama lengkap pengarang.
  *  judul. kota: penerbit, tahun — dengan ط dan tahun Hijriah seperti
  *  contoh resmi pedoman. */
-export function entriPustakaAsadiyah(s: Sumber): string {
+export function entriPustakaAsadiyah(sMentah: Sumber): string {
+  // Nama penulis disaring gelarnya di lapisan format; data tersimpan utuh.
+  const s: Sumber = { ...sMentah, penulis: penulisTanpaGelar(sMentah.penulis) };
   const judul = bersihkanJudul(s.judul);
   switch (s.jenis) {
     case "artikel":

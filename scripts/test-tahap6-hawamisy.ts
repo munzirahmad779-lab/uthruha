@@ -28,6 +28,11 @@
  *   penanda sah (L1); token ref: di URL/prosa tidak ditulis ulang
  *   (L3); pasang-footnote tidak lagi memuat pola longgar (L2, statis).
  * - Turabian umum untuk proyek tanpa template tidak berubah.
+ * - Perbaikan telaah Tahap 6 (REVIEW-TAHAP-6): S1 halaman tidak
+ *   pernah berlabel رقم الحديث bila nomorHadis kosong (tiga
+ *   posisi); R1 frasa derajat risalah tidak lenyap bila universitas
+ *   dan tahun kosong; R2 gelar akademik disaring di lapisan format
+ *   tanpa mengubah data nama tersimpan.
  *
  * Jalankan: npx tsx scripts/test-tahap6-hawamisy.ts
  */
@@ -39,9 +44,11 @@ import { composeNaskah } from "../lib/engine/compose";
 import { daftarPustakaProyek, entriPustakaProyek } from "../lib/engine/daftar-pustaka";
 import { buatDocx, markdownKeWord, setelDokumen } from "../lib/engine/export";
 import {
+  entriPustakaMangkoso,
   footnoteKampus,
   kampusProyek,
   modePerBab,
+  penulisTanpaGelar,
 } from "../lib/engine/hawamisy";
 import { cariMarker, kompilasiMarker, pecahSegmen, teksPenandaRusak } from "../lib/engine/marker";
 import { normalisasiJudul } from "../lib/engine/referensi";
@@ -732,6 +739,102 @@ async function ujiDocx() {
       "Abdul Aziz, *Fiqh Muamalah* (Jakarta: Rajawali, 2020), 45.",
   );
   cek("Proyek tanpa template: kampusProyek = null", kampusProyek(pUmum) === null);
+}
+
+/* ---------------- Perbaikan telaah Tahap 6: S1, R1, R2 ---------------- */
+
+{
+  // S1: sumber hadis TANPA nomorHadis; angka 77/78/79 adalah nomor
+  // HALAMAN (fixture persis probe telaah) dan tidak boleh tercetak
+  // berlabel رقم الحديث di ketiga posisi.
+  const hadisPolos = sumber({
+    jenis: "hadis",
+    penulis: "مسلم",
+    judul: "صحيح مسلم",
+    kota: "بيروت",
+    penerbit: "دار إحياء التراث",
+    tahun: "1954",
+  });
+  sama(
+    "S1: kemunculan pertama tanpa nomorHadis: halaman berlabel ص. (77)",
+    footnoteKampus(hadisPolos, "mangkoso", { halaman: "77" }),
+    "مسلم، صحيح مسلم، بيروت: دار إحياء التراث، 1954، ص. 77.",
+  );
+  sama(
+    "S1: pengulangan langsung tanpa nomorHadis: halaman berlabel ص. (78)",
+    footnoteKampus(hadisPolos, "mangkoso", { halaman: "78" }, { pertama: false, langsungBerulang: true }),
+    "مسلم، ص. 78.",
+  );
+  sama(
+    "S1: pengulangan terselingi tanpa nomorHadis: halaman berlabel ص. (79)",
+    footnoteKampus(hadisPolos, "mangkoso", { halaman: "79" }, { pertama: false, langsungBerulang: false }),
+    "مسلم، صحيح مسلم، ص. 79.",
+  );
+  const fnBernomor = footnoteKampus(
+    { ...hadisPolos, nomorHadis: "2218" },
+    "mangkoso",
+    { halaman: "1738" },
+  );
+  cek(
+    "S1: kontrol positif: nomorHadis ada → tercetak رقم الحديث, halaman tidak menyamar",
+    fnBernomor.includes("رقم الحديث: 2218") && !fnBernomor.includes("1738"),
+    fnBernomor,
+  );
+  sama(
+    "S1: kontrol positif pengulangan: nomorHadis tetap رقم الحديث",
+    footnoteKampus({ ...hadisPolos, nomorHadis: "2218" }, "mangkoso", { halaman: "55" }, { pertama: false, langsungBerulang: true }),
+    "مسلم، رقم الحديث: 2218.",
+  );
+}
+
+{
+  // R1: risalah tanpa universitas dan tanpa tahun: frasa derajat
+  // adalah unsur bernama format 8 dan tidak boleh lenyap.
+  const risalahPolos = sumber({ jenis: "skripsi", penulis: "عمر فاروق", judul: "أثر القراءة" });
+  sama(
+    "R1: footnote risalah tanpa penerbit+tahun tetap memuat frasa derajat dalam kurung",
+    footnoteKampus(risalahPolos, "mangkoso", { halaman: "88" }),
+    "عمر فاروق، “أثر القراءة”، (رسالة ماجستير أو دكتوراه)، ص. 88.",
+  );
+  sama(
+    "R1: entri pustaka risalah tanpa penerbit+tahun tetap memuat frasa derajat dalam kurung",
+    entriPustakaMangkoso(risalahPolos),
+    "عمر فاروق. “أثر القراءة”. (رسالة ماجستير أو دكتوراه).",
+  );
+}
+
+{
+  // R2: gelar akademik disaring di lapisan format; data tidak berubah.
+  sama("R2: penulisTanpaGelar membuang أ. د.", penulisTanpaGelar("أ. د. حسن الشافعي"), "حسن الشافعي");
+  sama("R2: penulisTanpaGelar membuang د.", penulisTanpaGelar("د. فاضل صالح السامرائي"), "فاضل صالح السامرائي");
+  sama("R2: penulisTanpaGelar membuang Prof. Dr.", penulisTanpaGelar("Prof. Dr. John Smith"), "John Smith");
+  sama("R2: penulisTanpaGelar membuang Drs.", penulisTanpaGelar("Drs. Budi Santoso"), "Budi Santoso");
+  sama("R2: nama berawalan huruf mirip gelar tidak terpotong (أحمد)", penulisTanpaGelar("أحمد الشافعي"), "أحمد الشافعي");
+  sama("R2: nama Latin mirip token gelar tidak terpotong (Drake)", penulisTanpaGelar("Drake Bell"), "Drake Bell");
+  sama("R2: nama yang hanya berisi gelar tidak dikosongkan", penulisTanpaGelar("د."), "د.");
+  const artikelBergelar = sumber({
+    jenis: "artikel",
+    penulis: "أ. د. حسن الشافعي",
+    judul: "منهج البحث",
+    jurnal: "مجلة الأبحاث",
+    volume: "4",
+    kota: "القاهرة",
+    penerbit: "جامعة القاهرة",
+    tahun: "2019",
+  });
+  sama(
+    "R2: format 6 (probe telaah): gelar أ. د. tidak tercetak",
+    footnoteKampus(artikelBergelar, "mangkoso", { halaman: "29" }),
+    "حسن الشافعي، “منهج البحث”، *مجلة الأبحاث*، ج. 4، القاهرة: جامعة القاهرة، 2019، ص. 29.",
+  );
+  sama(
+    "R2: keluaran nama bergelar == keluaran nama bersih (byte-identik sesudah saring)",
+    footnoteKampus({ ...kitabSampler, penulis: "د. فاضل صالح السامرائي" }, "mangkoso", { halaman: "10-11" }),
+    footnoteKampus(kitabSampler, "mangkoso", { halaman: "10-11" }),
+  );
+  const sGelar = sumber({ jenis: "artikel", penulis: "أ. د. حسن الشافعي", judul: "منهج البحث", jurnal: "مجلة الأبحاث", tahun: "2019" });
+  footnoteKampus(sGelar, "mangkoso", { halaman: "29" });
+  cek("R2: data nama tersimpan tidak diubah oleh penyaringan format", sGelar.penulis === "أ. د. حسن الشافعي");
 }
 
 void ujiDocx().then(() => {
