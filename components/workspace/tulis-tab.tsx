@@ -210,8 +210,10 @@ export function TulisTab({
           bidangId: p.bidangId,
           // Sinyal konteks gerbang relevansi: sejak Tahap 2 judul adalah
           // masukan tema satu-satunya; topikAr warisan hanya cadangan
-          // untuk proyek lama yang judulnya masih kosong.
-          topikAr: p.topikAr || p.judulAr,
+          // untuk proyek lama yang judulnya masih kosong. Nama field
+          // topikAr dipertahankan sebagai kontrak server; nilainya
+          // judul lebih dulu (perbaikan telaah ulang Tahap 2, R4).
+          topikAr: p.judulAr || p.topikAr,
           ...(opsi?.paksaKonfirmasi ? { paksaKonfirmasi: true } : {}),
         }),
       });

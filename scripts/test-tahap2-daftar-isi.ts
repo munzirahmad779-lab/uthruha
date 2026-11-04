@@ -606,5 +606,199 @@ cek(
     sumberEditor.includes("+ Rincian"),
 );
 
+/* ---------- Perbaikan telaah ulang Tahap 2: M1 (varian relasi dua konsep) ---------- */
+const konsepHubDan = dekonstruksiKonsepJudul("Hubungan Kecerdasan Emosional dan Prestasi Belajar Santri");
+cek(
+  "M1: Hubungan X dan Y tanpa antara/dengan terbelah menjadi dua konsep",
+  konsepHubDan.konsep[0]?.teks === "Kecerdasan Emosional" &&
+    konsepHubDan.konsep[1]?.teks === "Prestasi Belajar Santri",
+  konsepHubDan.konsep.map((k) => k.teks).join(" | "),
+);
+cek(
+  "M1: Hubungan X dan Y: label relasi utuh dari judul",
+  konsepHubDan.relasiId === "Hubungan Kecerdasan Emosional dan Prestasi Belajar Santri",
+  konsepHubDan.relasiId,
+);
+const konsepKorDan = dekonstruksiKonsepJudul("Korelasi antara Kecerdasan Emosional dan Prestasi Belajar Santri");
+cek(
+  "M1: Korelasi antara X dan Y terbelah, tidak ada konsep berawalan kata antara",
+  konsepKorDan.konsep[0]?.teks === "Kecerdasan Emosional" &&
+    konsepKorDan.konsep[1]?.teks === "Prestasi Belajar Santri" &&
+    !konsepKorDan.konsep.some((k) => k.teks.startsWith("antara")),
+  konsepKorDan.konsep.map((k) => k.teks).join(" | "),
+);
+cek(
+  "M1: Korelasi antara X dan Y: label relasi memakai penutup dan dari judul",
+  konsepKorDan.relasiId === "Korelasi Kecerdasan Emosional dan Prestasi Belajar Santri",
+  konsepKorDan.relasiId,
+);
+const konsepHubDengan = dekonstruksiKonsepJudul("Hubungan Kecerdasan Emosional dengan Prestasi Belajar Santri");
+cek(
+  "M1: Hubungan X dengan Y terbelah pada dengan",
+  konsepHubDengan.konsep[0]?.teks === "Kecerdasan Emosional" &&
+    konsepHubDengan.konsep[1]?.teks === "Prestasi Belajar Santri" &&
+    konsepHubDengan.relasiId === "Hubungan Kecerdasan Emosional dengan Prestasi Belajar Santri",
+  konsepHubDengan.konsep.map((k) => k.teks).join(" | "),
+);
+const konsepTimbalBalik = dekonstruksiKonsepJudul("Pengaruh Timbal Balik Kecerdasan Emosional dan Prestasi Belajar");
+cek(
+  "M1: Pengaruh Timbal Balik: frasa kepala utuh, dua konsep terbelah bersih",
+  konsepTimbalBalik.konsep[0]?.teks === "Kecerdasan Emosional" &&
+    konsepTimbalBalik.konsep[1]?.teks === "Prestasi Belajar" &&
+    konsepTimbalBalik.relasiId === "Pengaruh timbal balik Kecerdasan Emosional dan Prestasi Belajar",
+  `${konsepTimbalBalik.konsep.map((k) => k.teks).join(" | ")} :: ${konsepTimbalBalik.relasiId}`,
+);
+const hasilHubDan = susunDaftarIsiOtomatis(mangkoso, "Hubungan Kecerdasan Emosional dan Prestasi Belajar Santri");
+cek(
+  "M1: daftar isi judul Hubungan X dan Y: definisi bagi kedua konsep, validator bersih",
+  hasilHubDan.dariJudul === true &&
+    (hasilHubDan.daftar[1]?.sections[0]?.labelId ?? "").includes("Kecerdasan Emosional") &&
+    (hasilHubDan.daftar[1]?.sections[1]?.labelId ?? "").includes("Prestasi Belajar Santri") &&
+    validasiDaftarIsiOtomatis(hasilHubDan.daftar, mangkoso).length === 0,
+  hasilHubDan.daftar[1]?.sections.map((s) => s.labelId).join(" | "),
+);
+
+/* ---------- Perbaikan telaah ulang Tahap 2: M2 (parser pola campuran A/1/a) ---------- */
+const tempelCampuranPolos = parseOutlineTempelan(
+  [
+    "BAB II PEMBAHASAN",
+    "A. Definisi Ushul Fiqh",
+    "1. Pengertian menurut bahasa",
+    "a. Makna kata ushul",
+    "2. Pengertian menurut istilah",
+    "B. Definisi Kehidupan",
+  ].join("\n"),
+);
+cek(
+  "M2: pola campuran A/1/a tanpa indentasi terbaca penuh (tidak null, tidak yatim)",
+  tempelCampuranPolos !== null &&
+    tempelCampuranPolos.length === 1 &&
+    tempelCampuranPolos[0]?.sections[0]?.labelId === "Definisi Ushul Fiqh" &&
+    tempelCampuranPolos[0]?.sections[0]?.anak?.[0]?.labelId === "Pengertian menurut bahasa" &&
+    tempelCampuranPolos[0]?.sections[0]?.anak?.[0]?.anak?.[0]?.labelId === "Makna kata ushul" &&
+    tempelCampuranPolos[0]?.sections[0]?.anak?.[1]?.labelId === "Pengertian menurut istilah" &&
+    tempelCampuranPolos[0]?.sections[1]?.labelId === "Definisi Kehidupan",
+  tempelCampuranPolos?.[0]?.sections.map((s) => s.labelId).join(" | "),
+);
+const tempelCampuranIndent = parseOutlineTempelan(
+  [
+    "BAB II PEMBAHASAN",
+    "  A. Definisi Ushul Fiqh",
+    "    1. Pengertian menurut bahasa",
+    "      a. Makna kata ushul",
+    "    2. Pengertian menurut istilah",
+  ].join("\n"),
+);
+cek(
+  "M2: pola campuran A/1/a berindentasi: satu bab utuh, fasal tidak pecah menjadi bab",
+  tempelCampuranIndent !== null &&
+    tempelCampuranIndent.length === 1 &&
+    tempelCampuranIndent[0]?.sections.length === 1 &&
+    (tempelCampuranIndent[0]?.sections[0]?.anak?.length ?? 0) === 2 &&
+    tempelCampuranIndent[0]?.sections[0]?.anak?.[0]?.anak?.[0]?.labelId === "Makna kata ushul",
+  `bab ${tempelCampuranIndent?.length} | ${tempelCampuranIndent?.[0]?.sections[0]?.anak?.map((a) => a.labelId).join(" | ")}`,
+);
+const tempelRomawi = parseOutlineTempelan(
+  ["I. Pendahuluan", "  Latar Belakang", "II. Kajian Teori", "  Landasan Teori", "V. Penutup", "  Kesimpulan"].join("\n"),
+);
+cek(
+  "M2: perlindungan Romawi utuh: I/II/V tetap bab dan sub-babnya menempel",
+  tempelRomawi !== null &&
+    tempelRomawi.length === 3 &&
+    tempelRomawi.every((b) => b.sections.length === 1),
+  tempelRomawi?.map((b) => `${b.labelId}[${b.sections.length}]`).join(" | "),
+);
+
+/* ---------- Perbaikan telaah ulang Tahap 2: R3 (pasangan label sub-bab wajib) ---------- */
+const tplBab1Mk = mangkoso.bab.find((b) => b.nomor === 1)!;
+const idxWajibMk = tplBab1Mk.subBab.findIndex((s) => s.wajib && (s.namaAr ?? "") !== "");
+const rusakLabelId: Project["daftarIsi"] = hasilMk.daftar.map((b) =>
+  b.id === "bab-pedoman-1"
+    ? {
+        ...b,
+        sections: b.sections.map((s, j) =>
+          j === idxWajibMk ? { ...s, labelId: s.labelId + " (suntingan bebas)" } : s,
+        ),
+      }
+    : b,
+);
+cek(
+  "R3: ganti labelId sub-bab wajib dengan labelAr utuh kini tertangkap validator",
+  idxWajibMk >= 0 &&
+    validasiDaftarIsiOtomatis(rusakLabelId!, mangkoso).some((g) => g.includes("sub-bab wajib")),
+  validasiDaftarIsiOtomatis(rusakLabelId!, mangkoso).join(" | "),
+);
+
+/* ---------- Perbaikan telaah ulang Tahap 2: R6 (kualitas dekonstruksi) ---------- */
+cek(
+  "R6: label relasi setia pada preposisi judul (terhadap, bukan selalu dalam)",
+  dekonstruksiKonsepJudul("Pengaruh Motivasi Belajar terhadap Hasil Belajar Siswa").relasiId ===
+    "Pengaruh Motivasi Belajar terhadap Hasil Belajar Siswa",
+  dekonstruksiKonsepJudul("Pengaruh Motivasi Belajar terhadap Hasil Belajar Siswa").relasiId,
+);
+const konsepTokoh = dekonstruksiKonsepJudul("منهج التفسير الموضوعي عند القرطبي");
+cek(
+  "R6: nama tokoh sesudah عند terlipat ke frasa kajiannya, bukan konsep tersendiri",
+  konsepTokoh.konsep.length === 1 &&
+    konsepTokoh.konsep[0]?.teks === "منهج التفسير الموضوعي عند القرطبي" &&
+    !konsepTokoh.konsep.some((k) => k.teks === "القرطبي"),
+  konsepTokoh.konsep.map((k) => k.teks).join(" | "),
+);
+cek(
+  "R6: konsep payung pola bayna menjadi konsep pertama",
+  konsepBayna.konsep[0]?.teks === "التكامل المعرفي" && konsepBayna.konsep.length === 3,
+  konsepBayna.konsep.map((k) => k.teks).join(" | "),
+);
+const hasilBayna = susunDaftarIsiOtomatis(mangkoso, "التكامل المعرفي بين علوم القرآن وأصول الفقه");
+cek(
+  "R6: daftar isi judul bayna: Bab 2 membuka dengan definisi konsep payung, validator bersih",
+  hasilBayna.dariJudul === true &&
+    (hasilBayna.daftar[1]?.sections[0]?.labelAr ?? "").includes("التكامل المعرفي") &&
+    (hasilBayna.daftar[1]?.sections[0]?.labelAr ?? "").includes("اصطلاحًا") &&
+    validasiDaftarIsiOtomatis(hasilBayna.daftar, mangkoso).length === 0,
+  hasilBayna.daftar[1]?.sections[0]?.labelAr,
+);
+
+/* ---------- Perbaikan telaah ulang Tahap 2: Z1 (validator tidak melempar) ---------- */
+let simpulDalam: { id: string; labelId: string; labelAr: string; anak?: unknown[] } = {
+  id: "ujung",
+  labelId: "Ujung",
+  labelAr: "",
+};
+for (let i = 0; i < 3000; i++) {
+  simpulDalam = { id: `lapis-${i}`, labelId: `Lapis ${i}`, labelAr: "", anak: [simpulDalam] };
+}
+const daftarSarangDalam = hasilMk.daftar.map((b) =>
+  b.id === "bab-pedoman-2" ? { ...b, sections: [simpulDalam] } : b,
+) as Project["daftarIsi"];
+let z1Melempar = false;
+let z1Galat: string[] = [];
+try {
+  z1Galat = validasiDaftarIsiOtomatis(daftarSarangDalam!, mangkoso);
+} catch {
+  z1Melempar = true;
+}
+cek(
+  "Z1: validator tidak melempar pada sarang 3000 lapis dan menolak bernama tingkat keempat",
+  !z1Melempar && z1Galat.some((g) => g.includes("tingkat keempat")),
+  z1Galat.slice(0, 2).join(" | "),
+);
+
+/* ---------- Perbaikan telaah ulang Tahap 2: R4 (judul lebih dulu) [statis] ---------- */
+const sumberCompose = readFileSync(new URL("../lib/engine/compose.ts", import.meta.url), "utf8");
+cek(
+  "[statis] R4: compose tidak lagi membaca topik lebih dulu di titik tema mana pun",
+  !sumberCompose.includes("p.topikAr || p.judulAr") &&
+    (sumberCompose.match(/p\.judulAr \|\| p\.topikAr/g) ?? []).length >= 8,
+);
+const sumberTulisTab = readFileSync(
+  new URL("../components/workspace/tulis-tab.tsx", import.meta.url),
+  "utf8",
+);
+cek(
+  "[statis] R4: konteks gerbang relevansi di tab Tulis mengirim judul lebih dulu",
+  sumberTulisTab.includes("topikAr: p.judulAr || p.topikAr"),
+);
+
 console.log(gagal === 0 ? "\nSEMUA PASS" : `\n${gagal} GAGAL`);
 process.exit(gagal ? 1 : 0);

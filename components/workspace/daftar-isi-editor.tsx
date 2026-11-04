@@ -80,7 +80,7 @@ function PanelDaftarIsiPedoman({
         >
           Susun daftar isi dari tempelan
         </button>
-        <span className="text-[10.5px] text-ink-500">Penomoran 1 / 1.1 / 1.1.1 / 1.1.1.1 dan penanda huruf kecil a. juga dipahami.</span>
+        <span className="text-[10.5px] text-ink-500">Penomoran 1 / 1.1 / 1.1.1 / 1.1.1.1, pola campuran A. / 1. / a., dan indentasi juga dipahami.</span>
       </div>
       {pesan && <p className="mt-2 text-[12px] text-ink-700">{pesan}</p>}
     </div>

@@ -15,8 +15,16 @@
 //       - Pengertian               <- fasal/matlab (indentasi 4 spasi / 1.1.1)
 //         - Makna kata             <- sub-rincian (indentasi 6 spasi / 1.1.1.1 /
 //                                      penanda huruf kecil "a." pola A / 1 / a)
-// Penomoran desimal (1, 1.1, 1.1.1, 1.1.1.1) juga dipahami dan
-// mengalahkan indentasi.
+// Penomoran desimal majemuk (1.1, 1.1.1, 1.1.1.1) mengalahkan indentasi.
+// Pola campuran contoh pemilik (A / 1 / a) juga dipahami, dengan atau
+// tanpa indentasi (perbaikan telaah ulang Tahap 2, M2): penanda huruf
+// kapital satu karakter adalah sub-bab bila ia tidak membuka bab
+// (indentasi 2+, blok pola yang sudah berjalan, atau bab yang sudah
+// berjalan dalam tempelan berpola), dan angka satu segmen di dalam
+// blok itu adalah fasalnya. Huruf kapital yang merupakan angka Romawi
+// (I, V, X, L, C, D, M) pada posisi membuka tetap dibaca bab, agar
+// daftar isi berpenomoran Romawi tidak terturunkan tingkatnya; angka
+// satu segmen di luar blok huruf tunduk pada indentasi 4+ spasi.
 
 import { z } from "zod";
 import type { BabKustom, SubBabKustom } from "@/lib/engine/project";
@@ -38,7 +46,17 @@ interface BarisOutline {
   teks: string;
 }
 
-function bersihkanBaris(raw: string): { tingkat: number; teks: string } | null {
+interface BarisMentah {
+  teks: string;
+  indent: number;
+  babTegas: boolean;
+  /** Jumlah segmen penanda desimal ("1" = 1, "1.1" = 2, dst.); null bila bukan penanda desimal. */
+  desimalSegmen: number | null;
+  /** Penanda huruf satu karakter; null bila bukan. */
+  huruf: { karakter: string; kapital: boolean } | null;
+}
+
+function bersihkanBaris(raw: string): BarisMentah | null {
   const tanpaKanan = raw.replace(/\s+$/, "");
   if (!tanpaKanan.trim()) return null;
   if (/^-{3,}$/.test(tanpaKanan.trim())) return null;
@@ -50,37 +68,34 @@ function bersihkanBaris(raw: string): { tingkat: number; teks: string } | null {
   // Penanda daftar markdown / penomoran.
   isi = isi.replace(/^[-*•]\s+/, "");
   isi = angkaArabKeLatin(isi);
-  let tingkatDesimal: number | null = null;
-  let tingkatHuruf: number | null = null;
+  let desimalSegmen: number | null = null;
+  let huruf: BarisMentah["huruf"] = null;
   const desimal = isi.match(/^(\d+(?:\.\d+){0,3})[.)]?\s+(.+)$/);
   if (desimal) {
-    tingkatDesimal = desimal[1].split(".").length - 1;
+    desimalSegmen = desimal[1].split(".").length;
     isi = desimal[2];
   } else {
     isi = isi.replace(/^\d+[.)]\s+/, "");
-    // Penanda huruf kecil pola A / 1 / a (contoh pemilik): "a." adalah
-    // sub-rincian, tingkat ketiga di bawah bab (Tahap 2 S5). Hanya
-    // huruf kecil yang dikenali agar angka Romawi bab ("I.", "V.")
-    // tidak ikut terturunkan tingkatnya.
-    const huruf = isi.match(/^([a-z])[.)]\s+(.+)$/);
-    if (huruf) {
-      tingkatHuruf = 3;
-      isi = huruf[2]!;
+    // Penanda huruf satu karakter pola A / 1 / a (contoh pemilik):
+    // huruf kecil "a." adalah sub-rincian, huruf kapital "A." adalah
+    // sub-bab. Tingkat pastinya diputuskan kumpulkan() dari konteks
+    // baris-baris sebelumnya, karena huruf kapital juga bisa menjadi
+    // angka Romawi bab ("I.", "V.").
+    const mHuruf = isi.match(/^([A-Za-z])[.)]\s+(.+)$/);
+    if (mHuruf) {
+      huruf = { karakter: mHuruf[1]!, kapital: mHuruf[1] === mHuruf[1]!.toUpperCase() };
+      isi = mHuruf[2]!;
     }
   }
   const teks = angkaArabKeLatin(isi.replace(/\*\*/g, "").trim());
   if (!teks) return null;
-
-  const babTegas = /^(BAB\s|الباب\s|Bab\s)/.test(teks);
-  let tingkat: number;
-  if (babTegas) tingkat = 0;
-  else if (tingkatDesimal !== null) tingkat = Math.min(tingkatDesimal, 3);
-  else if (tingkatHuruf !== null) tingkat = tingkatHuruf;
-  else if (indent >= 6) tingkat = 3;
-  else if (indent >= 4) tingkat = 2;
-  else if (indent >= 2) tingkat = 1;
-  else tingkat = 0;
-  return { tingkat, teks };
+  return {
+    teks,
+    indent,
+    babTegas: /^(BAB\s|الباب\s|Bab\s)/.test(teks),
+    desimalSegmen,
+    huruf,
+  };
 }
 
 function barisKeDaftarIsi(baris: BarisOutline[]): BabKustom[] {
@@ -135,11 +150,67 @@ function barisKeDaftarIsi(baris: BarisOutline[]): BabKustom[] {
   return hasil;
 }
 
+const HURUF_ROMAWI = new Set(["I", "V", "X", "L", "C", "D", "M"]);
+
+/**
+ * Kumpulkan baris outline dan putuskan tingkat tiap baris. Keputusan
+ * tingkat bersifat kontekstual (perbaikan telaah ulang Tahap 2, M2),
+ * karena penanda yang sama berarti berbeda menurut posisinya:
+ * - huruf kapital satu karakter: sub-bab bila blok pola A / 1 / a
+ *   sedang berjalan, berindentasi 2+, atau bab sudah berjalan dalam
+ *   tempelan yang memuat pola campuran (baris BAB, desimal, atau huruf
+ *   kecil). Tanpa konteks itu ia membuka bab, dan huruf Romawi pada
+ *   posisi membuka selalu bab. Tempelan yang babnya sendiri berpenanda
+ *   huruf kapital tanpa pola lain tetap terbaca seperti sebelumnya.
+ * - angka desimal satu segmen ("1.", "2."): fasal bila blok pola
+ *   huruf sedang berjalan; di luar blok itu ia tunduk pada indentasi
+ *   4+ spasi, dan pada tepi kiri ia adalah bab bernomor.
+ */
 function kumpulkan(teks: string): BarisOutline[] {
-  const hasil: BarisOutline[] = [];
+  const mentah: BarisMentah[] = [];
   for (const raw of teks.split(/\r?\n/)) {
     const b = bersihkanBaris(raw);
-    if (b) hasil.push(b);
+    if (b) mentah.push(b);
+  }
+  const polaCampuran = mentah.some(
+    (b) => b.babTegas || b.desimalSegmen !== null || (b.huruf !== null && !b.huruf.kapital),
+  );
+  const hasil: BarisOutline[] = [];
+  let babBerjalan = false;
+  let polaHuruf = false;
+  for (const b of mentah) {
+    let tingkat: number;
+    if (b.babTegas) {
+      tingkat = 0;
+    } else if (b.desimalSegmen !== null) {
+      if (b.desimalSegmen >= 2) tingkat = Math.min(b.desimalSegmen - 1, 3);
+      else if (polaHuruf) tingkat = 2;
+      else if (b.indent >= 6) tingkat = 3;
+      else if (b.indent >= 4) tingkat = 2;
+      else tingkat = 0;
+    } else if (b.huruf !== null) {
+      if (!b.huruf.kapital) tingkat = 3;
+      else if (polaHuruf) tingkat = 1;
+      else if (b.indent >= 2) tingkat = 1;
+      else if (HURUF_ROMAWI.has(b.huruf.karakter)) tingkat = 0;
+      else if (babBerjalan && polaCampuran) tingkat = 1;
+      else tingkat = 0;
+    } else if (b.indent >= 6) {
+      tingkat = 3;
+    } else if (b.indent >= 4) {
+      tingkat = 2;
+    } else if (b.indent >= 2) {
+      tingkat = 1;
+    } else {
+      tingkat = 0;
+    }
+    if (tingkat === 0) {
+      babBerjalan = true;
+      polaHuruf = false;
+    } else if (b.huruf?.kapital && tingkat === 1) {
+      polaHuruf = true;
+    }
+    hasil.push({ tingkat, teks: b.teks });
   }
   return hasil;
 }
@@ -270,6 +341,13 @@ const KEPALA_RELASI_AR: Record<string, string> = {
   "مستوى": "Tingkat",
 };
 const PREPOSISI_AR = [" في ", " على ", " لدى ", " عند "];
+/** Padanan Indonesia preposisi Arab untuk label relasi (perbaikan telaah R6: label relasi setia pada kata penghubung judul, bukan selalu "dalam"). */
+const PREP_AR_KE_ID: Record<string, string> = {
+  " في ": "dalam",
+  " على ": "terhadap",
+  " لدى ": "pada",
+  " عند ": "pada",
+};
 
 function bersihFrasa(s: string): string {
   return s.replace(/^["«“]+|["»”]+$/g, "").replace(/[.:؛،]+$/g, "").trim().replace(/\s+/g, " ");
@@ -307,6 +385,10 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
       const ekor = sisa.slice(idxBayna + " بين ".length);
       const domain = ekor.split(/\s+و/).map(bersihFrasa).filter((s) => s.length >= 2);
       if (domain.length >= 2) {
+        // Konsep payung adalah konsep sentral judul: ia ikut menjadi
+        // konsep (perbaikan telaah R6), bukan hanya hidup di label
+        // relasi, agar ia mendapat sub-bab definisinya sendiri.
+        if (payung.length >= 2) tambah(payung);
         tambah(domain[0]!);
         tambah(domain[1]!);
         if (payung.length >= 2) {
@@ -327,11 +409,20 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
         if (i > 1) {
           const utama = bersihFrasa(sisa.slice(0, i));
           const konteks = bersihFrasa(sisa.slice(i + prep.length));
+          // عند + satu kata hampir selalu nama tokoh (عند القرطبي):
+          // nama itu bukan konsep yang berdiri sendiri, ia bagian
+          // dari frasa kajiannya, jadi dilipat ke konsep utama
+          // (perbaikan telaah R6).
+          if (prep === " عند " && konteks.split(/\s+/).length === 1) {
+            tambah(`${utama}${prep}${konteks}`);
+            terbelah = true;
+            break;
+          }
           tambah(utama);
           tambah(konteks);
           if (hasil.konsep.length >= 2) {
             hasil.relasiAr = `${kataPertama} ${utama}${prep}${konteks}`;
-            hasil.relasiId = `${kepalaId} ${utama} dalam ${konteks}`;
+            hasil.relasiId = `${kepalaId} ${utama} ${PREP_AR_KE_ID[prep] ?? "dalam"} ${konteks}`;
           }
           terbelah = true;
           break;
@@ -344,8 +435,14 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
     for (const prep of PREPOSISI_AR) {
       const i = sisa.indexOf(prep);
       if (i > 1) {
-        tambah(sisa.slice(0, i));
-        tambah(sisa.slice(i + prep.length));
+        const utama = bersihFrasa(sisa.slice(0, i));
+        const konteks = bersihFrasa(sisa.slice(i + prep.length));
+        if (prep === " عند " && konteks.split(/\s+/).length === 1) {
+          tambah(`${utama}${prep}${konteks}`);
+        } else {
+          tambah(utama);
+          tambah(konteks);
+        }
         return hasil;
       }
     }
@@ -356,6 +453,7 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
   // Judul Latin/Indonesia: belah pada preposisi batas; kata relasi di
   // awal menjadi kepala sub-bab relasi, bukan bagian dari konsep.
   const KEPALA_ID = /^(pengaruh|hubungan|efektivitas|efektifitas|peran|penerapan|implementasi|kontribusi|dampak|korelasi|analisis|studi|kajian)\s+/i;
+  const kapitalKepala = (k: string) => k.charAt(0).toUpperCase() + k.slice(1).toLowerCase();
   let sisa = j;
   let kepala = "";
   const mKepala = sisa.match(KEPALA_ID);
@@ -363,16 +461,24 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
     kepala = mKepala[1]!;
     sisa = bersihFrasa(sisa.slice(mKepala[0].length));
   }
-  // Pola "Hubungan antara X dengan Y": pasangan antara...dengan adalah
-  // pembelah konsepnya. Tanpa penanganan khusus, seluruh sisa judul
-  // menjadi satu konsep (temuan telaah Tahap 2, S3).
-  const mAntara = sisa.match(/^antara\s+(.+?)\s+dengan\s+(.+)$/i);
+  // "Pengaruh Timbal Balik X dan Y": frasa timbal balik adalah bagian
+  // dari kepala relasinya, bukan bahan konsep pertama.
+  if (/^pengaruh$/i.test(kepala) && /^timbal\s+balik\s+/i.test(sisa)) {
+    kepala = "pengaruh timbal balik";
+    sisa = bersihFrasa(sisa.replace(/^timbal\s+balik\s+/i, ""));
+  }
+  const kepalaRelasiDua = /^(hubungan|korelasi|pengaruh timbal balik)$/i.test(kepala);
+  // Pola "antara X dengan Y" dan "antara X dan Y": pasangan antara...
+  // adalah pembelah konsepnya, dengan penutup mana pun. Tanpa
+  // penanganan khusus, seluruh sisa judul menjadi satu konsep, pada
+  // penutup "dan" bahkan konsepnya diawali kata "antara" (temuan
+  // telaah Tahap 2, S3, dan sisa M1 telaah ulang).
+  const mAntara = sisa.match(/^antara\s+(.+?)\s+(dengan|dan)\s+(.+)$/i);
   if (mAntara) {
     tambah(mAntara[1]!);
-    tambah(mAntara[2]!);
+    tambah(mAntara[3]!);
     if (kepala && hasil.konsep.length >= 2) {
-      const kap = kepala.charAt(0).toUpperCase() + kepala.slice(1).toLowerCase();
-      hasil.relasiId = `${kap} ${hasil.konsep[0]!.teks} dengan ${hasil.konsep[1]!.teks}`;
+      hasil.relasiId = `${kapitalKepala(kepala)} ${hasil.konsep[0]!.teks} ${mAntara[2]!.toLowerCase()} ${hasil.konsep[1]!.teks}`;
     }
     return hasil;
   }
@@ -388,6 +494,39 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
   if (mLokasi && !/\s+(?:dalam|pada|terhadap|untuk|melalui)\s+/i.test(mLokasi[2]!)) {
     sisa = bersihFrasa(mLokasi[1]!);
   }
+  // Kepala relasi dua konsep membawa pembelahnya sendiri: "Hubungan X
+  // dengan Y" terbelah pada "dengan" (perbaikan telaah ulang, M1).
+  if (kepalaRelasiDua) {
+    const mDengan = sisa.match(/^(.+?)\s+dengan\s+(.+)$/i);
+    if (mDengan) {
+      tambah(mDengan[1]!);
+      tambah(mDengan[2]!);
+      if (hasil.konsep.length >= 2) {
+        hasil.relasiId = `${kapitalKepala(kepala)} ${hasil.konsep[0]!.teks} dengan ${hasil.konsep[1]!.teks}`;
+      }
+      return hasil;
+    }
+  }
+  // "X dan Y" adalah dua konsep bila kepala judul adalah kata relasi
+  // dua konsep, atau bila sisa judul tidak memuat preposisi lain yang
+  // menjadi pembelahnya. Kata "dan" tidak pernah menjadi pembelah
+  // sebelumnya, jadi varian "Hubungan X dan Y" runtuh menjadi satu
+  // konsep gabungan (perbaikan telaah ulang Tahap 2, M1).
+  const PREPOSISI_ID = /\s+(?:dalam|pada|terhadap|di|untuk|melalui)\s+/i;
+  const bagianDan = sisa.split(/\s+dan\s+/i);
+  if (
+    bagianDan.length === 2 &&
+    bagianDan.every((b) => bersihFrasa(b).length >= 2) &&
+    (kepalaRelasiDua || !PREPOSISI_ID.test(sisa))
+  ) {
+    tambah(bagianDan[0]!);
+    tambah(bagianDan[1]!);
+    if (kepala && hasil.konsep.length >= 2) {
+      hasil.relasiId = `${kapitalKepala(kepala)} ${hasil.konsep[0]!.teks} dan ${hasil.konsep[1]!.teks}`;
+    }
+    return hasil;
+  }
+  const mPrepPertama = sisa.match(/\s+(dalam|pada|terhadap|di|untuk|melalui)\s+/i);
   const bagian = sisa
     .split(/\s+(?:dalam|pada|terhadap|di|untuk|melalui)\s+/i)
     .map(bersihFrasa)
@@ -396,8 +535,10 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
     tambah(bagian[0]!);
     tambah(bagian[bagian.length - 1]!);
     if (kepala && hasil.konsep.length >= 2) {
-      const kap = kepala.charAt(0).toUpperCase() + kepala.slice(1).toLowerCase();
-      hasil.relasiId = `${kap} ${hasil.konsep[0]!.teks} dalam ${hasil.konsep[1]!.teks}`;
+      // Kata penghubung pada label relasi setia pada judul (perbaikan
+      // telaah R6): judul "terhadap" tidak lagi ditulis ulang "dalam".
+      const prepId = mPrepPertama ? mPrepPertama[1]!.toLowerCase() : "dalam";
+      hasil.relasiId = `${kapitalKepala(kepala)} ${hasil.konsep[0]!.teks} ${prepId} ${hasil.konsep[1]!.teks}`;
     }
   } else {
     tambah(sisa);
@@ -460,29 +601,55 @@ function normLabel(s: string): string {
  * tingkat keempat di bawah bab atau id simpul ganda di tingkat mana
  * pun (penjagaan tingkat ketiga, Tahap 2 S5: ikatan dan isi wajib
  * tidak boleh diselundupkan atau dirusak lewat jalur sub-rincian).
- * Mengembalikan daftar pelanggaran; kosong = lolos.
+ * Mengembalikan daftar pelanggaran; kosong = lolos. Fungsi ini TIDAK
+ * melempar: penelusuran pohon berjalan iteratif lebih dulu dan skema
+ * rekursif hanya dijalankan pada data yang kedalamannya sudah
+ * terbukti wajar (perbaikan telaah ulang Tahap 2, Z1: safeParse atas
+ * sarang ribuan lapis melempar RangeError).
  */
 export function validasiDaftarIsiOtomatis(daftar: BabKustom[], tpl: StrukturPedoman): string[] {
   const galat: string[] = [];
-  if (!SkemaDaftarIsiOtomatis.safeParse(daftar).success) {
-    galat.push("bentuk daftar isi tidak sesuai skema BabKustom");
-  }
-  // Telusur seluruh pohon simpul: kedalaman sah maksimal 2 di bawah
-  // sub-bab (fasal lalu sub-rincian); id adalah kunci draf sehingga
-  // duplikat pada tingkat mana pun merusak pemetaan isi.
+  // Telusur seluruh pohon simpul secara ITERATIF: kedalaman sah
+  // maksimal 2 di bawah sub-bab (fasal lalu sub-rincian); id adalah
+  // kunci draf sehingga duplikat pada tingkat mana pun merusak
+  // pemetaan isi. Simpul yang terlalu dalam dilaporkan bernama dan
+  // tidak ditelusur lebih jauh, sama seperti batas rekursif lama.
   const idTerlihat = new Set<string>();
-  const periksaPohon = (s: SubBabKustom, kedalaman: number, konteks: string) => {
-    if (kedalaman > 2) {
-      galat.push(`${konteks}: tingkat keempat tidak dikenal pada "${s.labelId}"`);
-      return;
-    }
-    if (idTerlihat.has(s.id)) galat.push(`${konteks}: id daftar isi ganda "${s.id}"`);
-    idTerlihat.add(s.id);
-    for (const a of s.anak ?? []) periksaPohon(a, kedalaman + 1, konteks);
-  };
+  let terlaluDalam = false;
   daftar.forEach((db, i) => {
-    for (const s of db.sections ?? []) periksaPohon(s, 0, `bab ke-${i + 1}`);
+    const konteks = `bab ke-${i + 1}`;
+    const tumpukan: Array<{ s: SubBabKustom; kedalaman: number }> = (db.sections ?? []).map(
+      (s) => ({ s, kedalaman: 0 }),
+    );
+    while (tumpukan.length > 0) {
+      const { s, kedalaman } = tumpukan.pop()!;
+      if (kedalaman > 2) {
+        galat.push(`${konteks}: tingkat keempat tidak dikenal pada "${s.labelId}"`);
+        terlaluDalam = true;
+        continue;
+      }
+      if (idTerlihat.has(s.id)) galat.push(`${konteks}: id daftar isi ganda "${s.id}"`);
+      idTerlihat.add(s.id);
+      const anak = s.anak ?? [];
+      for (let j = anak.length - 1; j >= 0; j--) {
+        tumpukan.push({ s: anak[j]!, kedalaman: kedalaman + 1 });
+      }
+    }
   });
+  // Skema bentuk hanya dijalankan bila kedalaman sudah terbukti
+  // wajar; pada data yang terlalu dalam, pelanggaran kedalaman di
+  // atas sudah menjadi penolakan bernama dan safeParse yang bisa
+  // melempar dilewati. try/catch adalah jaring pengaman terakhir
+  // kontrak tidak-melempar.
+  if (!terlaluDalam) {
+    let bentukSah = false;
+    try {
+      bentukSah = SkemaDaftarIsiOtomatis.safeParse(daftar).success;
+    } catch {
+      bentukSah = false;
+    }
+    if (!bentukSah) galat.push("bentuk daftar isi tidak sesuai skema BabKustom");
+  }
   const babTpl = [...tpl.bab].sort((a, b) => a.nomor - b.nomor);
   if (daftar.length !== babTpl.length) {
     galat.push(`jumlah bab ${daftar.length} tidak sama dengan template (${babTpl.length})`);
@@ -516,16 +683,26 @@ export function validasiDaftarIsiOtomatis(daftar: BabKustom[], tpl: StrukturPedo
         galat.push(`bab ${b.nomor} kehilangan aturan pedoman`);
       }
     }
-    const labelProyek = new Set(
-      db.sections.flatMap((s) => [normLabel(s.labelId), normLabel(s.labelAr)]),
-    );
     for (const sub of b.subBab) {
       // Sub-bab wajib selalu diperiksa. Pada bab terikat isykal, perancah
       // jawaban dari template (satu-satunya sub-bab bab isi Mangkoso,
       // wajib=false sebagai perancah aplikasi) ikut diperiksa: membuangnya
       // tidak boleh lolos senyap (temuan telaah Tahap 2, R2).
       if (!sub.wajib && typeof b.menjawabIsykal !== "number") continue;
-      if (!labelProyek.has(normLabel(sub.nama)) && !labelProyek.has(normLabel(sub.namaAr ?? ""))) {
+      // Kecocokan wajib pada PASANGAN label di sub-bab proyek yang
+      // sama, untuk setiap bahasa yang dimiliki template (perbaikan
+      // telaah ulang Tahap 2, R3): kecocokan satu bahasa saja
+      // membiarkan label bahasa lainnya diganti bebas dan tetap
+      // lolos, dan label dari dua sub-bab berbeda bisa saling
+      // menutupi dalam satu himpunan gabungan.
+      const namaN = normLabel(sub.nama);
+      const namaArN = normLabel(sub.namaAr ?? "");
+      const cocok = db.sections.some((s) => {
+        if (namaN && normLabel(s.labelId) !== namaN) return false;
+        if (namaArN && normLabel(s.labelAr) !== namaArN) return false;
+        return namaN !== "" || namaArN !== "";
+      });
+      if (!cocok) {
         galat.push(
           sub.wajib
             ? `bab ${b.nomor} membuang sub-bab wajib pedoman "${sub.nama}"`

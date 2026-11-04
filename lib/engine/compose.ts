@@ -79,7 +79,7 @@ export function variabelProyek(p: Project): Vars {
   const bidang = getBidang(p.bidangId);
   const metode = getMetode(p.metode);
   return {
-    topik: p.topikAr || p.judulAr || "[موضوع البحث]",
+    topik: p.judulAr || p.topikAr || "[موضوع البحث]",
     bidang: bidang.labelAr,
     metode: metode.labelAr,
     fenomena: p.fenomenaAr,
@@ -93,7 +93,7 @@ export function variabelProyek(p: Project): Vars {
 
 export function rumusanDefault(p: Project): string[] {
   if (p.rumusan.filter(Boolean).length > 0) return p.rumusan.filter(Boolean);
-  const t = p.topikAr || p.judulAr || "[موضوع البحث]";
+  const t = p.judulAr || p.topikAr || "[موضوع البحث]";
   const lok = p.lokasi || "[مكان البحث]";
   const pop = p.populasi || "[المجتمع البحثي]";
   if (p.jenis === "jurnal") {
@@ -130,7 +130,7 @@ export function rumusanDefault(p: Project): string[] {
 
 export function tujuanDefault(p: Project): string[] {
   if (p.tujuan.filter(Boolean).length > 0) return p.tujuan.filter(Boolean);
-  const t = p.topikAr || p.judulAr || "[موضوع البحث]";
+  const t = p.judulAr || p.topikAr || "[موضوع البحث]";
   const pola: Array<(x: string) => string> = [
     (x) => `الكشف عن واقع ${x} في الميدان المدروس`,
     (x) => `تحليل العوامل المؤثرة في ${x}`,
@@ -186,13 +186,13 @@ const BAB: Record<string, BagianFn> = {
   },
 
   abstrakEn: (p, v) => {
-    const topic = p.topikAr || p.judulAr || "the research topic";
+    const topic = p.judulAr || p.topikAr || "the research topic";
     return par(
       "## Abstract",
       `This study examines ${topic} within the field of Islamic/Arabic studies. It aims to describe the phenomenon as it actually occurs, analyse the factors that shape it, and formulate conclusions that are accountable to the primary sources and to field data.`,
       `The study employs a documented research method appropriate to its questions, drawing on classical and contemporary references. Data were collected and analysed systematically so that every finding presented in this article can be traced back to its evidence.`,
       "[Write the main findings here once the analysis is complete.]",
-      "Keywords: " + (p.topikAr || p.judulAr || "research") + "; Islamic studies; Arabic scholarship",
+      "Keywords: " + (p.judulAr || p.topikAr || "research") + "; Islamic studies; Arabic scholarship",
     );
   },
 
@@ -281,7 +281,7 @@ const BAB: Record<string, BagianFn> = {
       "## حدود البحث",
       isi("اقتصر هذا البحث على الموضوع الآتي: {{topik}}. أما من حيث الحدود المكانية فقد جرى البحث في {{lokasi}}، ومن حيث الحدود الزمانية فقد جرى في الفترة التي حددها الباحث في خطة البحث.", v),
       poin([
-        "**الحدود الموضوعية:** " + (p.topikAr || p.judulAr || "[موضوع البحث]") + " دون غيره من الموضوعات المتصلة به.",
+        "**الحدود الموضوعية:** " + (p.judulAr || p.topikAr || "[موضوع البحث]") + " دون غيره من الموضوعات المتصلة به.",
         "**الحدود المكانية:** " + (p.lokasi || "[مكان البحث]"),
         "**الحدود الزمانية:** الفترة التي جرى فيها جمع البيانات وتحليلها.",
         "**الحدود البشرية:** " + (p.populasi || "[المجتمع أو العينة]"),
@@ -348,7 +348,7 @@ const BAB: Record<string, BagianFn> = {
     return par(
       "## الإطار الفكري",
       isi("يجري الباحث في هذه الدراسة وفق تسلسل منطقي، تبدأ فيه الأسباب من واقع {{topik}} ثم تنتقل إلى تحليل عناصره، ثم إلى النتائج التي نُبني عليها المقترحات. ويمكن تصوير ذلك في الكيفية الآتية:", v),
-      "**المتغير المستقل / الظاهرة المدروسة:** " + (p.topikAr || p.judulAr || "[موضوع البحث]"),
+      "**المتغير المستقل / الظاهرة المدروسة:** " + (p.judulAr || p.topikAr || "[موضوع البحث]"),
       "**العناصر الوسيطة:** " + (p.bidangId ? getBidang(p.bidangId).teori.slice(0, 2).map((t) => t.ar).join("، ") : "[المفاهيم الوسيطة]"),
       "**النتائج المتوقعة:** [اكتب التوقع الذي ترجحه لسؤال البحث الأخير]",
       pilih("itharFikri", 1, seed).map((f) => isi(f.ar, v)).join("\n\n"),
@@ -360,7 +360,7 @@ const BAB: Record<string, BagianFn> = {
     const r = rumusanDefault(p).slice(0, 3);
     const rows = r.map((q, i) => [
       `H${keAngkaArab(i + 1)}`,
-      `يوجد أثر ذو دلالة إحصائية لـ${p.topikAr || p.judulAr || "[المتغير المستقل]"} في النتائج المرتبطة بالسؤال ${keAngkaArab(i + 1)}.`,
+      `يوجد أثر ذو دلالة إحصائية لـ${p.judulAr || p.topikAr || "[المتغير المستقل]"} في النتائج المرتبطة بالسؤال ${keAngkaArab(i + 1)}.`,
       `H0${keAngkaArab(i + 1)}`,
       "لا يوجد أثر ذو دلالة إحصائية.",
     ]);
