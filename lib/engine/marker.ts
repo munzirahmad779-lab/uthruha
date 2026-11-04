@@ -73,8 +73,10 @@ export type SegmenPenanda =
  * meniru pembersih fragmen yang sudah ada di tab Tulis sejak 914a005:
  * blok "[[…" yang tidak membentuk penanda sah adalah fragmen sampai
  * "]]" terdekat (jendela 100 karakter) atau sampai spasi; sisa "ref:…"
- * yatim di luar penanda juga fragmen. Gabungan `mentah` semua segmen
- * selalu sama persis dengan teks masukan.
+ * yatim di luar penanda juga fragmen, tetapi HANYA bila berbentuk id
+ * mesin (src-…/ref-…/hash panjang) yang berdiri sendiri — token "ref:"
+ * di dalam URL atau prosa bukan puing penanda (L3 Tahap 5). Gabungan
+ * `mentah` semua segmen selalu sama persis dengan teks masukan.
  */
 export function pecahSegmen(teks: string): SegmenPenanda[] {
   const hasil: SegmenPenanda[] = [];
@@ -109,14 +111,26 @@ export function pecahSegmen(teks: string): SegmenPenanda[] {
         akhir = tutup + 2;
         // Di dalam jendela "]]" ini, penanda SAH yang mulai lebih dulu
         // tidak boleh ikut tertelan: fragmen berhenti tepat di depannya.
+        // Semua "[[" di dalam jendela dipindai, bukan hanya yang
+        // pertama: pada kepala patah BERSARANG (mis. "[[patah
+        // [[juga-patah [[ref:src-a…]]") kepala sarang pertama bukan
+        // penanda sah, tetapi penanda sah sesudahnya tetap harus
+        // diselamatkan — kalau tidak, pecahSegmen menelannya sebagai
+        // fragmen sementara cariMarker tetap menghitungnya, dan nomor
+        // chip bisa geser satu dari nomor ekspor (L1 telaah Tahap 5,
+        // dikerjakan di Tahap 6).
         // (Di luar jendela, konsumsi berhenti di spasi pertama sehingga
         // penanda berikutnya tidak pernah tertelan dan prosa di antara
         // keduanya tidak ikut menjadi fragmen.)
-        const sarang = teks.indexOf("[[", i + 2);
-        if (sarang !== -1 && sarang < tutup) {
+        let sarang = teks.indexOf("[[", i + 2);
+        while (sarang !== -1 && sarang < tutup) {
           validDi.lastIndex = sarang;
           const m2 = validDi.exec(teks);
-          if (m2 && m2.index === sarang) akhir = sarang;
+          if (m2 && m2.index === sarang) {
+            akhir = sarang;
+            break;
+          }
+          sarang = teks.indexOf("[[", sarang + 2);
         }
       } else {
         let j = i;
@@ -129,13 +143,34 @@ export function pecahSegmen(teks: string): SegmenPenanda[] {
       continue;
     }
     if (teks.startsWith("ref:", i)) {
+      // Sisa "ref:…" yatim hanya fragmen bila bentuknya memang puing
+      // penanda mesin: "ref:" + id berciri mesin (awalan src-/ref-
+      // atau hash heksadesimal panjang) yang berdiri sebagai token
+      // tersendiri (didahului awal teks, spasi, atau tanda buka).
+      // Token "ref:" di dalam URL (didahului "/", ".", atau ":"),
+      // di tengah kata ("prefer:"), atau prosa biasa ("Lihat ref:
+      // pada buku itu", "ref:abc123") BUKAN puing penanda dan tidak
+      // boleh ditulis ulang menjadi peringatan oleh lintasan fragmen
+      // kompilasi (L3 telaah Tahap 5, dikerjakan di Tahap 6).
       let j = i;
       while (j < teks.length && !/[\s\]]/.test(teks[j] ?? "")) j++;
-      if (teks.slice(j, j + 2) === "]]") j += 2;
-      else if (teks[j] === "]") j++;
-      tumpah();
-      hasil.push({ jenis: "fragmen", mentah: teks.slice(i, j), posisi: i });
-      i = j;
+      const token = teks.slice(i, j);
+      // Bentuk puing: id mesin, boleh membawa sisa atribut penanda
+      // ("|hlm:55", "|jilid:2") karena ekor yatim penanda yang putus
+      // di tengah memang menyisakan atributnya (skenario B3).
+      const idMesin =
+        /^ref:(?:(?:src|ref)-[A-Za-z0-9_-]+|[0-9a-f]{16,})(?:\|[A-Za-z]+:[^\s\]|]+)*$/.test(token);
+      const berdiriSendiri = i === 0 || /[\s"'“”«»(\[{]/.test(teks[i - 1] ?? "");
+      if (idMesin && berdiriSendiri) {
+        if (teks.slice(j, j + 2) === "]]") j += 2;
+        else if (teks[j] === "]") j++;
+        tumpah();
+        hasil.push({ jenis: "fragmen", mentah: teks.slice(i, j), posisi: i });
+        i = j;
+        continue;
+      }
+      berjalan += teks[i];
+      i++;
       continue;
     }
     berjalan += teks[i];

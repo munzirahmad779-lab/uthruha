@@ -5,7 +5,7 @@ import type { Project } from "@/lib/engine/project";
 import type { Sumber } from "@/lib/engine/cite";
 import { strukturProyek } from "@/lib/content/struktur";
 import { composeNaskah, composeSection } from "@/lib/engine/compose";
-import { kompilasiMarker } from "@/lib/engine/marker";
+import { cariMarker, kompilasiMarker } from "@/lib/engine/marker";
 import { footnoteGaya, footnotePedoman, gayaSah } from "@/lib/engine/citation";
 
 /**
@@ -167,13 +167,13 @@ export function PasangFootnote({
   }, [sumber.id]);
 
   const jumlahDuplikat = useMemo(() => {
+    // Pola penanda SATU-SATUNYA adalah cariMarker dari marker.ts
+    // (ketat sejak Tahap 5). Salinan pola longgar di sini dulu bisa
+    // kurang menghitung duplikat pada draf berkepala patah sehingga
+    // gerbang konfirmasi duplikat tidak menyala (L2 telaah Tahap 5,
+    // dikerjakan di Tahap 6).
     const teks = p.draf[sectionId] ?? "";
-    const pola = /\[\[ref:([^\]|]+)(?:\|[^\]]*)?\]\]/g;
-    let jumlah = 0;
-    for (const m of teks.matchAll(pola)) {
-      if ((m[1] ?? "").trim() === sumber.id) jumlah++;
-    }
-    return jumlah;
+    return cariMarker(teks).filter((m) => m.id === sumber.id).length;
   }, [p.draf, sectionId, sumber.id]);
 
   const halamanKosong = !halaman.trim();
@@ -243,7 +243,10 @@ export function PasangFootnote({
     // Indeks kemunculan penanda sisipan dalam urutan naskah bayangan —
     // penomoran kini per kemunculan (berulang = bentuk singkat), jadi nomor
     // & teks pratinjau diambil dari def urutan itu, bukan pencocokan teks.
-    const POLA = /\[\[ref:([^\]|]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
+    // Pencarian penanda memakai cariMarker yang ketat, bukan salinan
+    // pola longgar (L2 telaah Tahap 5, dikerjakan di Tahap 6): pada
+    // draf berkepala patah, pola longgar bisa menunjukkan nomor/teks
+    // pratinjau yang salah.
     const perId = new Set(bayangan.sumber.map((s) => s.id));
     const st = strukturProyek(bayangan);
     let berjalan = 0;
@@ -254,7 +257,7 @@ export function PasangFootnote({
       for (const s of c.sections) {
         const drafS = bayangan.draf[s.id];
         const teksS = drafS && drafS.trim().length > 20 ? drafS : composeSection(bayangan, s.id).markdown;
-        const cocok = [...teksS.matchAll(POLA)].filter((m) => perId.has((m[1] ?? "").trim()));
+        const cocok = cariMarker(teksS).filter((m) => perId.has(m.id));
         if (s.id === sectionId) {
           if (modeBaru) {
             idx = berjalan + cocok.length - 1;
@@ -267,7 +270,7 @@ export function PasangFootnote({
             let dalam = 0;
             for (let j = 0; j <= kalimatIdx && j < kal.length; j++) dalam += (kal[j]?.length ?? 0) + (j > 0 ? 1 : 0);
             const posisi = offset + dalam;
-            const sebelum = cocok.filter((m) => (m.index ?? 0) <= posisi + 1).length;
+            const sebelum = cocok.filter((m) => m.posisi <= posisi + 1).length;
             idx = berjalan + Math.max(sebelum - 1, 0);
           }
           selesai = true;
