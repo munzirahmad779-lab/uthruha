@@ -3,9 +3,11 @@
 import { useMemo } from "react";
 import { strukturProyek } from "@/lib/content/struktur";
 import type { Project } from "@/lib/engine/project";
+import { MIN_KAJIAN_DIRASAH, statusDirasah } from "@/lib/engine/dirasah";
 import { cekKesesuaian } from "@/lib/pedoman/cek-kesesuaian";
 import { IconArrowRight, IconDoc, IconPen } from "@/components/icons";
 import { DaftarIsiEditor } from "@/components/workspace/daftar-isi-editor";
+import { DirasahPanel } from "@/components/workspace/dirasah-panel";
 
 export function StrukturTab({
   p,
@@ -111,6 +113,11 @@ export function StrukturTab({
                           {kata > 0 ? ` · terisi ${kata}` : ""}
                           {s.butuhData ? " · data lapangan" : ""}
                           {diLuarSet.has(s.id) ? " · selesai di luar" : ""}
+                          {s.id === "dirasat"
+                            ? ` · dirasah ${statusDirasah(p).jumlah}/${MIN_KAJIAN_DIRASAH} kajian${
+                                statusDirasah(p).cukup ? "" : " (belum cukup)"
+                              }`
+                            : ""}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-start gap-1">
@@ -157,6 +164,8 @@ export function StrukturTab({
           </section>
         ))}
       </div>
+
+      <DirasahPanel p={p} ubah={ubah} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-ink-900/10 bg-parchment-100/60 p-4">
