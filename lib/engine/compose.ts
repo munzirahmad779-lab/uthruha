@@ -6,6 +6,7 @@ import type { FrasaEntry } from "@/lib/content/types";
 import type { Project } from "@/lib/engine/project";
 import { keAngkaArab } from "@/lib/engine/cite";
 import { hasilkanKandidatFootnote, sisipkanFootnoteTerpilih, pangkasSatuHalaman } from "@/lib/engine/auto-ref";
+import { rangkaiDirasah } from "@/lib/engine/dirasah";
 import { bersihSelTabel } from "@/lib/engine/tabel-markdown";
 export type { KandidatFootnote } from "@/lib/engine/auto-ref";
 
@@ -710,20 +711,25 @@ const BAB: Record<string, BagianFn> = {
   },
 
   dirasat: (p, v, seed) => {
-    return par(
-      "## الدراسات السابقة",
-      isi("لجأ الباحث إلى استعراض الدراسات السابقة للتأكد من موقع هذه الدراسة في خريطة البحث العلمي في مجال {{bidang}}، وتُعرض هنا مقارنةً موجزةً بينها:", v),
-      tabel(
-        ["الدارسة", "السنة", "موضوعها", "منهجها", "الفرق عن هذه الدراسة"],
-        [
-          ["[اسم الباحث]", "[السنة]", "[موضوع الدراسة]", "[المنهج]", "[الفرق]"],
-          ["[اسم الباحث]", "[السنة]", "[موضوع الدراسة]", "[المنهج]", "[الفرق]"],
-          ["[اسم الباحث]", "[السنة]", "[موضوع الدراسة]", "[المنهج]", "[الفرق]"],
-        ],
-      ),
-      pilih("dirasat", 2, seed + 1).map((f) => isi(f.ar, v)).join("\n\n"),
-      isi("وبالمقارنة يتبين أن موضع الاختلاف بين هذه الدراسة وما سبقها يظهر في {{fenomena}}، وهو ما يشكل الفراغ البحثي الذي تسعى الدراسة الحالية إلى ملئه.", v),
-    );
+    // Dirasah sabiqoh NYATA (Tahap 7, menutup A9): teks dibangun dari
+    // kajian yang benar-benar dipilih mahasiswa lewat panel dirasah,
+    // bukan lagi tabel perbandingan berisi placeholder "[اسم
+    // الباحث]". Perangkainya hidup di lib/engine/dirasah.ts. Kalimat
+    // fenomena dirumuskan di sini lewat penggolong Tahap 3 dan
+    // diserahkan sebagai kalimat TERSENDIRI: kalimat penutup lama
+    // menyematkan {{fenomena}} di tengah frasa ("يظهر في {{fenomena}}")
+    // dan merusak tata bahasa bila fenomena berbentuk kalimat (paket
+    // cacat Tahap 3 butir ii, porsi dirasat ditutup di tahap ini).
+    void seed;
+    const k: KonteksKhalfiya = {
+      v,
+      siap: varsTerisi(v),
+      pakai: new Set<string>(),
+      fenomenaKalimat: fenomenaBerbentukKalimat(v.fenomena),
+    };
+    return rangkaiDirasah(p, {
+      kalimatFenomena: k.siap.has("fenomena") ? kalimatFenomena(k) : undefined,
+    });
   },
 
   itharFikri: (p, v, seed) => {
@@ -1004,7 +1010,13 @@ export function composeSection(p: Project, sectionId: string, seed = 0): HasilKo
   // bank frasa dan bahan proyek), bukan oleh batas satu halaman yang
   // dirancang untuk bagian-bagian biasa; kelengkapan unsur wajibnya
   // didahulukan daripada batas itu.
-  if (sectionId !== "khalfiya") {
+  // PENGECUALIAN dirasat (Tahap 7): kelas cacat yang sama. Isi bagian
+  // ini adalah SEMUA kajian terpilih mahasiswa (minimal 3 menurut
+  // aturan user) plus sintesis penutupnya; memangkas per paragraf
+  // utuh akan membuang kajian terakhir dan sintesisnya SENYAP, dan
+  // draf tampak lengkap padahal isinya hilang. Panjangnya diatur oleh
+  // jumlah kajian yang dipilih, bukan batas satu halaman.
+  if (sectionId !== "khalfiya" && sectionId !== "dirasat") {
     markdown = pangkasSatuHalaman(markdown);
   }
 

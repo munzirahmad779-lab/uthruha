@@ -13,6 +13,30 @@ export type JenisSumber =
   | "hadis"
   | "koran";
 
+/**
+ * Inti satu kajian terdahulu untuk susunan dirasah sabiqoh (Tahap 7).
+ * Masalah, tujuan, metode, dan temuan dirumuskan model HANYA dari
+ * abstrak yang benar-benar dikembalikan indeks (Crossref, OpenAlex,
+ * Google Books), atau diisi mahasiswa sendiri pada tambahan manual.
+ * `dariAbstrak` mencatat dasar perumusannya: true bila ada abstrak
+ * nyata yang menjadi dasar, false bila kajian hanya dikenal dari
+ * metadatanya (inti lalu kosong dan susunan menyatakannya jujur).
+ */
+export interface IntiDirasah {
+  /** Abstrak atau deskripsi nyata dari sumbernya, apa adanya. */
+  abstrak?: string;
+  /** Masalah yang diangkat kajian, menurut abstraknya. */
+  masalah?: string;
+  /** Tujuan kajian, menurut abstraknya (unsur wajib As'adiyah). */
+  tujuan?: string;
+  /** Metode kajian, menurut abstraknya. */
+  metode?: string;
+  /** Hasil kajian, menurut abstraknya (unsur النتائج wajib As'adiyah). */
+  temuan?: string;
+  /** True bila inti dirumuskan dari abstrak nyata; false bila hanya metadata. */
+  dariAbstrak: boolean;
+}
+
 export interface Sumber {
   id: string;
   jenis: JenisSumber;
@@ -59,6 +83,16 @@ export interface Sumber {
   sumberImpor?: string;
   /** Schema v2: true bila metadata belum diperiksa user (hasil pencarian mentah). */
   perluVerifikasi?: boolean;
+  /**
+   * Inti kajian dirasah sabiqoh (Pembangunan Ulang Tahap 7). Hanya
+   * terisi pada sumber yang dipilih mahasiswa sebagai kajian terdahulu
+   * lewat panel dirasah atau tambahan manualnya; kehadirannya adalah
+   * penanda "sumber ini kajian terpilih". Abstrak dan inti SELALU
+   * berasal dari data sumbernya (abstrak indeks atau isian mahasiswa);
+   * bidang inti yang kosong berarti sumber tidak menyediakannya dan
+   * susunan dirasah menyatakannya apa adanya, tidak pernah dikarang.
+   */
+  dirasah?: IntiDirasah;
   /** Ringkasan lit-review (§6 pengganti matriks): temuan utama sumber ini. */
   temuan?: string;
   /** Ringkasan lit-review: metode yang dipakai sumber ini. */
