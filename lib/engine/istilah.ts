@@ -25,6 +25,27 @@
  *   hanya cocok pada lapis longgar dilaporkan sebagai VARIAN bentuk,
  *   lengkap dengan kutipan teks drafnya, agar mahasiswa menyamakan
  *   sendiri ke bentuk tetap.
+ * - PARTIKEL MENEMPEL (perbaikan telaah Tahap 9, S1): partikel
+ *   konsonan tunggal Arab (و/ف/ب/ل/ك) yang menempel di awal kata
+ *   bukan bagian kata itu, jadi token DRAF dicocokkan juga dalam
+ *   bentuk terlunasi partikelnya: "والعلم" adalah "العلم" berawalan
+ *   و, "بالعلم" adalah "العلم" berawalan ب. Tanpa ini kemunculan
+ *   berpartikel lenyap dari kedua lapis dan istilah terbaca 0
+ *   padahal dipakai. Aturannya dinyatakan dan dibatasi: pelucutan
+ *   maksimal dua lapis, lapis kedua hanya pola partikel + alif lam
+ *   (وبالعلم menjadi العلم); sisa kata sesudah dilucuti wajib
+ *   minimal 3 huruf agar huruf akar tidak termakan (وضع، وصف، ورد
+ *   tidak pernah dilucuti menjadi ضع، صف، رد); yang dilucuti hanya
+ *   token draf, frasa yang dicari tidak pernah dilucuti, jadi beda
+ *   alif lam tetap tidak cocok (frasa "علم" tidak cocok dengan
+ *   "العلم"); dan bentuk yang alif lamnya terasimilasi dalam
+ *   tulisan (للعلم، للمدرسة) tidak dilucuti ke bentuk tetap.
+ * - Hitungan padanan memakai BENTUK INTI dari ar tersimpan
+ *   (perbaikan telaah Tahap 9, S2): istilah yang disimpan chip lama
+ *   membawa string penuh berketerangan kurung; di lapis baca ia
+ *   dihitung dari intinya, sama seperti data tercemar Tahap 6
+ *   dibersihkan saat dibaca. Data tersimpan tidak diubah dan
+ *   tampilan padanan tetap apa adanya.
  */
 import type { Istilah, Project } from "@/lib/engine/project";
 
@@ -115,15 +136,40 @@ export function kunciTeks(s: string): string {
     .join(" ");
 }
 
+const PARTIKEL_DEPAN = "وفبلك";
+const PARTIKEL_SEBELUM_LAM = "بلك";
+
+/**
+ * Bentuk-bentuk satu token DRAF untuk pencocokan: token itu sendiri
+ * plus bentuk terlunasi partikel depannya (aturan dan batasnya di
+ * kepala berkas). Hanya dipanggil untuk token draf; token frasa
+ * tidak pernah melewati fungsi ini.
+ */
+function bentukTokenDraf(kata: string): string[] {
+  const hasil = [kata];
+  if (kata.length >= 4 && PARTIKEL_DEPAN.includes(kata[0])) {
+    const sisa = kata.slice(1);
+    hasil.push(sisa);
+    if (sisa.length >= 4 && PARTIKEL_SEBELUM_LAM.includes(sisa[0]) && sisa[1] === "ا") {
+      hasil.push(sisa.slice(1));
+    }
+  }
+  return hasil;
+}
+
 /**
  * Hitung kemunculan frasa di teks dengan jendela token: setiap posisi
  * awal token diperiksa; jendela yang cocok dasar dihitung dasar,
- * jendela yang hanya cocok longgar dihitung varian.
+ * jendela yang hanya cocok longgar dihitung varian. Token draf cocok
+ * dengan token frasa bila salah satu bentuknya (utuh atau terlunasi
+ * partikel) sama dengan token frasa itu.
  */
 export function hitungFrasa(teks: string, frasa: string): HitunganFrasa {
   const pola = tokenFrasa(frasa);
   if (pola.length === 0 || !teks) return { dasar: 0, varian: 0, kutipanVarian: "" };
   const token = tokenisasi(teks);
+  const bentukDasar = token.map((t) => bentukTokenDraf(t.dasar));
+  const bentukLonggar = token.map((t) => bentukTokenDraf(t.longgar));
   let dasar = 0;
   let varian = 0;
   let kutipanVarian = "";
@@ -131,8 +177,8 @@ export function hitungFrasa(teks: string, frasa: string): HitunganFrasa {
     let cocokDasar = true;
     let cocokLonggar = true;
     for (let j = 0; j < pola.length; j++) {
-      if (token[i + j].dasar !== pola[j].dasar) cocokDasar = false;
-      if (token[i + j].longgar !== pola[j].longgar) cocokLonggar = false;
+      if (!bentukDasar[i + j].includes(pola[j].dasar)) cocokDasar = false;
+      if (!bentukLonggar[i + j].includes(pola[j].longgar)) cocokLonggar = false;
       if (!cocokDasar && !cocokLonggar) break;
     }
     if (cocokDasar) dasar++;
@@ -149,11 +195,17 @@ export function hitungFrasa(teks: string, frasa: string): HitunganFrasa {
   return { dasar, varian, kutipanVarian };
 }
 
-/** Analisis semua istilah proyek terhadap draf proyek itu sendiri. Murni: tidak mengubah proyek. */
+/**
+ * Analisis semua istilah proyek terhadap draf proyek itu sendiri.
+ * Murni: tidak mengubah proyek. Padanan dihitung dari BENTUK INTI ar
+ * tersimpan (S2 telaah Tahap 9): data warisan chip lama yang masih
+ * membawa rincian kurung ikut terhitung dari intinya di lapis baca
+ * ini, sementara data tersimpan dan tampilannya tetap apa adanya.
+ */
 export function analisisIstilahProyek(p: Pick<Project, "draf" | "istilah">): AnalisisIstilah[] {
   const teks = teksDrafProyek(p);
   return (p.istilah ?? []).map((istilah) => {
-    const ar = hitungFrasa(teks, (istilah.ar ?? "").trim());
+    const ar = hitungFrasa(teks, bentukIntiAr(istilah.ar ?? ""));
     const label = hitungFrasa(teks, (istilah.id_label ?? "").trim());
     return {
       istilah,
@@ -178,6 +230,12 @@ export function statusIstilah(a: AnalisisIstilah): StatusIstilah {
  * lebih dari satu padanan yang berbeda. Logika lama tab, dipindah ke
  * sini agar teruji; perbandingan kini memakai normalisasi dasar yang
  * sama dengan penghitung, jadi beda harakat tidak dianggap beda padanan.
+ * Kunci padanan memakai BENTUK INTI (S2 telaah Tahap 9): entri warisan
+ * berketerangan kurung dan entri inti dengan label sama terkelompok
+ * sebagai padanan yang sama, bukan konflik semu dan bukan luput.
+ * Entri berpadanan kosong dilewati dari perbandingan (R1 telaah
+ * Tahap 9): padanan yang hilang bukan padanan yang berbeda, jadi ia
+ * tidak membentuk dan tidak ikut grup konflik.
  */
 export function konflikPadanan(istilah: Istilah[]): Istilah[][] {
   const grup = new Map<string, Istilah[]>();
@@ -187,9 +245,12 @@ export function konflikPadanan(istilah: Istilah[]): Istilah[][] {
     if (!k) continue;
     grup.set(k, [...(grup.get(k) ?? []), t]);
   }
-  return Array.from(grup.values()).filter(
-    (g) => new Set(g.map((x) => kunciTeks(x.ar ?? ""))).size > 1,
-  );
+  return Array.from(grup.values()).filter((g) => {
+    const padananBerbeda = new Set(
+      g.map((x) => kunciTeks(bentukIntiAr(x.ar ?? ""))).filter((k) => k.length > 0),
+    );
+    return padananBerbeda.size > 1;
+  });
 }
 
 /**

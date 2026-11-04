@@ -25,6 +25,15 @@
  *   (analisisIstilahProyek, saranDariDraf, bentukIntiAr), penghitung
  *   regex lama tidak ada lagi, kelompok usulan bidang berlabel jujur
  *   "(belum terdeteksi di draf)".
+ * - Perbaikan telaah Tahap 9: (S1) kemunculan berpartikel menempel
+ *   (و/ف/ب/ل/ك) terhitung, dibuktikan pada fixture prosa realistis
+ *   dengan pembanding manual sadar partikel yang ditulis ulang
+ *   dengan cara berbeda dari mesin, plus kontrol kata berakar و
+ *   yang tidak boleh termakan pelucutan; (S2) istilah warisan chip
+ *   lama (ar penuh berketerangan kurung) terhitung dari bentuk
+ *   intinya di lapis baca tanpa mengubah data, dan pengelompokan
+ *   konflik memakai kunci inti yang sama; (R1) entri berpadanan
+ *   kosong tidak membentuk konflik semu.
  *
  * Jalankan: npx tsx scripts/test-tahap9-istilah.ts
  */
@@ -59,6 +68,46 @@ function hitungManual(teks: string, frasa: string): number {
   while (i >= 0) {
     n++;
     i = t.indexOf(` ${f} `, i + 1);
+  }
+  return n;
+}
+
+/** Pembanding manual sadar partikel, ditulis dengan cara yang
+ *  BERBEDA dari mesin: seluruh teks ditulis ulang kata demi kata
+ *  (tiap kata dilucuti partikel depannya dengan putaran huruf di
+ *  sini: maks dua lapis, lapis kedua hanya pola partikel + alif lam,
+ *  sisa kata minimal 3 huruf), lalu frasa dihitung sebagai substring
+ *  berlapis spasi pada teks hasil tulisan ulang itu. Mesin tidak
+ *  menulis ulang teks; ia membandingkan jendela token terhadap
+ *  himpunan bentuk tiap token, jadi kesepakatan keduanya bukan
+ *  kesepakatan kode yang sama dengan dirinya. */
+function hitungManualPartikel(teks: string, frasa: string): number {
+  const norm = (s: string) =>
+    s
+      .replace(/[\u064B-\u0652\u0670\u0640]/g, "")
+      .replace(/[أإآٱ]/g, "ا")
+      .replace(/ى/g, "ي")
+      .toLowerCase();
+  const lucuti = (k: string): string => {
+    if (k.length >= 4 && "وفبلك".includes(k[0])) {
+      const sisa = k.slice(1);
+      if (sisa.length >= 4 && "بلك".includes(sisa[0]) && sisa[1] === "ا") {
+        return sisa.slice(1);
+      }
+      return sisa;
+    }
+    return k;
+  };
+  const kataTeks = norm(teks).split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(lucuti);
+  const kataFrasa = norm(frasa).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (kataFrasa.length === 0 || kataTeks.length === 0) return 0;
+  const t = ` ${kataTeks.join(" ")} `;
+  const f = ` ${kataFrasa.join(" ")} `;
+  let n = 0;
+  let i = t.indexOf(f);
+  while (i >= 0) {
+    n++;
+    i = t.indexOf(f, i + 1);
   }
   return n;
 }
@@ -277,6 +326,144 @@ async function main() {
     "I5 penanda ketidakkonsistenan tampil di tab",
     sumberTab.includes("Padanan belum dipakai di draf") &&
       sumberTab.includes("Bentuk lain dari padanan tetap"),
+  );
+
+  // J. Perbaikan telaah S1: partikel menempel tidak melenyapkan kemunculan.
+  cek(
+    "J1 kemunculan tunggal berawalan و terhitung (kasus probe Q2)",
+    hitungFrasa("والعلم نور", "العلم").dasar === 1,
+  );
+  const teksQ6 = "المدرسة النبوية أصل، والمدرسة النبوية فرع، والمدرسه النبوية ثالثة";
+  const hitQ6 = hitungFrasa(teksQ6, "المدرسة النبوية");
+  cek(
+    "J2 tiga kemunculan realistis: 2 dasar + 1 varian, tidak ada yang lenyap (kasus probe Q6)",
+    hitQ6.dasar === 2 && hitQ6.varian === 1 && hitQ6.dasar + hitQ6.varian === 3,
+    `dasar=${hitQ6.dasar} varian=${hitQ6.varian}`,
+  );
+  cek(
+    "J3 hitungan dasar Q6 sama dengan pembanding manual sadar partikel",
+    hitQ6.dasar === hitungManualPartikel(teksQ6, "المدرسة النبوية"),
+    `manual=${hitungManualPartikel(teksQ6, "المدرسة النبوية")}`,
+  );
+  cek(
+    "J4 partikel pada token tengah frasa terhitung",
+    hitungFrasa("أدرس مناهج والتفسير في هذا الباب", "مناهج التفسير").dasar === 1,
+  );
+  cek(
+    "J5 awalan ب dan ف terhitung",
+    hitungFrasa("بالعلم يسمو الإنسان، فالعلم غايته", "العلم").dasar === 2,
+  );
+  const DRAF_PROSA =
+    "والعلم نور يهدي الباحث، وسبب النزول معروف في بابه، وقد بيّن ومناهج التفسير ذلك. وكان العلم أساسا متينا، وبالعلم يتقدم البحث، فالعلم غاية كل طالب. والوحدة أصل في الجماعة.";
+  for (const [frasa, harap] of [
+    ["العلم", 4],
+    ["سبب النزول", 1],
+    ["مناهج التفسير", 1],
+  ] as const) {
+    cek(
+      `J6 prosa realistis: "${frasa}" terhitung ${harap} dan sama dengan manual partikel`,
+      hitungFrasa(DRAF_PROSA, frasa).dasar === harap &&
+        hitungFrasa(DRAF_PROSA, frasa).dasar === hitungManualPartikel(DRAF_PROSA, frasa),
+      `mesin=${hitungFrasa(DRAF_PROSA, frasa).dasar} manual=${hitungManualPartikel(DRAF_PROSA, frasa)}`,
+    );
+  }
+  const DRAF_AKAR = "وضع الباحث منهجه ووصف الظاهرة وورد الخبر في النص. الوحدة أصل في هذا الباب.";
+  cek(
+    "J7 kontrol akar و: وضع terhitung persis 1 (bentuk polosnya sendiri)",
+    hitungFrasa(DRAF_AKAR, "وضع").dasar === 1 &&
+      hitungManualPartikel(DRAF_AKAR, "وضع") === 1,
+  );
+  cek(
+    "J8 pelucutan tidak memakan huruf akar: صف dan رد tetap 0 dari ووصف وورد",
+    hitungFrasa(DRAF_AKAR, "صف").dasar === 0 && hitungFrasa(DRAF_AKAR, "رد").dasar === 0,
+  );
+  cek(
+    "J9 kontrol probe Q5: الوحدة terhitung persis 1",
+    hitungFrasa(DRAF_AKAR, "الوحدة").dasar === 1,
+  );
+  const proyek4 = newProject({
+    bidangId: "quran",
+    istilah: [],
+    draf: {
+      "bab-1": "تناول البحث وسبب النزول أولا، ثم عاد وسبب النزول ثانيا في الباب نفسه.",
+    },
+  }) as Project;
+  const saranPartikel = saranDariDraf(proyek4, [
+    { ar: "سبب النزول", id: "asbab al-nuzul" },
+    { ar: "قواعد التفسير", id: "qawaid al-tafsir" },
+  ]);
+  cek(
+    "J10 kandidat yang hanya muncul berpartikel tetap disarankan dengan hitungan sebenarnya (kasus probe Q7)",
+    saranPartikel.length === 1 && saranPartikel[0].ar === "سبب النزول" && saranPartikel[0].munculAr === 2,
+    `jumlah=${saranPartikel.length} munculAr=${saranPartikel[0]?.munculAr}`,
+  );
+  const proyek5 = newProject({
+    bidangId: "quran",
+    istilah: [{ id: "ist-p", id_label: "metode tafsir", ar: "مناهج التفسير" }],
+    draf: { "bab-1": "ومناهج التفسير أساس هذا البحث ومنهجه." },
+  }) as Project;
+  const analisis5 = analisisIstilahProyek(proyek5);
+  cek(
+    "J11 istilah terdaftar yang hanya muncul berpartikel terbaca dipakai, bukan 0 (kasus probe Q8)",
+    analisis5[0]?.munculAr === 1 && statusIstilah(analisis5[0]) === "dipakai",
+    `munculAr=${analisis5[0]?.munculAr}`,
+  );
+  cek(
+    "J12 batas dinyatakan: alif lam terasimilasi (للعلم) tidak dilucuti ke bentuk tetap",
+    hitungFrasa("للعلم أثر كبير في النفوس", "العلم").dasar === 0,
+  );
+
+  // K. Perbaikan telaah S2: data warisan chip lama terhitung dari intinya.
+  const AR_WARISAN = "مناهج التفسير (التحليلي، الإجمالي، المقارن، الموضوعي)";
+  const proyekWaris = newProject({
+    bidangId: "quran",
+    istilah: [{ id: "war-1", id_label: "metode tafsir", ar: AR_WARISAN }],
+    draf: {
+      "bab-1":
+        "يعتمد البحث مناهج التفسير في الجمع، ويذكر مَنَاهِجَ التَّفْسِيرِ ثانيا، ومناهج التفسير ثالثا.",
+    },
+  }) as Project;
+  const analisisWaris = analisisIstilahProyek(proyekWaris);
+  cek(
+    "K1 istilah warisan berketerangan kurung terhitung dari intinya pada draf berharakat (kasus probe P2)",
+    analisisWaris[0]?.munculAr === 3 &&
+      analisisWaris[0].munculAr === hitungManualPartikel(teksDrafProyek(proyekWaris), "مناهج التفسير"),
+    `munculAr=${analisisWaris[0]?.munculAr} manual=${hitungManualPartikel(teksDrafProyek(proyekWaris), "مناهج التفسير")}`,
+  );
+  cek(
+    "K2 data warisan tersimpan tidak diubah oleh hitungan lapis baca",
+    proyekWaris.istilah[0].ar === AR_WARISAN,
+  );
+  cek(
+    "K3 entri warisan dan entri inti berlabel sama bukan konflik semu dan tidak luput pengelompokan",
+    konflikPadanan([
+      { id: "w1", id_label: "Metode", ar: AR_WARISAN },
+      { id: "w2", id_label: "metode", ar: "مناهج التفسير" },
+    ]).length === 0,
+  );
+  cek(
+    "K4 konflik nyata tetap terdeteksi bila satu sisi entri warisan",
+    konflikPadanan([
+      { id: "w3", id_label: "Tafsir", ar: "التفسير (الموضوعي)" },
+      { id: "w4", id_label: "tafsir", ar: "التأويل" },
+    ]).length === 1,
+  );
+
+  // L. Perbaikan telaah R1: padanan kosong tidak membentuk konflik semu.
+  cek(
+    "L1 satu padanan nyata + satu padanan kosong bukan konflik (kasus probe P8)",
+    konflikPadanan([
+      { id: "r1", id_label: "Tafsir", ar: "التفسير" },
+      { id: "r2", id_label: "tafsir", ar: "" },
+    ]).length === 0,
+  );
+  cek(
+    "L2 konflik dua padanan nyata tetap terdeteksi di samping entri berpadanan kosong",
+    konflikPadanan([
+      { id: "r3", id_label: "Tafsir", ar: "التفسير" },
+      { id: "r4", id_label: "tafsir", ar: "التأويل" },
+      { id: "r5", id_label: "Tafsir", ar: "" },
+    ]).length === 1,
   );
 
   console.log(`\nHASIL: ${lulus} PASS, ${gagal} FAIL`);
