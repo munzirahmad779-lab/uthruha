@@ -272,7 +272,7 @@ export function IstilahTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Proj
         </div>
         <div className="rounded-xl border border-ink-900/10 bg-white/70 px-3 py-2.5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
-            Muncul di draf
+            Padanan terpakai
           </p>
           <p className="mt-0.5 text-base font-bold text-ink-900">{analisis.dipakai}</p>
         </div>

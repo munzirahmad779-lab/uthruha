@@ -508,6 +508,11 @@ async function main() {
       hitungManualPartikel("ووحدة الأمة مطلب أهلها", "حدة") === 0,
   );
   cek(
+    "M5b batas dinyatakan (keputusan verifikasi menyeluruh): وحدة berdiri sendiri melahirkan calon حدة lapis pertama, وحدة sendiri tetap tepat",
+    hitungFrasa("وحدة الأمة هدف سام", "حدة").dasar === 1 &&
+      hitungFrasa("وحدة الأمة هدف سام", "وحدة").dasar === 1,
+  );
+  cek(
     "M6 batas terasimilasi tidak berubah: للمدرسة tetap 0 untuk bentuk tetap dan bentuk polosnya",
     hitungFrasa("للمدرسة دور كبير في التربية", "المدرسة").dasar === 0 &&
       hitungFrasa("للمدرسة دور كبير في التربية", "مدرسة").dasar === 0,

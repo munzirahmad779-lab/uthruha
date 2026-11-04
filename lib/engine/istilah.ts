@@ -50,6 +50,19 @@
  *   hanya token draf, frasa yang dicari tidak pernah dilucuti,
  *   jadi beda alif lam tetap tidak cocok (frasa "علم" tidak cocok
  *   dengan "العلم").
+ * - BATAS YANG DINYATAKAN (keputusan tahap verifikasi menyeluruh
+ *   atas R-baru telaah Tahap 9 ulang 2): kata berakar و yang berdiri
+ *   sendiri dapat melahirkan bentuk calon dari pelucutan lapis
+ *   pertama. Contoh terukur: draf memuat "وحدة" sementara proyek
+ *   mendaftarkan "حدة" sebagai istilah, maka حدة terbaca muncul 1
+ *   kali dari وحدة itu. و di sini kata sambung sekaligus huruf
+ *   akar, dan tanpa kamus keduanya tidak dapat dibedakan mesin;
+ *   وحدة sendiri tetap terhitung benar sebagai وحدة. Pagar daftar
+ *   kata berakar و yang umum ditolak sebagai jalan keluar: daftar
+ *   parsial menciptakan asimetri diam-diam baru untuk kata di luar
+ *   daftar. Ambiguitas ini DITERIMA sebagai batas aturan yang
+ *   dinyatakan, dengan syarat picu sempit (proyek mendaftarkan
+ *   kata saingan yang persis sisa pelucutannya).
  * - Hitungan padanan memakai BENTUK INTI dari ar tersimpan
  *   (perbaikan telaah Tahap 9, S2): istilah yang disimpan chip lama
  *   membawa string penuh berketerangan kurung; di lapis baca ia
