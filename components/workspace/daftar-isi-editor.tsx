@@ -80,7 +80,7 @@ function PanelDaftarIsiPedoman({
         >
           Susun daftar isi dari tempelan
         </button>
-        <span className="text-[10.5px] text-ink-500">Penomoran 1 / 1.1 / 1.1.1 juga dipahami.</span>
+        <span className="text-[10.5px] text-ink-500">Penomoran 1 / 1.1 / 1.1.1 / 1.1.1.1 dan penanda huruf kecil a. juga dipahami.</span>
       </div>
       {pesan && <p className="mt-2 text-[12px] text-ink-700">{pesan}</p>}
     </div>
@@ -222,6 +222,119 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
     );
   }
 
+  function ubahCucu(
+    i: number,
+    j: number,
+    k: number,
+    l: number,
+    patch: Partial<BabKustom["sections"][number]>,
+  ) {
+    if (!daftar) return;
+    terapkan(
+      daftar.map((b, bi) =>
+        bi === i
+          ? {
+              ...b,
+              sections: b.sections.map((s, sj) =>
+                sj === j
+                  ? {
+                      ...s,
+                      anak: (s.anak ?? []).map((a, ak) =>
+                        ak === k
+                          ? { ...a, anak: (a.anak ?? []).map((c, cl) => (cl === l ? { ...c, ...patch } : c)) }
+                          : a,
+                      ),
+                    }
+                  : s,
+              ),
+            }
+          : b,
+      ),
+    );
+  }
+
+  function tambahCucu(i: number, j: number, k: number) {
+    if (!daftar) return;
+    const unik = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
+    terapkan(
+      daftar.map((b, bi) =>
+        bi === i
+          ? {
+              ...b,
+              sections: b.sections.map((s, sj) =>
+                sj === j
+                  ? {
+                      ...s,
+                      anak: (s.anak ?? []).map((a, ak) =>
+                        ak === k
+                          ? {
+                              ...a,
+                              anak: [
+                                ...(a.anak ?? []),
+                                { id: `rincian-${unik}`, labelId: "Sub-rincian baru", labelAr: "" },
+                              ],
+                            }
+                          : a,
+                      ),
+                    }
+                  : s,
+              ),
+            }
+          : b,
+      ),
+    );
+  }
+
+  function hapusCucu(i: number, j: number, k: number, l: number) {
+    if (!daftar) return;
+    terapkan(
+      daftar.map((b, bi) =>
+        bi === i
+          ? {
+              ...b,
+              sections: b.sections.map((s, sj) =>
+                sj === j
+                  ? {
+                      ...s,
+                      anak: (s.anak ?? []).map((a, ak) =>
+                        ak === k ? { ...a, anak: (a.anak ?? []).filter((_, cl) => cl !== l) } : a,
+                      ),
+                    }
+                  : s,
+              ),
+            }
+          : b,
+      ),
+    );
+  }
+
+  function pindahCucu(i: number, j: number, k: number, l: number, arah: -1 | 1) {
+    if (!daftar) return;
+    const cucu = [...(daftar[i]?.sections[j]?.anak?.[k]?.anak ?? [])];
+    const t = l + arah;
+    if (t < 0 || t >= cucu.length) return;
+    const [diambil] = cucu.splice(l, 1);
+    if (!diambil) return;
+    cucu.splice(t, 0, diambil);
+    terapkan(
+      daftar.map((b, bi) =>
+        bi === i
+          ? {
+              ...b,
+              sections: b.sections.map((s, sj) =>
+                sj === j
+                  ? {
+                      ...s,
+                      anak: (s.anak ?? []).map((a, ak) => (ak === k ? { ...a, anak: cucu } : a)),
+                    }
+                  : s,
+              ),
+            }
+          : b,
+      ),
+    );
+  }
+
   function hapusBab(i: number) {
     if (!daftar) return;
     terapkan(daftar.filter((_, bi) => bi !== i));
@@ -249,7 +362,7 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
           <p className="text-[12px] leading-relaxed text-ink-600">
             Tidak memakai pola isykal? Anda tetap bisa mengganti judul bab dan sub-bab: jadikan struktur
             bawaan saat ini sebagai daftar isi milik proyek, lalu edit bebas (termasuk menambah
-            fasal/matlab di bawah sub-bab).
+            fasal/matlab di bawah sub-bab dan sub-rincian di bawah fasal).
           </p>
           <button type="button" onClick={() => ubah({ daftarIsi: susunDaftarIsiBawaan(p), daftarIsiDariJudul: false })} className="btn-quiet mt-2">
             Jadikan struktur bawaan bisa diedit
@@ -354,30 +467,66 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
                 {(s.anak ?? []).length > 0 && (
                   <ul className="mt-1.5 space-y-1.5 border-s-2 border-gold-600/30 ps-3 ms-2">
                     {(s.anak ?? []).map((a, k) => (
-                      <li key={a.id} className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">Fasal</span>
-                        <input
-                          className="input !w-40 !py-1 text-[11px]"
-                          value={a.labelId}
-                          onChange={(e) => ubahAnak(i, j, k, { labelId: e.target.value })}
-                          aria-label="Judul fasal/matlab (Indonesia)"
-                        />
-                        <input
-                          className="input min-w-32 flex-1 !py-1 text-right font-naskh text-[11.5px]"
-                          dir="rtl"
-                          value={a.labelAr}
-                          onChange={(e) => ubahAnak(i, j, k, { labelAr: e.target.value })}
-                          aria-label="Judul fasal/matlab (Arab)"
-                        />
-                        <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => pindahAnak(i, j, k, -1)} title="Naikkan">
-                          ↑
-                        </button>
-                        <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => pindahAnak(i, j, k, 1)} title="Turunkan">
-                          ↓
-                        </button>
-                        <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => hapusAnak(i, j, k)} title="Hapus fasal">
-                          ✕
-                        </button>
+                      <li key={a.id}>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">Fasal</span>
+                          <input
+                            className="input !w-40 !py-1 text-[11px]"
+                            value={a.labelId}
+                            onChange={(e) => ubahAnak(i, j, k, { labelId: e.target.value })}
+                            aria-label="Judul fasal/matlab (Indonesia)"
+                          />
+                          <input
+                            className="input min-w-32 flex-1 !py-1 text-right font-naskh text-[11.5px]"
+                            dir="rtl"
+                            value={a.labelAr}
+                            onChange={(e) => ubahAnak(i, j, k, { labelAr: e.target.value })}
+                            aria-label="Judul fasal/matlab (Arab)"
+                          />
+                          <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => pindahAnak(i, j, k, -1)} title="Naikkan">
+                            ↑
+                          </button>
+                          <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => pindahAnak(i, j, k, 1)} title="Turunkan">
+                            ↓
+                          </button>
+                          <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => hapusAnak(i, j, k)} title="Hapus fasal">
+                            ✕
+                          </button>
+                          <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => tambahCucu(i, j, k)} title="Tambah sub-rincian di bawah fasal ini">
+                            + Rincian
+                          </button>
+                        </div>
+                        {(a.anak ?? []).length > 0 && (
+                          <ul className="mt-1.5 space-y-1.5 border-s-2 border-gold-600/20 ps-3 ms-2">
+                            {(a.anak ?? []).map((c, l) => (
+                              <li key={c.id} className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">Rincian</span>
+                                <input
+                                  className="input !w-36 !py-1 text-[11px]"
+                                  value={c.labelId}
+                                  onChange={(e) => ubahCucu(i, j, k, l, { labelId: e.target.value })}
+                                  aria-label="Judul sub-rincian (Indonesia)"
+                                />
+                                <input
+                                  className="input min-w-28 flex-1 !py-1 text-right font-naskh text-[11.5px]"
+                                  dir="rtl"
+                                  value={c.labelAr}
+                                  onChange={(e) => ubahCucu(i, j, k, l, { labelAr: e.target.value })}
+                                  aria-label="Judul sub-rincian (Arab)"
+                                />
+                                <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => pindahCucu(i, j, k, l, -1)} title="Naikkan">
+                                  ↑
+                                </button>
+                                <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => pindahCucu(i, j, k, l, 1)} title="Turunkan">
+                                  ↓
+                                </button>
+                                <button type="button" className="btn-quiet !px-1.5 !py-0.5 !text-[11px]" onClick={() => hapusCucu(i, j, k, l)} title="Hapus sub-rincian">
+                                  ✕
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -392,7 +541,8 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
       ))}
       <p className="text-[11px] leading-relaxed text-ink-500">
         Perubahan langsung dipakai tab Tulis, penyusun draf otomatis, dan ekspor. Tiap sub-bab bisa
-        diberi fasal/matlab (tombol “+ Fasal”) sesuai pedoman masing-masing. Menghapus sub-bab tidak
+        diberi fasal/matlab (tombol “+ Fasal”) dan tiap fasal bisa diberi sub-rincian (tombol
+        “+ Rincian”) sesuai pedoman masing-masing. Menghapus sub-bab tidak
         menghapus draf yang sudah ditulis — drafnya tetap tersimpan di proyek ini.
       </p>
       <PanelDaftarIsiPedoman p={p} ubah={ubah} sudahAda={true} />

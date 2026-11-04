@@ -13,7 +13,10 @@
 //   - BAB I Pendahuluan            <- bab (tanpa indentasi / diawali BAB|الباب)
 //     - Latar Belakang             <- sub-bab (indentasi 2 spasi / penomoran 1.1)
 //       - Pengertian               <- fasal/matlab (indentasi 4 spasi / 1.1.1)
-// Penomoran desimal (1, 1.1, 1.1.1) juga dipahami dan mengalahkan indentasi.
+//         - Makna kata             <- sub-rincian (indentasi 6 spasi / 1.1.1.1 /
+//                                      penanda huruf kecil "a." pola A / 1 / a)
+// Penomoran desimal (1, 1.1, 1.1.1, 1.1.1.1) juga dipahami dan
+// mengalahkan indentasi.
 
 import { z } from "zod";
 import type { BabKustom, SubBabKustom } from "@/lib/engine/project";
@@ -31,7 +34,7 @@ const BAB_AR = [
 const mengandungArab = (s: string) => /[\u0600-\u06FF]/.test(s);
 
 interface BarisOutline {
-  tingkat: number; // 0 bab, 1 sub-bab, 2 fasal
+  tingkat: number; // 0 bab, 1 sub-bab, 2 fasal, 3 sub-rincian
   teks: string;
 }
 
@@ -48,12 +51,22 @@ function bersihkanBaris(raw: string): { tingkat: number; teks: string } | null {
   isi = isi.replace(/^[-*•]\s+/, "");
   isi = angkaArabKeLatin(isi);
   let tingkatDesimal: number | null = null;
-  const desimal = isi.match(/^(\d+(?:\.\d+){0,2})[.)]?\s+(.+)$/);
+  let tingkatHuruf: number | null = null;
+  const desimal = isi.match(/^(\d+(?:\.\d+){0,3})[.)]?\s+(.+)$/);
   if (desimal) {
     tingkatDesimal = desimal[1].split(".").length - 1;
     isi = desimal[2];
   } else {
     isi = isi.replace(/^\d+[.)]\s+/, "");
+    // Penanda huruf kecil pola A / 1 / a (contoh pemilik): "a." adalah
+    // sub-rincian, tingkat ketiga di bawah bab (Tahap 2 S5). Hanya
+    // huruf kecil yang dikenali agar angka Romawi bab ("I.", "V.")
+    // tidak ikut terturunkan tingkatnya.
+    const huruf = isi.match(/^([a-z])[.)]\s+(.+)$/);
+    if (huruf) {
+      tingkatHuruf = 3;
+      isi = huruf[2]!;
+    }
   }
   const teks = angkaArabKeLatin(isi.replace(/\*\*/g, "").trim());
   if (!teks) return null;
@@ -61,7 +74,9 @@ function bersihkanBaris(raw: string): { tingkat: number; teks: string } | null {
   const babTegas = /^(BAB\s|الباب\s|Bab\s)/.test(teks);
   let tingkat: number;
   if (babTegas) tingkat = 0;
-  else if (tingkatDesimal !== null) tingkat = Math.min(tingkatDesimal, 2);
+  else if (tingkatDesimal !== null) tingkat = Math.min(tingkatDesimal, 3);
+  else if (tingkatHuruf !== null) tingkat = tingkatHuruf;
+  else if (indent >= 6) tingkat = 3;
   else if (indent >= 4) tingkat = 2;
   else if (indent >= 2) tingkat = 1;
   else tingkat = 0;
@@ -72,6 +87,7 @@ function barisKeDaftarIsi(baris: BarisOutline[]): BabKustom[] {
   const hasil: BabKustom[] = [];
   let bab: BabKustom | null = null;
   let sub: SubBabKustom | null = null;
+  let fasal: SubBabKustom | null = null;
   for (const b of baris) {
     if (b.tingkat === 0) {
       const n = hasil.length + 1;
@@ -84,6 +100,7 @@ function barisKeDaftarIsi(baris: BarisOutline[]): BabKustom[] {
       };
       hasil.push(bab);
       sub = null;
+      fasal = null;
     } else if (b.tingkat === 1) {
       if (!bab) continue;
       sub = {
@@ -92,7 +109,8 @@ function barisKeDaftarIsi(baris: BarisOutline[]): BabKustom[] {
         labelAr: mengandungArab(b.teks) ? b.teks : "",
       };
       bab.sections.push(sub);
-    } else {
+      fasal = null;
+    } else if (b.tingkat === 2) {
       if (!bab || !sub) continue;
       const anak: SubBabKustom = {
         id: `${sub.id}-${(sub.anak?.length ?? 0) + 1}`,
@@ -100,6 +118,18 @@ function barisKeDaftarIsi(baris: BarisOutline[]): BabKustom[] {
         labelAr: mengandungArab(b.teks) ? b.teks : "",
       };
       sub.anak = [...(sub.anak ?? []), anak];
+      fasal = anak;
+    } else {
+      // Tingkat 3 (sub-rincian): menempel pada fasal terakhir. Tanpa
+      // fasal di atasnya baris ini yatim dan dilewati, sama seperti
+      // fasal tanpa sub-bab pada perilaku sebelumnya.
+      if (!bab || !sub || !fasal) continue;
+      const cucu: SubBabKustom = {
+        id: `${fasal.id}-${(fasal.anak?.length ?? 0) + 1}`,
+        labelId: b.teks,
+        labelAr: mengandungArab(b.teks) ? b.teks : "",
+      };
+      fasal.anak = [...(fasal.anak ?? []), cucu];
     }
   }
   return hasil;
@@ -178,15 +208,22 @@ export function parseOutlineTempelan(teks: string): BabKustom[] | null {
    menyuntingnya bebas di editor daftar isi.
    ========================================================================== */
 
-/** Skema bentuk kandidat daftar isi otomatis (gerbang bentuk pola generateObject). */
-const SkemaAnakDaftarIsi = z.object({
-  id: z.string().min(1),
-  labelId: z.string(),
-  labelAr: z.string(),
-});
-const SkemaSubBabDaftarIsi = SkemaAnakDaftarIsi.extend({
-  anak: z.array(SkemaAnakDaftarIsi).optional(),
-});
+/**
+ * Skema bentuk satu simpul daftar isi otomatis (gerbang bentuk pola
+ * generateObject). Rekursif mengikuti bentuk SubBabKustom: sub-bab,
+ * fasal/rincian, dan sub-rincian adalah simpul yang sama (Tahap 2 S5).
+ * Skema menerima kedalaman berapa pun; batas tiga tingkat ditegakkan
+ * validator sebagai pelanggaran bernama, bukan kegagalan bentuk yang
+ * tak terbaca.
+ */
+const SkemaSubBabDaftarIsi: z.ZodType<SubBabKustom> = z.lazy(() =>
+  z.object({
+    id: z.string().min(1),
+    labelId: z.string(),
+    labelAr: z.string(),
+    anak: z.array(SkemaSubBabDaftarIsi).optional(),
+  }),
+);
 export const SkemaDaftarIsiOtomatis = z.array(
   z.object({
     id: z.string().min(1),
@@ -369,13 +406,42 @@ export function dekonstruksiKonsepJudul(judul: string): HasilKonsepJudul {
 }
 
 function seksiDefinisi(konsep: KonsepJudul, id: string): SubBabKustom {
+  // Sub-rincian (tingkat a, Tahap 2 S5) mengikuti pola contoh pemilik:
+  // rincian bahasa dipecah per kata penyusun konsep bila frasanya
+  // terdiri dari dua kata atau lebih (idhafah seperti "أصول الفقه"
+  // atau "Ushul Fiqh" memang dibedah kata per kata dalam risalah);
+  // konsep satu kata tidak dipecah karena sub-rinciannya akan
+  // mengulang induknya. Rincian istilah selalu ditutup dua
+  // sub-rincian baku: pengertian menurut para ahli dan kesimpulan.
+  const kata = konsep.teks.split(/\s+/).filter((k) => k.length >= 2);
+  const rincianBahasa: SubBabKustom[] =
+    kata.length >= 2
+      ? kata.slice(0, 3).map((k, i) => ({
+          id: `${id}-bahasa-${i + 1}`,
+          labelId: `Makna kata "${k}" menurut bahasa`,
+          labelAr: konsep.arab ? `معنى ${k} لغةً` : "",
+        }))
+      : [];
   return {
     id,
     labelId: `Definisi ${konsep.teks} menurut bahasa dan istilah`,
     labelAr: konsep.arab ? `${konsep.teks} لغةً واصطلاحًا` : "",
     anak: [
-      { id: `${id}-bahasa`, labelId: "Pengertian menurut bahasa", labelAr: "المعنى اللغوي" },
-      { id: `${id}-istilah`, labelId: "Pengertian menurut istilah", labelAr: "المعنى الاصطلاحي" },
+      {
+        id: `${id}-bahasa`,
+        labelId: "Pengertian menurut bahasa",
+        labelAr: "المعنى اللغوي",
+        ...(rincianBahasa.length > 0 ? { anak: rincianBahasa } : {}),
+      },
+      {
+        id: `${id}-istilah`,
+        labelId: "Pengertian menurut istilah",
+        labelAr: "المعنى الاصطلاحي",
+        anak: [
+          { id: `${id}-istilah-ahli`, labelId: "Pengertian menurut para ahli", labelAr: "تعريفات العلماء" },
+          { id: `${id}-istilah-simpul`, labelId: "Kesimpulan pengertian", labelAr: "خلاصة التعريف" },
+        ],
+      },
     ],
   };
 }
@@ -390,14 +456,33 @@ function normLabel(s: string): string {
  * (2) memutus ikatan bab ke isykal, (3) membuang ATAU mengganti isi
  * tujuan/aturan bab template (dibandingkan persis, bukan jumlahnya),
  * (4) membuang sub-bab WAJIB pedoman atau perancah jawaban bab yang
- * terikat isykal, (5) menyimpang dari bentuk BabKustom. Mengembalikan
- * daftar pelanggaran; kosong = lolos.
+ * terikat isykal, (5) menyimpang dari bentuk BabKustom, (6) memuat
+ * tingkat keempat di bawah bab atau id simpul ganda di tingkat mana
+ * pun (penjagaan tingkat ketiga, Tahap 2 S5: ikatan dan isi wajib
+ * tidak boleh diselundupkan atau dirusak lewat jalur sub-rincian).
+ * Mengembalikan daftar pelanggaran; kosong = lolos.
  */
 export function validasiDaftarIsiOtomatis(daftar: BabKustom[], tpl: StrukturPedoman): string[] {
   const galat: string[] = [];
   if (!SkemaDaftarIsiOtomatis.safeParse(daftar).success) {
     galat.push("bentuk daftar isi tidak sesuai skema BabKustom");
   }
+  // Telusur seluruh pohon simpul: kedalaman sah maksimal 2 di bawah
+  // sub-bab (fasal lalu sub-rincian); id adalah kunci draf sehingga
+  // duplikat pada tingkat mana pun merusak pemetaan isi.
+  const idTerlihat = new Set<string>();
+  const periksaPohon = (s: SubBabKustom, kedalaman: number, konteks: string) => {
+    if (kedalaman > 2) {
+      galat.push(`${konteks}: tingkat keempat tidak dikenal pada "${s.labelId}"`);
+      return;
+    }
+    if (idTerlihat.has(s.id)) galat.push(`${konteks}: id daftar isi ganda "${s.id}"`);
+    idTerlihat.add(s.id);
+    for (const a of s.anak ?? []) periksaPohon(a, kedalaman + 1, konteks);
+  };
+  daftar.forEach((db, i) => {
+    for (const s of db.sections ?? []) periksaPohon(s, 0, `bab ke-${i + 1}`);
+  });
   const babTpl = [...tpl.bab].sort((a, b) => a.nomor - b.nomor);
   if (daftar.length !== babTpl.length) {
     galat.push(`jumlah bab ${daftar.length} tidak sama dengan template (${babTpl.length})`);

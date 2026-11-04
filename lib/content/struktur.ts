@@ -809,7 +809,8 @@ function saringMetode(p: Project, chapters: ChapterDef[]): ChapterDef[] {
  * Struktur efektif proyek: daftar isi kustom bila ada, bawaan jenis karya bila tidak.
  * Sub-bab yang id-nya dikenal dari templat mewarisi panduan/pemicu/target templat;
  * sub-bab baru mendapat panduan umum bab isykal. Fasal/matlab (anak sub-bab)
- * diratakan tepat di bawah induknya dengan tingkat 2.
+ * diratakan tepat di bawah induknya dengan tingkat 2, dan sub-rincian
+ * (anak fasal) tepat di bawah fasalnya dengan tingkat 3 (Tahap 2 S5).
  */
 export function strukturProyek(p: Project): StrukturDef {
   const tpl = getStruktur(p.jenis);
@@ -830,9 +831,11 @@ export function strukturProyek(p: Project): StrukturDef {
         ? "Bab analisis akhir: kumpulkan hasil bab-bab sebelumnya, timbang dalil dan pendapatnya, lalu tetapkan jawaban/judul akhir secara terperinci beserta penerapannya."
         : tingkat === 2
           ? "Fasal/matlab di bawah sub-bab induknya: uraikan satu aspek khusus sub-bab itu dari kitab dan sumber primer, dengan kalimat kunci yang bisa diverifikasi."
-          : "Uraikan bagian isykal ini dari kitab dan sumber primer: gambarkan masalahnya, tampilkan pendapat ulama beserta dalilnya, lalu bahas dengan kalimat kunci yang bisa diverifikasi.",
+          : tingkat === 3
+            ? "Sub-rincian di bawah fasal induknya: uraikan satu rincian khusus fasal itu secara ringkas dan terfokus, dari kitab dan sumber primer, dengan kalimat kunci yang bisa diverifikasi."
+            : "Uraikan bagian isykal ini dari kitab dan sumber primer: gambarkan masalahnya, tampilkan pendapat ulama beserta dalilnya, lalu bahas dengan kalimat kunci yang bisa diverifikasi.",
       pemicu: [],
-      targetKata: analisis ? 650 : tingkat === 2 ? 350 : 500,
+      targetKata: analisis ? 650 : tingkat === 2 ? 350 : tingkat === 3 ? 250 : 500,
       tingkat,
     };
   };
@@ -858,7 +861,10 @@ export function strukturProyek(p: Project): StrukturDef {
       babAr: b.babAr,
       sections: b.sections.flatMap((s) => [
         denganIsykal(keSectionDef(s, 1)),
-        ...(s.anak ?? []).map((a) => denganIsykal(keSectionDef(a, 2))),
+        ...(s.anak ?? []).flatMap((a) => [
+          denganIsykal(keSectionDef(a, 2)),
+          ...(a.anak ?? []).map((c) => denganIsykal(keSectionDef(c, 3))),
+        ]),
       ]),
     };
   });

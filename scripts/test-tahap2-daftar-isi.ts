@@ -17,10 +17,11 @@ import { strukturKeDaftarIsi } from "../lib/pedoman/skema-struktur";
 import { cekKesesuaian } from "../lib/pedoman/cek-kesesuaian";
 import {
   dekonstruksiKonsepJudul,
+  parseOutlineTempelan,
   susunDaftarIsiOtomatis,
   validasiDaftarIsiOtomatis,
 } from "../lib/engine/daftar-isi-pedoman";
-import { migrasiProyek, newProject, type Project } from "../lib/engine/project";
+import { migrasiProyek, newProject, sanitasiDaftarIsi, type Project } from "../lib/engine/project";
 import { strukturProyek } from "../lib/content/struktur";
 import { composeSection } from "../lib/engine/compose";
 
@@ -406,6 +407,203 @@ cek(
 cek(
   "[statis] R5: tombol struktur bawaan editor menurunkan penanda dariJudul",
   sumberEditor.includes("daftarIsi: susunDaftarIsiBawaan(p), daftarIsiDariJudul: false"),
+);
+
+/* ---------- Tahap 2 S5: kedalaman daftar isi tiga tingkat (A / 1 / a) ---------- */
+const defMk = hasilMk.daftar[1]!.sections[0]!;
+const anakBahasaMk = defMk.anak?.find((a) => a.id.endsWith("-bahasa"));
+const anakIstilahMk = defMk.anak?.find((a) => a.id.endsWith("-istilah"));
+cek(
+  "S5: generasi Arab: rincian istilah membawa dua sub-rincian (para ahli + kesimpulan)",
+  (anakIstilahMk?.anak?.length ?? 0) === 2 &&
+    anakIstilahMk!.anak!.some((c) => c.labelId.includes("para ahli")) &&
+    anakIstilahMk!.anak!.some((c) => c.labelId.includes("Kesimpulan")),
+  anakIstilahMk?.anak?.map((c) => c.labelId).join(" | "),
+);
+cek(
+  "S5: generasi Arab: rincian bahasa dipecah per kata penyusun konsep (أصول + الفقه)",
+  (anakBahasaMk?.anak?.length ?? 0) === 2 &&
+    anakBahasaMk!.anak!.some((c) => c.labelAr.includes("أصول")) &&
+    anakBahasaMk!.anak!.some((c) => c.labelAr.includes("الفقه")),
+  anakBahasaMk?.anak?.map((c) => c.labelAr).join(" | "),
+);
+const defIdS5 = hasilId.daftar[1]!.sections[0]!;
+cek(
+  "S5: generasi Indonesia contoh pemilik: sub-rincian bahasa per kata (Ushul + Fiqh), istilah lengkap",
+  (defIdS5.anak?.[0]?.anak?.length ?? 0) === 2 &&
+    defIdS5.anak![0]!.anak!.some((c) => c.labelId.includes("Ushul")) &&
+    defIdS5.anak![0]!.anak!.some((c) => c.labelId.includes("Fiqh")) &&
+    (defIdS5.anak?.[1]?.anak?.length ?? 0) === 2,
+  defIdS5.anak?.map((a) => `${a.labelId}[${a.anak?.length ?? 0}]`).join(" | "),
+);
+const hasilSatuKata = susunDaftarIsiOtomatis(mangkoso, "البلاغة");
+const defSatuKata = hasilSatuKata.daftar[1]?.sections[0];
+cek(
+  "S5: konsep satu kata: bahasa tidak dipecah, istilah tetap membawa dua sub-rincian",
+  hasilSatuKata.dariJudul === true &&
+    (defSatuKata?.anak?.[0]?.anak?.length ?? 0) === 0 &&
+    (defSatuKata?.anak?.[1]?.anak?.length ?? 0) === 2,
+);
+cek(
+  "S5: hasil generasi bertingkat tiga lolos validator (skema rekursif + penjagaan tingkat)",
+  validasiDaftarIsiOtomatis(hasilMk.daftar, mangkoso).length === 0 &&
+    validasiDaftarIsiOtomatis(hasilId.daftar, mangkoso).length === 0,
+  validasiDaftarIsiOtomatis(hasilMk.daftar, mangkoso).join(" | "),
+);
+const rusakTingkat4: Project["daftarIsi"] = hasilMk.daftar.map((b) =>
+  b.id === "bab-pedoman-2"
+    ? {
+        ...b,
+        sections: b.sections.map((s, si) =>
+          si === 0
+            ? {
+                ...s,
+                anak: (s.anak ?? []).map((a) =>
+                  a.id.endsWith("-istilah")
+                    ? {
+                        ...a,
+                        anak: (a.anak ?? []).map((c, ci) =>
+                          ci === 0
+                            ? { ...c, anak: [{ id: "selundupan-4", labelId: "Tingkat Keempat", labelAr: "" }] }
+                            : c,
+                        ),
+                      }
+                    : a,
+                ),
+              }
+            : s,
+        ),
+      }
+    : b,
+);
+cek(
+  "S5: validator menolak tingkat keempat yang diselundupkan lewat sub-rincian",
+  validasiDaftarIsiOtomatis(rusakTingkat4!, mangkoso).some((g) => g.includes("tingkat keempat")),
+  validasiDaftarIsiOtomatis(rusakTingkat4!, mangkoso).join(" | "),
+);
+const rusakIdGanda: Project["daftarIsi"] = hasilMk.daftar.map((b) =>
+  b.id === "bab-pedoman-2"
+    ? {
+        ...b,
+        sections: b.sections.map((s, si) =>
+          si === 0
+            ? {
+                ...s,
+                anak: (s.anak ?? []).map((a) =>
+                  a.id.endsWith("-istilah")
+                    ? { ...a, anak: (a.anak ?? []).map((c) => ({ ...c, id: "id-sama" })) }
+                    : a,
+                ),
+              }
+            : s,
+        ),
+      }
+    : b,
+);
+cek(
+  "S5: validator menolak id sub-rincian ganda",
+  validasiDaftarIsiOtomatis(rusakIdGanda!, mangkoso).some((g) => g.includes("ganda")),
+);
+const dataTigaTingkat = [
+  {
+    id: "bab-uji",
+    labelId: "BAB II",
+    labelAr: "",
+    babAr: "الباب الثاني",
+    sections: [
+      {
+        id: "s1",
+        labelId: "Definisi Konsep",
+        labelAr: "",
+        anak: [
+          {
+            id: "s1-1",
+            labelId: "Pengertian menurut istilah",
+            labelAr: "",
+            anak: [{ id: "s1-1-a", labelId: "Menurut para ahli", labelAr: "" }],
+          },
+        ],
+      },
+    ],
+  },
+];
+cek(
+  "S5: sanitasi mempertahankan sub-rincian data sah persis (tidak ada potong senyap)",
+  JSON.stringify(sanitasiDaftarIsi(JSON.parse(JSON.stringify(dataTigaTingkat)))) ===
+    JSON.stringify(dataTigaTingkat),
+);
+const dataDuaTingkat = [
+  {
+    id: "bab-uji",
+    labelId: "BAB II",
+    labelAr: "",
+    babAr: "الباب الثاني",
+    sections: [
+      {
+        id: "s1",
+        labelId: "Definisi Konsep",
+        labelAr: "",
+        anak: [{ id: "s1-1", labelId: "Pengertian menurut istilah", labelAr: "" }],
+      },
+    ],
+  },
+];
+cek(
+  "S5: data lama dua tingkat termuat tanpa perubahan bentuk",
+  JSON.stringify(sanitasiDaftarIsi(JSON.parse(JSON.stringify(dataDuaTingkat)))) ===
+    JSON.stringify(dataDuaTingkat),
+);
+const pPutaran3 = migrasiProyek(JSON.parse(JSON.stringify(pMk)));
+const defPutaran = pPutaran3.daftarIsi?.[1]?.sections[0];
+cek(
+  "S5: putaran simpan-muat proyek baru: sub-rincian definisi Bab 2 bertahan utuh",
+  (defPutaran?.anak?.[0]?.anak?.length ?? 0) === 2 && (defPutaran?.anak?.[1]?.anak?.length ?? 0) === 2,
+  `bahasa ${defPutaran?.anak?.[0]?.anak?.length ?? 0} / istilah ${defPutaran?.anak?.[1]?.anak?.length ?? 0}`,
+);
+cek(
+  "S5: struktur proyek memuat bagian tingkat 3 yang membaca konteks isykal babnya",
+  !!bab2Gen &&
+    bab2Gen.sections.some(
+      (s) => s.tingkat === 3 && s.labelId.includes("para ahli") && s.panduan.includes(RUMUSAN[0]!),
+    ),
+);
+const mdCucu = composeSection(pMk, defMk.anak![1]!.anak![0]!.id).markdown;
+cek(
+  "S5: susunan naskah memberi judul tingkat #### pada sub-rincian",
+  mdCucu.startsWith("####"),
+  mdCucu.split("\n")[0]?.slice(0, 40),
+);
+const tempelDalam = parseOutlineTempelan(
+  ["BAB II PEMBAHASAN", "  Definisi Ushul Fiqh", "    Pengertian menurut bahasa", "      Makna kata ushul"].join("\n"),
+);
+cek(
+  "S5: parser tempelan: indentasi 6 spasi menjadi sub-rincian",
+  tempelDalam?.[0]?.sections[0]?.anak?.[0]?.anak?.[0]?.labelId === "Makna kata ushul",
+  tempelDalam?.[0]?.sections[0]?.anak?.[0]?.anak?.map((c) => c.labelId).join(" | "),
+);
+const tempelNomor = parseOutlineTempelan(
+  [
+    "BAB II PEMBAHASAN",
+    "  2.1 Definisi Ushul Fiqh",
+    "    2.1.1 Pengertian menurut bahasa",
+    "      a. Makna kata ushul",
+    "      b. Makna kata fiqh",
+    "      2.1.1.1 Makna terdalam",
+  ].join("\n"),
+);
+cek(
+  "S5: parser tempelan: penanda a./b. dan penomoran 2.1.1.1 menjadi sub-rincian",
+  (tempelNomor?.[0]?.sections[0]?.anak?.[0]?.anak?.length ?? 0) === 3 &&
+    tempelNomor![0]!.sections[0]!.anak![0]!.anak!.some((c) => c.labelId === "Makna terdalam"),
+  tempelNomor?.[0]?.sections[0]?.anak?.[0]?.anak?.map((c) => c.labelId).join(" | "),
+);
+cek(
+  "[statis] S5: editor menyediakan tambah/sunting/pindah/hapus sub-rincian lewat jalur terapkan",
+  sumberEditor.includes("function tambahCucu") &&
+    sumberEditor.includes("function ubahCucu") &&
+    sumberEditor.includes("function pindahCucu") &&
+    sumberEditor.includes("function hapusCucu") &&
+    sumberEditor.includes("+ Rincian"),
 );
 
 console.log(gagal === 0 ? "\nSEMUA PASS" : `\n${gagal} GAGAL`);

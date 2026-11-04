@@ -183,7 +183,12 @@ export interface SubBabKustom {
   id: string;
   labelId: string;
   labelAr: string;
-  /** Fasal/matlab (فصل/مطلب) di bawah sub-bab ini — tingkat ketiga daftar isi. */
+  /**
+   * Anak di bawah simpul ini, rekursif: fasal/rincian (tingkat 1) di
+   * bawah sub-bab (A), dan sub-rincian (tingkat a) di bawah fasal.
+   * Daftar isi sah memuat tiga tingkat di bawah bab (pola A / 1 / a,
+   * Pembangunan Ulang Tahap 2 S5); tingkat keempat tidak dikenal.
+   */
   anak?: SubBabKustom[];
 }
 
@@ -214,13 +219,19 @@ export function sanitasiDaftarIsi(mentah: unknown): BabKustom[] | undefined {
     if (typeof b !== "object" || b === null) return;
     const rec = b as Record<string, unknown>;
     const sections: SubBabKustom[] = [];
-    const bersihSub = (sr: Record<string, unknown>, j: number, dalam: boolean): SubBabKustom | null => {
+    // Kedalaman simpul: 0 sub-bab (A), 1 fasal/rincian (1), 2
+    // sub-rincian (a). Tiga tingkat di bawah bab adalah data SAH dan
+    // wajib lolos utuh (Tahap 2 S5: sanitasi lama memotong anak dari
+    // anak secara senyap). Yang berhenti di sini hanya tingkat
+    // keempat, yang tidak dihasilkan penghasil sah mana pun (generator,
+    // editor, dan parser outline semuanya berhenti di sub-rincian).
+    const bersihSub = (sr: Record<string, unknown>, j: number, kedalaman: number): SubBabKustom | null => {
       if (typeof sr.id !== "string" || !sr.id) return null;
       const anak: SubBabKustom[] = [];
-      if (!dalam && Array.isArray(sr.anak)) {
+      if (kedalaman < 2 && Array.isArray(sr.anak)) {
         sr.anak.forEach((a, k) => {
           if (typeof a !== "object" || a === null) return;
-          const sub = bersihSub(a as Record<string, unknown>, k, true);
+          const sub = bersihSub(a as Record<string, unknown>, k, kedalaman + 1);
           if (sub) anak.push(sub);
         });
       }
@@ -234,7 +245,7 @@ export function sanitasiDaftarIsi(mentah: unknown): BabKustom[] | undefined {
     if (Array.isArray(rec.sections)) {
       rec.sections.forEach((s, j) => {
         if (typeof s !== "object" || s === null) return;
-        const sub = bersihSub(s as Record<string, unknown>, j, false);
+        const sub = bersihSub(s as Record<string, unknown>, j, 0);
         if (sub) sections.push(sub);
       });
     }

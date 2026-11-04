@@ -600,14 +600,14 @@ export function composeSection(p: Project, sectionId: string, seed = 0): HasilKo
   let markdown = fn
     ? fn(p, v, hash0)
     : par(
-        `${found?.section.tingkat === 2 ? "###" : "##"} ${found?.section.headingAr ?? sectionId}`,
+        `${found?.section.tingkat === 3 ? "####" : found?.section.tingkat === 2 ? "###" : "##"} ${found?.section.headingAr ?? sectionId}`,
         isi("[هذا القسم لم يُحرَّر بعد — استخدم أسئلة التوجيه أعلاه ثم اكتب هنا]", v),
       );
   // Judul tercetak mengikuti struktur efektif proyek (termasuk judul yang
   // diganti mahasiswa di daftar isi), bukan judul bawaan generator.
   if (found?.section.headingAr) {
-    const prefiks = found.section.tingkat === 2 ? "###" : "##";
-    markdown = markdown.replace(/^#{2,3} [^\n]*/, `${prefiks} ${found.section.headingAr}`);
+    const prefiks = found.section.tingkat === 3 ? "####" : found.section.tingkat === 2 ? "###" : "##";
+    markdown = markdown.replace(/^#{2,4} [^\n]*/, `${prefiks} ${found.section.headingAr}`);
   }
 
   // Pangkas agar tidak melebihi 1 halaman DULU, baru sisipkan referensi.
