@@ -57,6 +57,16 @@ export const SkemaStrukturPedoman = z
      * "per-bab" = mulai dari 1 pada setiap bab baru (As'adiyah, SPEC 3.6).
      */
     penomoranFootnote: z.enum(["bersambung", "per-bab"]).optional(),
+    /**
+     * Halaman minimal risalah menurut pedoman ini sendiri, sebagai
+     * DATA template (Pembangunan Ulang Tahap 10): Mangkoso 150
+     * halaman (SPEC-PEDOMAN 2.7: "لا تقل الرسالة عن 150 صفحة"),
+     * As'adiyah 40 halaman dihitung dari Bab 1 sampai Bab 5
+     * (SPEC-PEDOMAN 3.7). Angka ini milik pedoman dan TIDAK dicampur
+     * dengan target total aturan pemilik web (100 halaman); keduanya
+     * ditampilkan permukaan dengan label sumber masing-masing.
+     */
+    halamanMinimalRisalah: z.number().int().min(1, "halaman minimal mulai dari 1").optional(),
     bab: z.array(SkemaBabStruktur).min(1, "minimal 1 bab").max(12, "maksimal 12 bab"),
   })
   .superRefine((v, ctx) => {

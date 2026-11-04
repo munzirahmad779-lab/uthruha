@@ -68,6 +68,10 @@ const MANGKOSO: StrukturPedoman = SkemaStrukturPedoman.parse({
   versiSkema: "pedoman-struktur-v1",
   namaPedoman: "Pedoman Penulisan Risalah Ma'had Aly DDI Mangkoso",
   penomoranFootnote: "bersambung",
+  // Syarat pedoman sendiri (SPEC-PEDOMAN 2.7): risalah tidak kurang
+  // dari 150 halaman. Dilabeli "pedoman" di permukaan, terpisah dari
+  // target total aturan pemilik web.
+  halamanMinimalRisalah: 150,
   bab: [
     {
       nomor: 1,
@@ -164,6 +168,10 @@ const ASADIYAH: StrukturPedoman = SkemaStrukturPedoman.parse({
   versiSkema: "pedoman-struktur-v1",
   namaPedoman: "Pedoman Penulisan Risalah Ma'had Aly As'adiyah Sengkang",
   penomoranFootnote: "per-bab",
+  // Syarat pedoman sendiri (SPEC-PEDOMAN 3.7): risalah minimal 40
+  // halaman dihitung dari Bab 1 sampai Bab 5. Dilabeli "pedoman" di
+  // permukaan, terpisah dari target total aturan pemilik web.
+  halamanMinimalRisalah: 40,
   bab: [
     {
       nomor: 1,
