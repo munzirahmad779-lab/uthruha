@@ -17,10 +17,13 @@ import {
   targetDariKursor,
 } from "@/components/workspace/pasang-footnote";
 import type { Sumber } from "@/lib/engine/cite";
-import { FootnoteBagian } from "@/components/workspace/footnote-bagian";
+import { FootnoteBagian, kemunculanBagian, kompilasiBagian } from "@/components/workspace/footnote-bagian";
+import { EditorPenanda, type FokusPenanda } from "@/components/workspace/editor-penanda";
+import { pecahSegmen } from "@/lib/engine/marker";
 import { BatasStrip } from "@/components/workspace/batas-strip";
 
-const POLA_PENANDA = /\[\[ref:([^\]|]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
+// Kelas id sama dengan POLA di marker.ts (tanpa spasi/kurung/pipa).
+const POLA_PENANDA = /\[\[ref:([^\s\]|[]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
 
 type PerluKonfirmasi = {
   sumber: Sumber;
@@ -127,6 +130,7 @@ export function TulisTab({
   const [cariRujukan, setCariRujukan] = useState(false);
   const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string; paragrafIdx?: number; kalimatIdx?: number; gerbang?: { bidangSumber: string; alasan: string } } | null>(null);
   const [seleksi, setSeleksi] = useState<{ teks: string; awal: number; akhir: number } | null>(null);
+  const [fokusPenanda, setFokusPenanda] = useState<FokusPenanda | null>(null);
   const [panelKandidat, setPanelKandidat] = useState<PanelKandidat | null>(null);
   const [kursor, setKursor] = useState<number | null>(null);
   const [pesanPasang, setPesanPasang] = useState("");
@@ -148,6 +152,7 @@ export function TulisTab({
     const isi = p.draf[bagian] ?? "";
     setTeks(isi);
     sinkron.current = isi;
+    setFokusPenanda(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bagian]);
 
@@ -174,19 +179,16 @@ export function TulisTab({
   }, [teks]);
 
   const kata = useMemo(() => teks.split(/\s+/).filter(Boolean).length, [teks]);
-  const penandaDraf = useMemo(
-    () =>
-      [...teks.matchAll(POLA_PENANDA)].map((m) => ({
-        id: (m[1] ?? "").trim(),
-        hlm: (m[2] ?? "").trim(),
-        jilid: (m[3] ?? "").trim(),
-      })),
-    [teks],
+  // Tahap 5: segmen tampil editor (teks / penanda / fragmen) dan nomor
+  // footnote dokumen tiap penanda, dari teks editor langsung.
+  const segmenDraf = useMemo(() => pecahSegmen(teks), [teks]);
+  const kemunculanDraf = useMemo(() => kemunculanBagian(p, bagian, teks), [p, bagian, teks]);
+  const nomorSegmen = useMemo(() => kemunculanDraf.map((k) => k.nomor), [kemunculanDraf]);
+  const adaFragmenRusak = useMemo(() => segmenDraf.some((s) => s.jenis === "fragmen"), [segmenDraf]);
+  const adaPenandaTakDikenal = useMemo(
+    () => kemunculanDraf.some((k) => k.nomor === null),
+    [kemunculanDraf],
   );
-  const adaFragmenRusak = useMemo(() => {
-    const sisa = teks.replace(POLA_PENANDA, "");
-    return sisa.includes("[[") || sisa.includes("ref:");
-  }, [teks]);
 
   function bersihkanFragmenDraf() {
     const bersih = bersihkanFragmen(teks);
@@ -346,15 +348,16 @@ export function TulisTab({
   }
 
   /**
-   * Catat seleksi teks di editor (Tahap 4). Seleksi sah untuk Generate
-   * Footnote bila panjangnya minimal 20 karakter dan tidak melintasi
-   * batas paragraf: unit pencariannya adalah teks yang diblok itu utuh.
+   * Catat seleksi teks di editor (Tahap 4). Offset yang dilaporkan
+   * EditorPenanda adalah offset pada string draf serial — semantik yang
+   * sama dengan selectionStart textarea lama. Seleksi sah untuk
+   * Generate Footnote bila panjangnya minimal 20 karakter dan tidak
+   * melintasi batas paragraf: unit pencariannya adalah teks yang
+   * diblok itu utuh.
    */
-  function catatSeleksi(el: HTMLTextAreaElement) {
-    setKursor(el.selectionStart);
-    const awal = el.selectionStart ?? 0;
-    const akhir = el.selectionEnd ?? 0;
-    const potongan = el.value.slice(awal, akhir);
+  function catatSeleksi(awal: number, akhir: number, nilaiKini: string) {
+    setKursor(awal);
+    const potongan = nilaiKini.slice(awal, akhir);
     if (akhir - awal >= 20 && !potongan.includes("\n\n") && potongan.trim().length >= 20) {
       setSeleksi({ teks: potongan.replace(/\s+/g, " ").trim(), awal, akhir });
     } else {
@@ -738,22 +741,56 @@ export function TulisTab({
         <div className="mt-3">
           {pratinjau ? (
             <div className="rounded-xl border border-ink-900/10 bg-white p-5">
-              <Manuscript md={teks} angkaArab={p.pedoman?.angkaArab ?? true} />
+              <Manuscript md={kompilasiBagian(p, bagian, teks).markdown} angkaArab={p.pedoman?.angkaArab ?? true} />
             </div>
           ) : (
-            <textarea
-              value={teks}
-              onChange={(e) => setTeks(e.target.value)}
-              onSelect={(e) => catatSeleksi(e.currentTarget)}
-              onClick={(e) => catatSeleksi(e.currentTarget)}
-              onKeyUp={(e) => catatSeleksi(e.currentTarget)}
-              dir="rtl"
-              spellCheck={false}
-              className="doc-scroll min-h-[26rem] w-full rounded-xl border border-ink-900/15 bg-white p-4 text-right font-naskh text-[15.5px] leading-[2.1] text-ink-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
+            <EditorPenanda
+              nilai={teks}
+              segmen={segmenDraf}
+              nomorSegmen={nomorSegmen}
+              angkaArab={p.pedoman?.angkaArab ?? true}
               placeholder="اكتب هنا، أو اضغط «Susun draf» لتوليد هيكل أولي…"
+              onUbah={(t) => setTeks(t)}
+              onSeleksi={catatSeleksi}
+              onFokus={setFokusPenanda}
             />
           )}
         </div>
+
+        {!pratinjau && fokusPenanda && (
+          <div className="mt-2 flex flex-wrap items-start justify-between gap-2 rounded-lg border border-ink-900/15 bg-white px-3 py-2 text-[12px] leading-relaxed">
+            {fokusPenanda.jenis === "fragmen" ? (
+              <p className="min-w-0 text-amber-900">
+                <strong>Fragmen penanda rusak.</strong> Potongan ini sisa penanda sitasi yang patah; ia tidak
+                membentuk footnote. Perbaiki teksnya, atau hapus chip-nya, atau bersihkan semua fragmen lewat
+                peringatan fragmen di bawah editor.
+              </p>
+            ) : fokusPenanda.nomor !== null ? (
+              <p className="min-w-0 text-ink-800">
+                <strong>Footnote {fokusPenanda.nomor}.</strong>{" "}
+                <span className="font-naskh text-[13px]" dir="rtl">
+                  {p.sumber.find((s) => s.id === fokusPenanda.id)?.judul ?? fokusPenanda.id}
+                </span>
+                {fokusPenanda.halaman && <span className="text-ink-500"> · hlm. {fokusPenanda.halaman}</span>}
+                {fokusPenanda.jilid && <span className="text-ink-500"> · jilid {fokusPenanda.jilid}</span>}
+                <span className="block text-[11px] text-ink-500">
+                  Teks footnote lengkapnya ada di strip Footnote bagian ini di bawah editor.
+                </span>
+              </p>
+            ) : (
+              <p className="min-w-0 text-red-800">
+                <strong>Rujukan tidak ditemukan.</strong> Penanda ini menunjuk{" "}
+                <code className="rounded bg-red-50 px-1 font-mono text-[11px]">{fokusPenanda.id}</code> yang sudah
+                tidak ada di daftar referensi proyek, jadi footnote-nya tidak terbentuk dan hasil ekspor
+                menandainya sebagai rujukan tidak ditemukan. Tambahkan lagi sumbernya di tab Rujukan, atau hapus
+                chip penanda ini.
+              </p>
+            )}
+            <button type="button" onClick={() => setFokusPenanda(null)} className="btn-quiet shrink-0 !py-0.5 !text-[11px]">
+              Tutup
+            </button>
+          </div>
+        )}
 
         {!pratinjau && seleksi && (
           <div className="mt-2 rounded-xl border border-gold-500/50 bg-gold-50 px-3 py-2.5">
@@ -925,27 +962,13 @@ export function TulisTab({
           </div>
         )}
 
-        {(penandaDraf.length > 0 || adaFragmenRusak) && (
+        {(adaPenandaTakDikenal || adaFragmenRusak) && (
           <div className="mt-2 space-y-2">
-            {penandaDraf.length > 0 && (
-              <div className="flex flex-wrap gap-1.5" aria-label="Penanda sitasi di draf ini">
-                {penandaDraf.map((pen, i) => {
-                  const sumberPen = p.sumber.find((s) => s.id === pen.id);
-                  return (
-                    <span
-                      key={`${pen.id}-${i}`}
-                      className={`inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${
-                        sumberPen
-                          ? "border-ink-900/15 bg-white/70 text-ink-800"
-                          : "border-red-300 bg-red-50 font-semibold text-red-700"
-                      }`}
-                    >
-                      <span className="truncate">{sumberPen ? sumberPen.judul : "rujukan hilang"}</span>
-                      {pen.hlm && <span className="shrink-0 text-ink-500">hlm. {pen.hlm}</span>}
-                      {pen.jilid && <span className="shrink-0 text-ink-500">jilid {pen.jilid}</span>}
-                    </span>
-                  );
-                })}
+            {adaPenandaTakDikenal && (
+              <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[12px] leading-relaxed text-red-800">
+                Ada penanda sitasi yang rujukannya sudah tidak ada di daftar referensi. Di dalam teks ia tampil
+                sebagai chip peringatan merah; klik chip-nya untuk rincian. Hasil ekspor akan menandainya sebagai
+                rujukan tidak ditemukan, bukan kode mentah.
               </div>
             )}
             {adaFragmenRusak && (

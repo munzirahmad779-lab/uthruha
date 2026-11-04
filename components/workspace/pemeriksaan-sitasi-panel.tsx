@@ -30,11 +30,13 @@ export function PemeriksaanSitasiPanel({
   const labelJenis = (m: MasalahSitasi) =>
     m.jenis === "tak-dikenal"
       ? "Rujukan hilang"
-      : m.jenis === "tanpa-halaman"
-        ? "Tanpa halaman"
-        : m.jenis === "belum-verifikasi"
-          ? "Belum diverifikasi"
-          : "Warisan — periksa manual";
+      : m.jenis === "fragmen"
+        ? "Penanda rusak"
+        : m.jenis === "tanpa-halaman"
+          ? "Tanpa halaman"
+          : m.jenis === "belum-verifikasi"
+            ? "Belum diverifikasi"
+            : "Warisan — periksa manual";
 
   return (
     <div className="space-y-3 rounded-2xl border border-ink-900/10 bg-white/70 p-4">
@@ -42,9 +44,9 @@ export function PemeriksaanSitasiPanel({
         <div>
           <h3 className="text-[13px] font-bold text-ink-900">Pemeriksaan sitasi</h3>
           <p className="mt-0.5 max-w-xl text-[11.5px] leading-relaxed text-ink-600">
-            Satu pemeriksa untuk seluruh naskah: penanda [[ref:…]] yang rujukannya hilang, sitasi
-            tanpa halaman, rujukan terpakai yang belum diverifikasi, dan footnote lama [^n] yang
-            tidak terkelola. Ini soal <b>keberadaan & kelengkapan penanda</b>, bukan kebenaran isi kutipan.
+            Satu pemeriksa untuk seluruh naskah: penanda [[ref:…]] yang rujukannya hilang, fragmen
+            penanda yang rusak, sitasi tanpa halaman, rujukan terpakai yang belum diverifikasi, dan
+            footnote lama [^n] yang tidak terkelola. Ini soal <b>keberadaan & kelengkapan penanda</b>, bukan kebenaran isi kutipan.
           </p>
         </div>
         <button type="button" className="btn-primary !py-2" onClick={() => setJalan((n) => n + 1)}>

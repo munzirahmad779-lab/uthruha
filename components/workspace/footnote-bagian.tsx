@@ -5,8 +5,8 @@ import Link from "next/link";
 import type { Project } from "@/lib/engine/project";
 import type { Sumber } from "@/lib/engine/cite";
 import { strukturProyek } from "@/lib/content/struktur";
-import { composeNaskah, composeSection } from "@/lib/engine/compose";
-import { kompilasiMarker } from "@/lib/engine/marker";
+import { composeSection } from "@/lib/engine/compose";
+import { buatKompilator, cariMarker, type EntriKompilasi, type MarkerSitasi } from "@/lib/engine/marker";
 import { CopyButton } from "@/components/ui";
 
 /**
@@ -18,44 +18,106 @@ import { CopyButton } from "@/components/ui";
  * kompilasi naskah yang sebenarnya agar selalu cocok dengan hasil ekspor.
  */
 
-const POLA = /\[\[ref:([^\]|]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
-
 export interface EntriFootnote {
   nomor: string;
   teks: string;
   kunci: string;
 }
 
-export function footnoteBagian(p: Project, bagian: string): EntriFootnote[] {
-  const hasil = kompilasiMarker(composeNaskah(p), p);
-  const defs = [...hasil.markdown.matchAll(/^\[\^(\d+)\]: (.*)$/gm)].map((m) => ({
-    nomor: m[1] ?? "",
-    teks: m[2] ?? "",
-  }));
-  if (defs.length === 0) return [];
+/** Teks efektif satu bagian, mencerminkan composeNaskah persis: draf
+ *  mahasiswa dipakai bila ada, selain itu teks susunan otomatis. Untuk
+ *  bagian yang sedang disunting (bagianId === aktifId), teksAktif
+ *  (isi editor langsung) menang atas draf tersimpan. */
+function teksBagian(p: Project, bagianId: string, aktifId?: string, teksAktif?: string): string {
+  if (aktifId !== undefined && bagianId === aktifId && teksAktif !== undefined) return teksAktif;
+  const draf = p.draf[bagianId];
+  return draf && draf.trim().length > 20 ? draf : composeSection(p, bagianId).markdown;
+}
+
+export interface HasilKompilasiBagian {
+  /** Teks bagian dengan penanda terkompilasi + definisi footnote bagian ini. */
+  markdown: string;
+  /** Entri footnote yang lahir dari bagian ini, bernomor dokumen. */
+  entri: EntriKompilasi[];
+  /** Penanda tak dikenal yang muncul di bagian ini. */
+  takDikenal: MarkerSitasi[];
+}
+
+/**
+ * Kompilasi SATU bagian dengan penomoran dokumen utuh: keadaan
+ * kompilator disemai dari semua bagian sebelumnya (urutan struktur,
+ * teks efektif yang sama dengan composeNaskah), jadi nomor dan bentuk
+ * penuh/singkat di bagian ini persis seperti hasil ekspor dokumen.
+ */
+export function kompilasiBagian(p: Project, bagian: string, teksAktif?: string): HasilKompilasiBagian {
+  const k = buatKompilator(p);
+  const st = strukturProyek(p);
+  for (const c of st.chapters) {
+    for (const s of c.sections) {
+      if (s.id === bagian) {
+        const sebelum = k.takDikenal.length;
+        const { diganti, entriBaru } = k.proses(teksBagian(p, s.id, bagian, teksAktif));
+        const definisi = entriBaru.map((e) => `[^${e.nomor}]: ${e.teks}`).join("\n");
+        return {
+          markdown: entriBaru.length > 0 ? `${diganti}\n\n${definisi}` : diganti,
+          entri: entriBaru,
+          takDikenal: k.takDikenal.slice(sebelum),
+        };
+      }
+      k.proses(teksBagian(p, s.id));
+    }
+  }
+  return { markdown: "", entri: [], takDikenal: [] };
+}
+
+export interface KemunculanPenanda {
+  id: string;
+  halaman?: string;
+  jilid?: string;
+  /** Nomor footnote dokumen untuk kemunculan ini; null = rujukan tak dikenal. */
+  nomor: number | null;
+  posisi: number;
+}
+
+/**
+ * Nomor tampil tiap penanda di satu bagian, dalam urutan kemunculan di
+ * teks bagian itu — dipakai chip editor agar nomornya selalu sama
+ * dengan kompilasi dokumen. teksAktif menimpa teks efektif bagian yang
+ * sedang disunting (isi editor langsung, belum tersimpan).
+ */
+export function kemunculanBagian(p: Project, bagian: string, teksAktif?: string): KemunculanPenanda[] {
   const perId = new Set(p.sumber.map((s) => s.id));
   const st = strukturProyek(p);
   let berjalan = 0;
   for (const c of st.chapters) {
     for (const s of c.sections) {
-      // Cerminkan composeNaskah persis: draf mahasiswa dipakai bila ada,
-      // selain itu teks susunan otomatis bagian itu.
-      const draf = p.draf[s.id];
-      const teksBagian = draf && draf.trim().length > 20 ? draf : composeSection(p, s.id).markdown;
-      const cocok = [...teksBagian.matchAll(POLA)].filter((m) => perId.has((m[1] ?? "").trim()));
+      const teks = teksBagian(p, s.id, bagian, s.id === bagian ? teksAktif : undefined);
+      const semua = cariMarker(teks);
       if (s.id === bagian) {
-        return cocok
-          .map((_, i) => ({
-            nomor: defs[berjalan + i]?.nomor ?? "?",
-            teks: defs[berjalan + i]?.teks ?? "",
-            kunci: `${s.id}-${berjalan + i}`,
-          }))
-          .filter((e) => e.teks);
+        return semua.map((m) => {
+          const dikenal = perId.has(m.id);
+          if (dikenal) berjalan++;
+          return {
+            id: m.id,
+            halaman: m.halaman,
+            jilid: m.jilid,
+            nomor: dikenal ? berjalan : null,
+            posisi: m.posisi,
+          };
+        });
       }
-      berjalan += cocok.length;
+      berjalan += semua.filter((m) => perId.has(m.id)).length;
     }
   }
   return [];
+}
+
+export function footnoteBagian(p: Project, bagian: string): EntriFootnote[] {
+  return kompilasiBagian(p, bagian).entri.map((e) => ({
+    nomor: String(e.nomor),
+    teks: e.teks,
+    kunci: `${bagian}-${e.nomor}`,
+  }));
 }
 
 export function FootnoteBagian({

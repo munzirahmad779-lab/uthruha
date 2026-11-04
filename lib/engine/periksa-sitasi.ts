@@ -10,8 +10,9 @@
 import type { Project } from "@/lib/engine/project";
 import { strukturProyek } from "@/lib/content/struktur";
 import { composeSection } from "@/lib/engine/compose";
+import { cariFragmen } from "@/lib/engine/marker";
 
-export type JenisMasalah = "tak-dikenal" | "tanpa-halaman" | "belum-verifikasi" | "warisan";
+export type JenisMasalah = "tak-dikenal" | "tanpa-halaman" | "belum-verifikasi" | "warisan" | "fragmen";
 
 export interface MasalahSitasi {
   jenis: JenisMasalah;
@@ -36,7 +37,10 @@ export interface HasilPeriksa {
   sumberTakTerpakaiJudul: string[];
 }
 
-const POLA = /\[\[ref:([^\]|]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
+// Kelas id sama dengan POLA di marker.ts (tanpa spasi/kurung/pipa):
+// pola longgar menelan penanda sah sesudah penanda patah sebagai satu
+// id sampah dan lolos dari pemeriksaan.
+const POLA = /\[\[ref:([^\s\]|[]+)(?:\|hlm:([^\]|]*))?(?:\|jilid:([^\]]*))?\]\]/g;
 const POLA_DEF = /\[\^([^\]\s]+)\]:/g;
 const POLA_PAKAI = /\[\^([^\]\s]+)\](?!:)/g;
 
@@ -87,6 +91,20 @@ export function periksaSitasi(p: Project): HasilPeriksa {
             labelBagian,
           });
         }
+      }
+
+      // Fragmen penanda rusak (Tahap 5): sisa "[[ref:…" yang patah atau
+      // ekor "ref:…]]" yatim. Fragmen tidak membentuk footnote apa pun
+      // dan tidak boleh tampil mentah; laporkan per bagian.
+      const fragmen = cariFragmen(teksS);
+      if (fragmen.length > 0) {
+        masalah.push({
+          jenis: "fragmen",
+          tingkat: "kritis",
+          pesan: `Ada ${fragmen.length} fragmen penanda sitasi rusak di bagian ini (mis. “${fragmen[0].mentah.slice(0, 40)}”) — footnote tidak terbentuk dari fragmen ini. Perbaiki atau bersihkan lewat peringatan fragmen di tab Tulis.`,
+          sectionId: s.id,
+          labelBagian,
+        });
       }
 
       // Jalur warisan: footnote [^n] manual di luar penanda terkelola (heuristik).
