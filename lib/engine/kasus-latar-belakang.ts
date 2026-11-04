@@ -280,17 +280,31 @@ export function susunKasus(
   return hasil;
 }
 
+/** Kata penghubung antar kalimat kasus di dalam satu paragraf. */
+const PENGHUBUNG_KASUS = ["وكذلك", "كما", "وفي السياق نفسه", "ويضاف إلى ذلك"];
+
 /**
- * Rangkai kasus menjadi paragraf Arab yang siap ditempel.
- * Mengembalikan string kosong bila tidak ada kasus — supaya pemanggil bisa
- * memberi pesan jujur, bukan paragraf bohong.
+ * Rangkai kasus menjadi SATU paragraf Arab yang mengalir dan siap
+ * ditempel: kalimat bingkai pembuka, lalu kalimat-kalimat kasus yang
+ * dijahit dengan kata penghubung dan atribusi sumbernya di dalam
+ * kalimat, ditutup kalimat bingkai penutup. Bukan daftar bernomor:
+ * khalfiyah adalah prosa, dan daftar mentah di tengah paragraf merusak
+ * alurnya (Pembangunan Ulang Tahap 3).
+ * Mengembalikan string kosong bila tidak ada kasus — supaya pemanggil
+ * bisa memberi pesan jujur, bukan paragraf bohong.
  */
 export function narasiKasusArab(kasus: KasusLatarBelakang[], klaster: 1 | 2 | 3): string {
   if (kasus.length === 0) return "";
 
   const bingkai = PEMBINGKAI[klaster];
-  const isi = kasus.map((k, i) => `${i + 1}. ${k.arab} (${k.sumber}).`).join("\n");
-  return `${bingkai.pembuka}:\n\n${isi}\n\n${bingkai.penutup}.`;
+  const kalimat = kasus.map((k, i) => {
+    const inti = k.arab.replace(/[\s.]+$/, "");
+    const atribusi = `(دراسة ${k.sumber})`;
+    if (i === 0) return `${inti} ${atribusi}`;
+    const hubung = PENGHUBUNG_KASUS[(i - 1) % PENGHUBUNG_KASUS.length]!;
+    return `${hubung} ${inti} ${atribusi}`;
+  });
+  return `${bingkai.pembuka}: ${kalimat.join(". ")}. ${bingkai.penutup}.`;
 }
 
 /**

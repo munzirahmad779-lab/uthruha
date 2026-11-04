@@ -60,6 +60,56 @@ function par(...bagian: string[]): string {
   return bagian.filter((b) => b.trim().length > 0).join("\n\n");
 }
 
+/**
+ * Himpunan variabel proyek yang BENAR-BENAR terisi (bukan string kosong
+ * dan bukan teks pengganti dalam kurung siku seperti "[موضوع البحث]").
+ * Frasa templat hanya boleh dipilih bila semua variabel yang dirujuknya
+ * ada di himpunan ini, supaya tidak ada pengganti kurung yang bocor ke
+ * draf mahasiswa.
+ */
+function varsTerisi(v: Vars): Set<string> {
+  const siap = new Set<string>();
+  for (const [k, val] of Object.entries(v)) {
+    const t = (val ?? "").trim();
+    if (t.length > 0 && !t.startsWith("[")) siap.add(k);
+  }
+  return siap;
+}
+
+function frasaSiap(f: FrasaEntry, siap: Set<string>): boolean {
+  const dipakai = f.ar.match(/\{\{(\w+)\}\}/g)?.map((s) => s.slice(2, -2)) ?? [];
+  return dipakai.every((k) => siap.has(k));
+}
+
+/**
+ * Pilih frasa satu seksi berdasarkan tag, hanya yang variabelnya terisi,
+ * dan tidak mengulang frasa yang sudah dipakai paragraf lain (pakai).
+ * Urutan deterministik dari benih, sama seperti pilih().
+ */
+function pilihBertag(
+  section: string,
+  tags: string[],
+  jumlah: number,
+  seed: number,
+  siap: Set<string>,
+  pakai: Set<string>,
+): FrasaEntry[] {
+  const pool = FRASA.filter(
+    (f) =>
+      f.section === section &&
+      tags.some((t) => f.tags.includes(t)) &&
+      frasaSiap(f, siap) &&
+      !pakai.has(f.id),
+  );
+  const hasil = pool
+    .map((f) => ({ f, k: hash(f.id + seed) }))
+    .sort((a, b) => a.k - b.k)
+    .slice(0, jumlah)
+    .map((x) => x.f);
+  for (const f of hasil) pakai.add(f.id);
+  return hasil;
+}
+
 function daftar(items: string[]): string {
   return items.map((s, i) => `${i + 1}. ${s}`).join("\n");
 }
@@ -140,6 +190,233 @@ export function tujuanDefault(p: Project): string[] {
   return Array.from({ length: jumlah }, (_, i) =>
     i < pola.length ? pola[i]!(t) : `تحليل جانب ${keAngkaArab(i + 1)} من ${t}`,
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * KHALFIYAH SEBAGAI PARAGRAF UTUH (Pembangunan Ulang Tahap 3).
+ *
+ * Sebelum tahap ini khalfiyah disusun dari 3 frasa bank "khalfiya" dan
+ * 2 frasa bank "dirasat" yang masing-masing menjadi BLOK sendiri, jadi
+ * hasilnya urutan kalimat lepas tanpa jalinan. Sekarang satuan susunan
+ * adalah PARAGRAF: tiap paragraf dirangkai dari kalimat pembuka,
+ * kalimat pendukung, dan kalimat penghubung yang memang ditulis untuk
+ * unsur wajibnya, lalu digabung dengan spasi sebagai satu teks paragraf.
+ *
+ * Unsur wajib mengikuti data pedoman proyek (bukan karangan):
+ *  - Mangkoso (aturan Bab 1 template): pentingnya topik, alasan memilih
+ *    topik itu, tujuannya, dan manfaatnya — dijalin dalam 3 paragraf.
+ *  - As'adiyah (aturan Bab 1 template): temhid yang menunjukkan
+ *    gambaran topik beserta kebaruan dan orisinalitasnya; motivasi dan
+ *    alasan memilih judul (persoalan teoretis dan faktual); titik tolak
+ *    dari karya sebelumnya — 3 paragraf.
+ *  - Tanpa template kampus: alur umum pengantar dan konteks, masalah
+ *    dan kesenjangan, lalu tujuan dan manfaat ringkas.
+ * Pengembangan prosa hanya memakai bahan proyek yang nyata (judul,
+ * fenomena, lokasi, populasi, rumusan/tujuan turunan) lewat Vars; frasa
+ * bank hanya dipilih bila semua variabel yang dirujuknya terisi.
+ * ------------------------------------------------------------------ */
+
+interface KonteksKhalfiya {
+  v: Vars;
+  siap: Set<string>;
+  pakai: Set<string>;
+}
+
+/** Ambil kalimat dari bank frasa untuk satu peran paragraf. */
+function ambilKalimat(
+  k: KonteksKhalfiya,
+  section: string,
+  tags: string[],
+  jumlah: number,
+  seed: number,
+): string[] {
+  return pilihBertag(section, tags, jumlah, seed, k.siap, k.pakai).map((f) => isi(f.ar, k.v));
+}
+
+/**
+ * Kalimat fenomena: dari data proyek bila ada, kalimat umum utuh bila
+ * tidak. Bila kalimat yang sudah terpilih (sudahAda) sudah menyebut
+ * fenomena proyek secara harfiah, kalimat ini mengembangkan maknanya
+ * alih-alih mengulang teks yang sama persis dua kali berurutan.
+ */
+function kalimatFenomena(k: KonteksKhalfiya, sudahAda: string[] = []): string {
+  if (!k.siap.has("fenomena")) {
+    return "ويظهر ما سبق جليًّا في الظاهرة التي يلاحظها الباحث في الميدان.";
+  }
+  if (sudahAda.some((s) => s.includes(k.v.fenomena))) {
+    return isi(
+      "وهذه الظاهرة ليست شأنًا عابرًا، بل تتسع آثارها لتشمل جوانب متعددة من {{bidang}}، نظرًا وتطبيقًا، وهو ما يضاعف الحاجة إلى دراستها دراسة علمية دقيقة.",
+      k.v,
+    );
+  }
+  return isi("ويظهر ما سبق جليًّا في {{fenomena}}.", k.v);
+}
+
+/** Kalimat penutup kebutuhan penelitian (dipakai sebagai penghubung ke rumusan). */
+const KALIMAT_KEBUTUHAN =
+  "ومن هنا تبرز الحاجة إلى إجراء هذه الدراسة للكشف عن أبعاد الموضوع، وتقديم إجابة علمية موثقة عن الأسئلة التي لم تُجب عنها الدراسات السابقة.";
+
+/** Kalimat tujuan: memakai tujuan pertama proyek (dari rumusannya sendiri). */
+function kalimatTujuan(p: Project, k: KonteksKhalfiya): string {
+  const tujuan = tujuanDefault(p)[0] ?? "الكشف عن أبعاد الموضوع المدروس";
+  return isi(
+    `ويهدف هذا البحث إلى ${tujuan}، وذلك في إطار الإجابة عن أسئلة البحث التي صيغت في موضعها من هذا الفصل.`,
+    k.v,
+  );
+}
+
+function kalimatManfaatTeori(k: KonteksKhalfiya): string {
+  return isi(
+    "أما فائدته النظرية فهي إثراء الدراسات المتصلة بـ{{bidang}}، وإضافة وصف علمي موثق لـ{{topik}} في سياقه المدروس إلى الأدبيات القائمة.",
+    k.v,
+  );
+}
+
+function kalimatManfaatPraktik(k: KonteksKhalfiya): string {
+  return k.siap.has("lokasi")
+    ? isi(
+        "وأما فائدته العملية فتعود على القائمين على {{bidang}} في {{lokasi}}، إذ تقدّم لهم نتائجه أساسًا موثقًا لمراجعة الممارسات القائمة وتطويرها.",
+        k.v,
+      )
+    : isi(
+        "وأما فائدته العملية فتعود على القائمين على هذا المجال والمؤسسات ذات الصلة به، إذ تقدّم لهم نتائجه أساسًا موثقًا لمراجعة الممارسات القائمة وتطويرها.",
+        k.v,
+      );
+}
+
+/**
+ * Paragraf khalfiyah wajib menyebut judul/topik proyek secara eksplisit:
+ * latar belakang yang tidak menamai topiknya bukan pengantar. Bila
+ * kalimat-kalimat pilihan belum menyebutnya, sisipkan satu kalimat
+ * penamaan sesudah kalimat pertama.
+ */
+function pastikanTopikDisebut(kalimat: string[], k: KonteksKhalfiya): string[] {
+  if (kalimat.some((s) => s.includes(k.v.topik))) return kalimat;
+  const penamaan = isi(
+    "ويتناول هذا البحث في ذلك {{topik}} تناولًا علميًا منهجيًا، يقف على أبعاده وعلاقاته في ضوء {{bidang}}.",
+    k.v,
+  );
+  return [kalimat[0] ?? "", penamaan, ...kalimat.slice(1)].filter((s) => s.length > 0);
+}
+
+/** Paragraf pembuka bersama: pentingnya topik/gambaran umum + fenomena + penegasan. */
+function paragrafPembukaKhalfiya(k: KonteksKhalfiya, seed: number): string {
+  const pembuka = ambilKalimat(k, "khalfiya", ["pembuka", "urgensi", "kontekstual"], 1, seed);
+  const penegas = ambilKalimat(k, "khalfiya", ["urgensi", "data", "argumentasi"], 1, seed + 7);
+  const kalimat = [
+    ...pembuka,
+    kalimatFenomena(k, pembuka),
+    ...(penegas.length > 0
+      ? penegas
+      : [
+          isi(
+            "وتزداد أهمية هذا الموضوع من جهة اتصاله المباشر بقضايا {{bidang}}، وما يترتب على فهمه فهمًا دقيقًا من أثر في توجيه الدراسات والممارسات المتصلة به.",
+            k.v,
+          ),
+        ]),
+  ];
+  return pastikanTopikDisebut(kalimat, k).join(" ");
+}
+
+/** Rangkai khalfiyah proyek menjadi judul + paragraf-paragraf utuh. */
+function rangkaiKhalfiya(p: Project, v: Vars, seed: number): string {
+  const k: KonteksKhalfiya = { v, siap: varsTerisi(v), pakai: new Set<string>() };
+  const judul = findSectionProyek(p, "khalfiya")?.section.headingAr ?? "خلفية البحث";
+  const namaPedoman = p.strukturPedoman?.namaPedoman ?? "";
+  const paragraf: string[] = [];
+
+  if (/as'adiyah/i.test(namaPedoman)) {
+    // Paragraf 1 — temhid: gambaran topik, fenomena, kebaruan/orisinalitas.
+    const pembuka = ambilKalimat(k, "khalfiya", ["pembuka", "kontekstual"], 1, seed);
+    const kebaruan = ambilKalimat(k, "dirasat", ["kebaruan", "kesenjangan"], 1, seed + 11);
+    paragraf.push(
+      pastikanTopikDisebut(
+        [
+          ...pembuka,
+          kalimatFenomena(k, pembuka),
+          ...(kebaruan.length > 0
+            ? kebaruan
+            : [
+                isi(
+                  "ولم يقف الباحث على دراسة سابقة تناولت {{topik}} من الزاوية التي يتناولها هذا البحث وبالحدود التي يقف عندها، فجاء عنوانه جديدًا في زاويته ومدخله، وهو ما يجعل دراسته حاجة علمية قائمة لا تكرارًا لما سبق من جهود.",
+                  v,
+                ),
+              ]),
+        ],
+        k,
+      ).join(" "),
+    );
+    // Paragraf 2 — motivasi dan alasan memilih judul: persoalan teoretis
+    // dan faktual yang menggugah, ditutup penegasan kelayakan judulnya.
+    const urgensi = ambilKalimat(k, "khalfiya", ["urgensi", "argumentasi"], 1, seed + 19);
+    paragraf.push(
+      [
+        isi(
+          "وتقوم أسباب اختيار هذا العنوان على إشكالين متلازمين: إشكال نظري يتمثل في أن المعالجات القائمة في {{bidang}} لم تستوفِ {{topik}} حقّه من التحليل والبيان، وإشكال واقعي يتمثل فيما يلاحظه الباحث في الميدان من ممارسات لا تزال بلا تفسير علمي وافٍ.",
+          v,
+        ),
+        ...urgensi,
+        isi(
+          "فاجتمع للباحث من الدوافع النظرية والواقعية ما يجعل هذا العنوان جديرًا بالدراسة والتحقيق، لما لنتائجه من أثر منتظر في فهم قضايا مجاله وتطوير معالجتها.",
+          v,
+        ),
+      ].join(" "),
+    );
+    // Paragraf 3 — titik tolak: berangkat dari karya sebelumnya, menindak
+    // lanjuti dan mengkritisi, sampai pada masalah yang masih terbuka.
+    const tinjauan = ambilKalimat(k, "dirasat", ["pembuka", "tinjauan"], 1, seed + 23);
+    const sikap = ambilKalimat(k, "dirasat", ["persamaan", "perbedaan", "kutipan"], 1, seed + 29);
+    paragraf.push(
+      [
+        ...tinjauan,
+        ...sikap,
+        "وعليه تنطلق هذه الدراسة مما انتهت إليه تلك الدراسات، متابعةً ما أصابته من نتائج ومستدركةً ما فاتها من جوانب، لتقف على المشكلة التي لا يزال البحث فيها مفتوحًا وتجعلها مدار عملها.",
+      ].join(" "),
+    );
+  } else if (/mangkoso/i.test(namaPedoman)) {
+    // Paragraf 1 — pentingnya topik (أهمية الموضوع).
+    paragraf.push(paragrafPembukaKhalfiya(k, seed));
+    // Paragraf 2 — alasan memilih topik (أسباب اختياره): kesenjangan yang
+    // diamati, dukungan telaah terdahulu, ditutup kebutuhan penelitian.
+    const kesenjangan = ambilKalimat(k, "khalfiya", ["kesenjangan"], 1, seed + 13);
+    const celah = ambilKalimat(k, "dirasat", ["kesenjangan", "perbedaan"], 1, seed + 17);
+    paragraf.push(
+      [
+        isi(
+          "وقد اختار الباحث هذا الموضوع لما لمسه من فجوة بين ما تقرّره الدراسات النظرية في {{bidang}} وما يجري في الميدان من ممارسات لم تجد تفسيرها العلمي الكافي بعد.",
+          v,
+        ),
+        ...kesenjangan,
+        ...celah,
+        KALIMAT_KEBUTUHAN,
+      ].join(" "),
+    );
+    // Paragraf 3 — tujuan (أهدافه) dan manfaat (الفائدة منه) dalam satu
+    // paragraf penutup yang mengalir, bukan dua blok berlabel.
+    paragraf.push([kalimatTujuan(p, k), kalimatManfaatTeori(k), kalimatManfaatPraktik(k)].join(" "));
+  } else {
+    // Alur umum tanpa template kampus: pengantar dan konteks, masalah
+    // dan kesenjangan, tujuan dan manfaat ringkas.
+    paragraf.push(paragrafPembukaKhalfiya(k, seed));
+    const kesenjangan = ambilKalimat(k, "khalfiya", ["kesenjangan"], 1, seed + 13);
+    const celah = ambilKalimat(k, "dirasat", ["kesenjangan", "perbedaan"], 1, seed + 17);
+    paragraf.push(
+      [
+        ...(kesenjangan.length > 0 || celah.length > 0
+          ? [...kesenjangan, ...celah]
+          : [
+              isi(
+                "وعلى الرغم من الجهود السابقة في هذا الباب، فإن جوانب من {{topik}} لا تزال بحاجة إلى معالجة علمية أدق، ولا سيما ما يتصل منها بسياق هذه الدراسة وحدودها.",
+                v,
+              ),
+            ]),
+        KALIMAT_KEBUTUHAN,
+      ].join(" "),
+    );
+    paragraf.push([kalimatTujuan(p, k), kalimatManfaatTeori(k)].join(" "));
+  }
+
+  return par(`## ${judul}`, ...paragraf);
 }
 
 type BagianFn = (p: Project, v: Vars, seed: number) => string;
@@ -230,17 +507,7 @@ const BAB: Record<string, BagianFn> = {
     );
   },
 
-  khalfiya: (p, v, seed) => {
-    const f1 = pilih("khalfiya", 3, seed).map((f) => isi(f.ar, v));
-    const gap = pilih("dirasat", 2, seed + 3).map((f) => isi(f.ar, v));
-    return par(
-      `## ${findSectionProyek(p, "khalfiya")?.section.headingAr ?? "خلفية البحث"}`,
-      ...f1,
-      v.fenomena ? isi("ويظهر ما سبق جليًّا في {{fenomena}}.", v) : "ويظهر ما سبق جليًّا في الظاهرة التي يلاحظها الباحث في الميدان.",
-      ...gap,
-      "ومن هنا تبرز الحاجة إلى إجراء هذه الدراسة للكشف عن أبعاد الموضوع، وتقديم إجابة علمية موثقة عن الأسئلة التي لم تُجب عنها الدراسات السابقة.",
-    );
-  },
+  khalfiya: (p, v, seed) => rangkaiKhalfiya(p, v, seed),
 
   masalah: (p, v) => {
     const r = rumusanDefault(p);
