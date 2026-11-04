@@ -31,6 +31,17 @@ export const SkemaBabStruktur = z.object({
   nama: z.string().min(2, "nama bab minimal 2 karakter"),
   namaAr: z.string().optional(),
   tujuan: z.string().default(""),
+  /**
+   * Ikatan bab isi ke nomor rumusan masalah/isykal yang dijawabnya
+   * (Pembangunan ulang Tahap 1, dari SPEC-PEDOMAN 2.2: pedoman Mangkoso
+   * mewajibkan bab 2 menjawab pertanyaan 1, bab 3 pertanyaan 2, bab 4
+   * pertanyaan 3). Bidang DATA, bukan sekadar nama bab: ikut terproyeksi
+   * ke BabKustom.isykalKe dan menjadi konteks wajib generasi isi bab.
+   * Kosong untuk bab yang tidak terikat (pendahuluan, penutup, dan bab
+   * pedoman yang memang tidak memakai pemetaan satu bab satu isykal,
+   * misalnya As'adiyah).
+   */
+  menjawabIsykal: z.number().int().min(1, "menjawab isykal mulai dari 1").max(12).optional(),
   subBab: z.array(SkemaSubBabStruktur).max(20).default([]),
   aturan: z.array(SkemaAturan).max(30).default([]),
 });
@@ -39,6 +50,13 @@ export const SkemaStrukturPedoman = z
   .object({
     versiSkema: z.literal("pedoman-struktur-v1"),
     namaPedoman: z.string().min(3, "nama pedoman wajib diisi"),
+    /**
+     * Aturan penomoran catatan kaki menurut pedoman kampus, dicatat
+     * sebagai DATA template (mesin footnote-nya dikerjakan tahap lain):
+     * "bersambung" = nomor berlanjut antar-bab (Mangkoso, SPEC 2.5);
+     * "per-bab" = mulai dari 1 pada setiap bab baru (As'adiyah, SPEC 3.6).
+     */
+    penomoranFootnote: z.enum(["bersambung", "per-bab"]).optional(),
     bab: z.array(SkemaBabStruktur).min(1, "minimal 1 bab").max(12, "maksimal 12 bab"),
   })
   .superRefine((v, ctx) => {
@@ -119,6 +137,7 @@ Keluarkan HANYA satu blok \`\`\`json dengan bentuk persis seperti ini (tanpa pen
 {
   "versiSkema": "pedoman-struktur-v1",
   "namaPedoman": "Pedoman Penulisan Skripsi <nama kampus>",
+  "penomoranFootnote": "bersambung",
   "bab": [
     {
       "nomor": 1,
@@ -132,6 +151,15 @@ Keluarkan HANYA satu blok \`\`\`json dengan bentuk persis seperti ini (tanpa pen
       "aturan": [
         { "teks": "Aturan persis dari pedoman, diringkas tanpa mengubah makna.", "wajib": true, "contoh": "" }
       ]
+    },
+    {
+      "nomor": 2,
+      "nama": "Bab isi pertama",
+      "namaAr": "",
+      "tujuan": "Satu-dua kalimat tujuan bab menurut pedoman.",
+      "menjawabIsykal": 1,
+      "subBab": [],
+      "aturan": []
     }
   ]
 }
@@ -139,6 +167,8 @@ Keluarkan HANYA satu blok \`\`\`json dengan bentuk persis seperti ini (tanpa pen
 Aturan keras:
 - Jumlah bab mengikuti pedoman (boleh 1–12). Nomor bab berurutan mulai 1, tidak ganda.
 - "wajib": true bila pedoman mewajibkan, false bila anjuran/pilihan.
+- "penomoranFootnote": "bersambung" bila nomor catatan kaki berlanjut antar-bab menurut pedoman, "per-bab" bila mulai dari 1 pada setiap bab baru. Kosongkan bidang ini bila pedoman tidak mengaturnya.
+- "menjawabIsykal": isi HANYA bila pedoman secara eksplisit mengikat bab isi ke nomor pertanyaan rumusan masalah yang dijawabnya (misalnya bab 2 menjawab pertanyaan 1). Jangan mengarang ikatan yang tidak dinyatakan pedoman.
 - Jangan mengarang bab/aturan yang tidak ada di pedoman. Bila pedoman tidak menyebut nama Arab, kosongkan "namaAr" menjadi "".
 - Jangan menulis ulang seluruh isi pedoman — hanya struktur dan aturannya.`;
 
@@ -160,7 +190,7 @@ const PERAN_SUBBAB: { pola: RegExp; id: string }[] = [
   { pola: /batasan|حدود البحث/i, id: "hudud" },
   { pola: /definisi|تعريف|مصطلحات/i, id: "mustalahat" },
   { pola: /penelitian terdahulu|kajian terdahulu|دراسات سابقة|الدراسات السابقة/i, id: "dirasat" },
-  { pola: /kerangka berpikir|kerangka pemikiran|إطار فكري/i, id: "itharFikri" },
+  { pola: /kerangka berpikir|kerangka pemikiran|kerangka konseptual|إطار فكري|إطار مفهومي|الإطار المفهومي/i, id: "itharFikri" },
   { pola: /kerangka teori|إطار نظري/i, id: "ithar" },
   { pola: /hipotesis|فرضي/i, id: "farudhiyat" },
   { pola: /kesimpulan|خلاصة|استنتاج/i, id: "khulasah" },
@@ -188,6 +218,12 @@ export function strukturKeDaftarIsi(s: StrukturPedoman): BabKustom[] {
       labelId: b.nama,
       labelAr: b.namaAr || "",
       babAr: BAB_AR[i] ?? String(b.nomor),
+      // Ikatan isykal, tujuan, dan aturan bab IKUT terproyeksi (Tahap 1):
+      // proyeksi lama membuangnya sehingga aturan pedoman gugur begitu
+      // struktur menjadi daftar isi proyek.
+      ...(typeof b.menjawabIsykal === "number" ? { isykalKe: b.menjawabIsykal } : {}),
+      ...(b.tujuan ? { tujuan: b.tujuan } : {}),
+      ...(b.aturan.length > 0 ? { aturan: b.aturan.map((a) => a.teks) } : {}),
       sections: b.subBab.map((sub, j) => ({
         id: idSubBabPedoman(sub.nama, sub.namaAr || "", `bab-pedoman-${b.nomor}-sub-${j + 1}`, terpakai),
         labelId: sub.nama,

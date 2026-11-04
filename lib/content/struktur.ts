@@ -837,16 +837,31 @@ export function strukturProyek(p: Project): StrukturDef {
     };
   };
 
-  const chapters: ChapterDef[] = p.daftarIsi.map((b) => ({
-    id: b.id,
-    labelId: b.labelId,
-    labelAr: b.labelAr,
-    babAr: b.babAr,
-    sections: b.sections.flatMap((s) => [
-      keSectionDef(s, 1),
-      ...(s.anak ?? []).map((a) => keSectionDef(a, 2)),
-    ]),
-  }));
+  const chapters: ChapterDef[] = p.daftarIsi.map((b) => {
+    // Konteks isykal bab terikat (Pembangunan Ulang Tahap 1): teks
+    // rumusan proyek yang dijawab bab ini disuntikkan ke panduan setiap
+    // bagiannya, agar generasi isi bab benar-benar membaca isykalnya,
+    // bukan berhenti pada label bab. Bab tanpa ikatan tidak berubah.
+    const teksIsykal =
+      typeof b.isykalKe === "number" ? (p.rumusan?.[b.isykalKe - 1] ?? "").trim() : "";
+    const denganIsykal = (def: SectionDef): SectionDef =>
+      teksIsykal
+        ? {
+            ...def,
+            panduan: `${def.panduan}\n\nKonteks wajib bab ini: bab ini menjawab rumusan masalah ke-${b.isykalKe}: "${teksIsykal}". Arahkan seluruh uraian bagian ini untuk menjawab rumusan masalah itu.`,
+          }
+        : def;
+    return {
+      id: b.id,
+      labelId: b.labelId,
+      labelAr: b.labelAr,
+      babAr: b.babAr,
+      sections: b.sections.flatMap((s) => [
+        denganIsykal(keSectionDef(s, 1)),
+        ...(s.anak ?? []).map((a) => denganIsykal(keSectionDef(a, 2))),
+      ]),
+    };
+  });
   return { ...tpl, chapters: saringMetode(p, chapters) };
 }
 

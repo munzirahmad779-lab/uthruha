@@ -137,5 +137,32 @@ export function cekKesesuaian(p: Project): TandaKesesuaian[] {
     });
   }
 
+  // 5) Ikatan bab isi ke isykal (Pembangunan Ulang Tahap 1): bab template
+  // yang membawa menjawabIsykal wajib tercermin sebagai isykalKe pada bab
+  // pasangannya di daftar isi proyek. Bab yang tidak ditemukan di daftar
+  // isi tidak ditandai di sini (ketidakhadirannya urusan pemeriksaan
+  // sub-bab di atas dan susunan bebas mahasiswa). Pedoman tidak mengatur
+  // jumlah rumusan yang kurang dari ikatan, jadi keadaan itu info saja.
+  for (const b of tpl.bab) {
+    if (typeof b.menjawabIsykal !== "number") continue;
+    const n = b.menjawabIsykal;
+    const diProyek = p.daftarIsi.find(
+      (db) => db.id === `bab-pedoman-${b.nomor}` || norm(db.labelId) === norm(b.nama),
+    );
+    if (diProyek && diProyek.isykalKe !== n) {
+      tanda.push({
+        tingkat: "wajib",
+        pesan: `"${b.nama}" menurut pedoman menjawab isykal ${n}, tetapi bab pasangannya di daftar isi proyek tidak mencatat ikatan itu. Susun ulang daftar isi dari template pedoman agar ikatannya tercatat.`,
+      });
+    }
+    const jumlahRumusan = (p.rumusan ?? []).filter((r) => r.trim()).length;
+    if (jumlahRumusan < n) {
+      tanda.push({
+        tingkat: "info",
+        pesan: `"${b.nama}" terikat pada isykal ${n}, tetapi rumusan masalah proyek baru terisi ${jumlahRumusan}. Pedoman tidak mengatur keadaan ini; sesuaikan dengan pembimbing.`,
+      });
+    }
+  }
+
   return tanda;
 }

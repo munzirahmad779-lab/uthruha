@@ -179,6 +179,14 @@ export interface BabKustom {
   babAr: string;
   /** Nomor isykal (1-based) yang diwakili bab ini, bila ada. */
   isykalKe?: number;
+  /**
+   * Tujuan bab menurut pedoman, ikut terproyeksi dari struktur pedoman
+   * (Tahap 1: proyeksi lama membuangnya). Murni tambahan; proyek lama
+   * tanpa bidang ini tetap sah.
+   */
+  tujuan?: string;
+  /** Teks aturan bab menurut pedoman, ikut terproyeksi seperti tujuan. */
+  aturan?: string[];
   sections: SubBabKustom[];
 }
 
@@ -215,12 +223,17 @@ export function sanitasiDaftarIsi(mentah: unknown): BabKustom[] | undefined {
       });
     }
     if (sections.length === 0) return;
+    const aturan = Array.isArray(rec.aturan)
+      ? rec.aturan.filter((a): a is string => typeof a === "string" && a.trim().length > 0).slice(0, 30)
+      : [];
     bab.push({
       id: typeof rec.id === "string" && rec.id ? rec.id : `bab-kustom-${i + 1}`,
       labelId: typeof rec.labelId === "string" ? rec.labelId : `BAB ${i + 1}`,
       labelAr: typeof rec.labelAr === "string" ? rec.labelAr : "",
       babAr: typeof rec.babAr === "string" ? rec.babAr : "",
       ...(typeof rec.isykalKe === "number" ? { isykalKe: rec.isykalKe } : {}),
+      ...(typeof rec.tujuan === "string" && rec.tujuan.trim() ? { tujuan: rec.tujuan } : {}),
+      ...(aturan.length > 0 ? { aturan } : {}),
       sections,
     });
   });
