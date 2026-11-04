@@ -1,4 +1,17 @@
 import type { ChapterDef, KaryaType, SectionDef, StrukturDef } from "./types";
+import {
+  TARGET_PEMILIK,
+  estimasiHalamanDariKata,
+  formatHalamanProyek,
+  halamanMinimalPedoman,
+  halamanMentahDariKata,
+  hitungKataNaskah,
+  kataUntukHalaman,
+  kampusTemplateProyek,
+  labelSumberTarget,
+  type FormatHalaman,
+  type SumberTarget,
+} from "@/lib/engine/estimasi-halaman";
 
 /**
  * Struktur naskah mengikuti konvensi penulisan karya ilmiah berbahasa Arab
@@ -806,15 +819,167 @@ function saringMetode(p: Project, chapters: ChapterDef[]): ChapterDef[] {
 }
 
 /**
+ * Terapkan target panjang ATURAN PEMILIK (Pembangunan Ulang
+ * Tahap 10) ke struktur proyek skripsi (risalah):
+ * - khalfiyah (latar belakang) menerima targetHalaman 2 dan
+ *   targetKata yang DITURUNKAN darinya lewat penaksir terkalibrasi
+ *   pada format proyek (2 halaman x kata per halaman format), bukan
+ *   angka generik 900 kata yang tidak dibaca aturan mana pun.
+ * - Bab kedua (posisi kedua sesudah penyaringan metode) menerima
+ *   targetHalaman 20 pada tingkat bab; capaiannya adalah gabungan
+ *   draf semua bagiannya.
+ * Jenjang selain skripsi tidak menerima target halaman pemilik:
+ * aturan pemilik menyebut risalah, dan jenjang lain sudah punya
+ * konvensi target katanya sendiri. Target pedoman TIDAK diterapkan
+ * di sini: halaman minimal pedoman adalah syarat TOTAL naskah dan
+ * dibaca permukaan dari data template lewat ringkasanPanjangProyek,
+ * terpisah labelnya dari aturan pemilik.
+ */
+function terapkanTargetPanjang(p: Project, chapters: ChapterDef[]): ChapterDef[] {
+  if (p.jenis !== "skripsi") return chapters;
+  const format = formatHalamanProyek(p);
+  const kataKhalfiyah = kataUntukHalaman(TARGET_PEMILIK.khalfiyahHalaman, format);
+  return chapters.map((c, i) => ({
+    ...c,
+    ...(i === 1
+      ? { targetHalaman: TARGET_PEMILIK.bab2Halaman, sumberTarget: "pemilik" as SumberTarget }
+      : {}),
+    sections: c.sections.map((sec) =>
+      sec.id === "khalfiya"
+        ? {
+            ...sec,
+            targetHalaman: TARGET_PEMILIK.khalfiyahHalaman,
+            sumberTarget: "pemilik" as SumberTarget,
+            targetKata: kataKhalfiyah,
+          }
+        : sec,
+    ),
+  }));
+}
+
+/** Satu baris capaian target pada ringkasan panjang proyek. */
+export interface CapaianTargetPanjang {
+  /** Kunci stabil baris: "khalfiyah" | "bab2" | "total-pemilik" | "total-pedoman". */
+  kunci: string;
+  label: string;
+  /** Asal aturan target ini; labelnya tampil sendiri di permukaan. */
+  sumber: SumberTarget;
+  labelSumber: string;
+  /** Target dalam halaman. */
+  targetHalaman: number;
+  /** Kata draf yang terhitung pada lingkup baris ini. */
+  kata: number;
+  /** Estimasi halaman mentah (pecahan) dari kata lingkup ini. */
+  halamanMentah: number;
+  /** Estimasi halaman dibulatkan ke atas. */
+  halaman: number;
+  tercapai: boolean;
+}
+
+export interface RingkasanPanjangProyek {
+  /** Format yang menjadi basis perkiraan (dinyatakan di permukaan). */
+  format: FormatHalaman;
+  /** Kampus pemilik template proyek, bila template bawaan. */
+  kampus: "mangkoso" | "asadiah" | null;
+  kataTotal: number;
+  halamanTotalMentah: number;
+  halamanTotal: number;
+  /** Baris-baris capaian target yang berlaku untuk proyek ini,
+   *  masing-masing dengan label sumbernya sendiri. Kosong bila
+   *  proyek tidak tunduk pada target halaman mana pun (jenjang
+   *  selain skripsi tanpa template pedoman). */
+  baris: CapaianTargetPanjang[];
+}
+
+/**
+ * Ringkasan panjang proyek untuk permukaan capaian (Tahap 10):
+ * kata dihitung dari draf bagian-bagian struktur proyek dengan
+ * penghitung yang sama dengan kalibrasi, halaman ditaksir pada
+ * format proyek, dan setiap target ditampilkan dengan sumbernya
+ * (pemilik atau pedoman) tanpa dicampur. Keadaan kurang dan
+ * tercapai dinyatakan apa adanya dari angka yang sama.
+ */
+export function ringkasanPanjangProyek(p: Project): RingkasanPanjangProyek {
+  const st = strukturProyek(p);
+  const format = formatHalamanProyek(p);
+  const kataPerBagian = new Map<string, number>();
+  let kataTotal = 0;
+  for (const c of st.chapters) {
+    for (const sec of c.sections) {
+      const k = hitungKataNaskah(p.draf?.[sec.id] ?? "");
+      kataPerBagian.set(sec.id, k);
+      kataTotal += k;
+    }
+  }
+  const buatBaris = (
+    kunci: string,
+    label: string,
+    sumber: SumberTarget,
+    targetHalaman: number,
+    kata: number,
+  ): CapaianTargetPanjang => ({
+    kunci,
+    label,
+    sumber,
+    labelSumber: labelSumberTarget(sumber),
+    targetHalaman,
+    kata,
+    halamanMentah: halamanMentahDariKata(kata, format),
+    halaman: estimasiHalamanDariKata(kata, format),
+    tercapai: halamanMentahDariKata(kata, format) >= targetHalaman,
+  });
+  const baris: CapaianTargetPanjang[] = [];
+  if (p.jenis === "skripsi") {
+    const kataKhalfiyah = kataPerBagian.get("khalfiya") ?? 0;
+    baris.push(
+      buatBaris(
+        "khalfiyah",
+        "Latar belakang (khalfiyah)",
+        "pemilik",
+        TARGET_PEMILIK.khalfiyahHalaman,
+        kataKhalfiyah,
+      ),
+    );
+    const bab2 = st.chapters[1];
+    if (bab2) {
+      const kataBab2 = bab2.sections.reduce((a, sec) => a + (kataPerBagian.get(sec.id) ?? 0), 0);
+      baris.push(
+        buatBaris("bab2", `Bab 2 (${bab2.labelId})`, "pemilik", TARGET_PEMILIK.bab2Halaman, kataBab2),
+      );
+    }
+    baris.push(
+      buatBaris("total-pemilik", "Total naskah selesai", "pemilik", TARGET_PEMILIK.totalHalaman, kataTotal),
+    );
+  }
+  const minimalPedoman = halamanMinimalPedoman(p);
+  if (minimalPedoman !== null) {
+    baris.push(
+      buatBaris("total-pedoman", "Total naskah menurut pedoman", "pedoman", minimalPedoman, kataTotal),
+    );
+  }
+  return {
+    format,
+    kampus: kampusTemplateProyek(p),
+    kataTotal,
+    halamanTotalMentah: halamanMentahDariKata(kataTotal, format),
+    halamanTotal: estimasiHalamanDariKata(kataTotal, format),
+    baris,
+  };
+}
+
+/**
  * Struktur efektif proyek: daftar isi kustom bila ada, bawaan jenis karya bila tidak.
  * Sub-bab yang id-nya dikenal dari templat mewarisi panduan/pemicu/target templat;
  * sub-bab baru mendapat panduan umum bab isykal. Fasal/matlab (anak sub-bab)
  * diratakan tepat di bawah induknya dengan tingkat 2, dan sub-rincian
  * (anak fasal) tepat di bawah fasalnya dengan tingkat 3 (Tahap 2 S5).
+ * Target panjang aturan pemilik (Tahap 10) diterapkan sesudah
+ * penyaringan metode, pada kedua jalur keluaran fungsi ini.
  */
 export function strukturProyek(p: Project): StrukturDef {
   const tpl = getStruktur(p.jenis);
-  if (!p.daftarIsi || p.daftarIsi.length === 0) return { ...tpl, chapters: saringMetode(p, tpl.chapters) };
+  if (!p.daftarIsi || p.daftarIsi.length === 0)
+    return { ...tpl, chapters: terapkanTargetPanjang(p, saringMetode(p, tpl.chapters)) };
   const dikenal = new Map<string, SectionDef>();
   for (const c of tpl.chapters) for (const s of c.sections) dikenal.set(s.id, s);
 
@@ -868,7 +1033,7 @@ export function strukturProyek(p: Project): StrukturDef {
       ]),
     };
   });
-  return { ...tpl, chapters: saringMetode(p, chapters) };
+  return { ...tpl, chapters: terapkanTargetPanjang(p, saringMetode(p, chapters)) };
 }
 
 /**

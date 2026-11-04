@@ -5,7 +5,8 @@
 // syarat kuantitatif & khas jenjang yang membuat sebuah karya layak jenjangnya.
 
 import type { Project } from "@/lib/engine/project";
-import { strukturProyek } from "@/lib/content/struktur";
+import { strukturProyek, ringkasanPanjangProyek } from "@/lib/content/struktur";
+import { TARGET_PEMILIK } from "@/lib/engine/estimasi-halaman";
 import { periksaSitasi } from "@/lib/engine/periksa-sitasi";
 
 export interface SyaratGerbang {
@@ -130,6 +131,29 @@ export function periksaGerbang(p: Project): HasilGerbang {
     terpenuhi: persenKata >= 70,
     detail: `Saat ini ±${kata.toLocaleString("id-ID")} dari target ${target.toLocaleString("id-ID")} kata (${persenKata}%).`,
   });
+
+  // Syarat halaman ATURAN PEMILIK (Pembangunan Ulang Tahap 10):
+  // hanya untuk skripsi (risalah), dari penaksir terkalibrasi di
+  // lib/engine/estimasi-halaman.ts. Total naskah selesai minimal
+  // 100 halaman perkiraan pada format proyek. Ambang kelulusan
+  // syarat ini adalah angka pemilik itu sendiri, sebagaimana syarat
+  // lain menyatakan ambangnya apa adanya; halaman minimal menurut
+  // PEDOMAN proyek (bila template bawaan) disebut di rincian
+  // sebagai syarat terpisah sumbernya, tidak dicampur ke ambang.
+  if (p.jenis === "skripsi") {
+    const ringkasan = ringkasanPanjangProyek(p);
+    const barisPedoman = ringkasan.baris.find((b) => b.kunci === "total-pedoman");
+    syarat.push({
+      id: "halaman",
+      label: `Total naskah mencapai ${TARGET_PEMILIK.totalHalaman} halaman (aturan pemilik web, perkiraan)`,
+      terpenuhi: ringkasan.halamanTotalMentah >= TARGET_PEMILIK.totalHalaman,
+      detail:
+        `Perkiraan saat ini ±${ringkasan.halamanTotal.toLocaleString("id-ID")} halaman pada format ${ringkasan.format.label} (±${ringkasan.format.kataPerHalaman} kata per halaman, terkalibrasi).` +
+        (barisPedoman
+          ? ` Pedoman proyek ini sendiri mensyaratkan minimal ${barisPedoman.targetHalaman} halaman (${barisPedoman.labelSumber}); perkiraan kini ${barisPedoman.tercapai ? "sudah" : "belum"} mencapainya.`
+          : ""),
+    });
+  }
 
   return { jenjang: a.label, lolos: syarat.every((s) => s.terpenuhi), syarat };
 }

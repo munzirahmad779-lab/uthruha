@@ -54,6 +54,17 @@ export interface SectionDef {
   pemicu: string[];
   /** Target kata minimum yang wajar. */
   targetKata: number;
+  /**
+   * Target panjang bagian ini dalam HALAMAN (Pembangunan Ulang
+   * Tahap 10), bila aturan yang berlaku menetapkannya. targetKata
+   * bagian ini kemudian DITURUNKAN dari angka halaman ini lewat
+   * penaksir terkalibrasi (lib/engine/estimasi-halaman.ts), bukan
+   * angka generik. sumberTarget menyebut asal aturannya agar
+   * permukaan tidak mencampur aturan pemilik web dengan pedoman.
+   */
+  targetHalaman?: number;
+  /** Asal target halaman: "pemilik" (perintah user) atau "pedoman". */
+  sumberTarget?: "pemilik" | "pedoman";
   /** Batasi bagian ini ke metode tertentu. */
   metode?: Metode[];
   /** Kedalaman di daftar isi: 1 = sub-bab (bawaan), 2 = fasal/matlab di bawah sub-bab. */
@@ -69,6 +80,15 @@ export interface ChapterDef {
   /** Sebutan bab dalam naskah Arab, mis. الباب الأول. */
   babAr: string;
   sections: SectionDef[];
+  /**
+   * Target panjang KESELURUHAN bab ini dalam halaman (Tahap 10),
+   * bila aturan yang berlaku menetapkannya (aturan pemilik: Bab 2
+   * minimal 20 halaman). Capaian bab adalah gabungan semua
+   * bagiannya; target ini tidak dibagikan ke targetKata per bagian.
+   */
+  targetHalaman?: number;
+  /** Asal target halaman bab: "pemilik" (perintah user) atau "pedoman". */
+  sumberTarget?: "pemilik" | "pedoman";
 }
 
 export interface StrukturDef {
