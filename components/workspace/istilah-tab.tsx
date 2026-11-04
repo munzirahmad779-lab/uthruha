@@ -4,38 +4,33 @@ import { useMemo, useState } from "react";
 import { getBidang } from "@/lib/content/bidang";
 import { strukturProyek } from "@/lib/content/struktur";
 import type { Istilah, Project } from "@/lib/engine/project";
+import {
+  analisisIstilahProyek,
+  bentukIntiAr,
+  konflikPadanan,
+  saranDariDraf,
+  statusIstilah,
+} from "@/lib/engine/istilah";
 import { IconPlus, IconTrash } from "@/components/icons";
 import { Field, Note } from "@/components/ui";
-
-function normal(s: string) {
-  return s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
-}
 
 export function IstilahTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>) => void }) {
   const bidang = getBidang(p.bidangId);
   const [baru, setBaru] = useState({ id_label: "", ar: "" });
 
-  const draf = useMemo(() => Object.values(p.draf).join("\n"), [p.draf]);
-
+  // Semua hitungan membaca draf proyek ini sendiri lewat mesin
+  // lib/engine/istilah.ts (Tahap 9): per kata utuh, normalisasi dasar
+  // yang sama untuk label dan padanan.
   const analisis = useMemo(() => {
-    const per = p.istilah.map((t) => {
-      const hit = t.ar.trim()
-        ? (draf.match(new RegExp(t.ar.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? []).length
-        : 0;
-      return { ...t, muncul: hit };
-    });
-
-    const grup = new Map<string, Istilah[]>();
-    for (const t of p.istilah) {
-      if (!t.id_label.trim()) continue;
-      const k = normal(t.id_label);
-      grup.set(k, [...(grup.get(k) ?? []), t]);
-    }
-    const konflik = Array.from(grup.values()).filter(
-      (g) => new Set(g.map((x) => normal(x.ar))).size > 1,
-    );
-    return { per, konflik, dipakai: per.filter((x) => x.muncul > 0).length };
-  }, [p.istilah, draf]);
+    const per = analisisIstilahProyek(p);
+    return {
+      per,
+      konflik: konflikPadanan(p.istilah),
+      dipakai: per.filter((x) => x.munculAr > 0).length,
+      labelSaja: per.filter((x) => statusIstilah(x) === "label-saja"),
+      varian: per.filter((x) => statusIstilah(x) === "varian"),
+    };
+  }, [p]);
 
   function tambah(istilah: Istilah) {
     if (!istilah.id_label.trim() || !istilah.ar.trim()) return;
@@ -50,9 +45,17 @@ export function IstilahTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Proj
     ubah({ istilah: p.istilah.filter((t) => t.id !== id) });
   }
 
-  const saran = bidang.teori.filter(
-    (t) => !p.istilah.some((i) => normal(i.ar) === normal(t.ar)),
-  );
+  // Saran utama diturunkan dari isi draf proyek (mesin yang sama):
+  // hanya teori bidang yang padanan atau labelnya benar-benar muncul
+  // di draf. Sisa teori bidang tetap ditawarkan di kelompok terpisah
+  // yang berlabel jujur sebagai usulan bidang, bukan temuan draf.
+  const saranDraf = useMemo(() => saranDariDraf(p, bidang.teori), [p, bidang]);
+  const saranBidang = bidang.teori.filter((t) => {
+    const inti = bentukIntiAr(t.ar);
+    if (!inti) return false;
+    if (saranDraf.some((s) => s.ar === inti)) return false;
+    return !p.istilah.some((i) => bentukIntiAr(i.ar) === inti);
+  });
 
   const st = strukturProyek(p);
   const totalBagian = st.chapters.reduce((a, c) => a + c.sections.length, 0);
@@ -99,22 +102,56 @@ export function IstilahTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Proj
         </div>
       </div>
 
-      {saran.length > 0 && (
+      {saranDraf.length > 0 && (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500">
-            Usulan dari bidang {bidang.labelId}
+            Terdeteksi di draf Anda
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {saran.slice(0, 6).map((t) => (
+            {saranDraf.slice(0, 6).map((s) => (
+              <button
+                key={s.ar}
+                type="button"
+                onClick={() =>
+                  tambah({ id: `ist-${Date.now().toString(36)}`, id_label: s.id, ar: s.ar })
+                }
+                className="chip hover:border-gold-500/60 hover:bg-gold-100"
+                title={`${s.id} — padanan muncul ${s.munculAr}×, label ${s.munculLabel}× di draf`}
+              >
+                <span className="font-arabic" dir="rtl">
+                  {s.ar}
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-700">
+                  {s.munculAr + s.munculLabel}×
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {saranBidang.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-500">
+            Usulan dari bidang {bidang.labelId} (belum terdeteksi di draf)
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {saranBidang.slice(0, 6).map((t) => (
               <button
                 key={t.ar}
                 type="button"
-                onClick={() => tambah({ id: `ist-${Date.now().toString(36)}`, id_label: t.id, ar: t.ar })}
+                onClick={() =>
+                  tambah({
+                    id: `ist-${Date.now().toString(36)}`,
+                    id_label: t.id,
+                    ar: bentukIntiAr(t.ar),
+                  })
+                }
                 className="chip hover:border-gold-500/60 hover:bg-gold-100"
                 title={t.id}
               >
                 <span className="font-arabic" dir="rtl">
-                  {t.ar.split("(")[0].trim()}
+                  {bentukIntiAr(t.ar)}
                 </span>
               </button>
             ))}
@@ -136,36 +173,57 @@ export function IstilahTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Proj
             <span />
           </div>
           <div className="divide-y divide-ink-900/5 bg-white/70">
-            {analisis.per.map((t) => (
-              <div key={t.id} className="grid grid-cols-[1.2fr_1.2fr_auto_auto] items-center gap-2 px-3 py-2">
-                <input
-                  className="w-full rounded-md bg-transparent px-1 py-1 text-[12.5px] text-ink-900 outline-none focus:bg-parchment-100"
-                  value={t.id_label}
-                  onChange={(e) => ubahSatu(t.id, { id_label: e.target.value })}
-                />
-                <input
-                  dir="rtl"
-                  className="w-full rounded-md bg-transparent px-1 py-1 text-right font-naskh text-[14px] text-ink-900 outline-none focus:bg-parchment-100"
-                  value={t.ar}
-                  onChange={(e) => ubahSatu(t.id, { ar: e.target.value })}
-                />
-                <span
-                  className={`w-14 text-center text-[11px] font-semibold ${
-                    t.muncul > 0 ? "text-emerald-700" : "text-ink-400"
-                  }`}
-                >
-                  {t.muncul}×
-                </span>
-                <button
-                  type="button"
-                  onClick={() => hapus(t.id)}
-                  className="grid h-7 w-7 place-items-center rounded-md text-ink-400 hover:bg-red-50 hover:text-red-600"
-                  title="Hapus"
-                >
-                  <IconTrash className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
+            {analisis.per.map((a) => {
+              const t = a.istilah;
+              const st = statusIstilah(a);
+              return (
+                <div key={t.id} className="grid grid-cols-[1.2fr_1.2fr_auto_auto] items-center gap-2 px-3 py-2">
+                  <input
+                    className="w-full rounded-md bg-transparent px-1 py-1 text-[12.5px] text-ink-900 outline-none focus:bg-parchment-100"
+                    value={t.id_label}
+                    onChange={(e) => ubahSatu(t.id, { id_label: e.target.value })}
+                  />
+                  <input
+                    dir="rtl"
+                    className="w-full rounded-md bg-transparent px-1 py-1 text-right font-naskh text-[14px] text-ink-900 outline-none focus:bg-parchment-100"
+                    value={t.ar}
+                    onChange={(e) => ubahSatu(t.id, { ar: e.target.value })}
+                  />
+                  <span
+                    className="w-[4.5rem] text-center leading-tight"
+                    title={`Padanan Arab muncul ${a.munculAr}× di draf; label muncul ${a.munculLabel}×${
+                      a.varianAr > 0 ? `; bentuk lain dari padanan ini ${a.varianAr}×` : ""
+                    }`}
+                  >
+                    <span
+                      className={`block text-[11px] font-semibold ${
+                        st === "dipakai"
+                          ? "text-emerald-700"
+                          : st === "tidak-muncul"
+                            ? "text-ink-400"
+                            : "text-amber-700"
+                      }`}
+                    >
+                      Arab {a.munculAr}×
+                    </span>
+                    <span className="block text-[10px] text-ink-500">Label {a.munculLabel}×</span>
+                    {a.varianAr > 0 && (
+                      <span className="block text-[10px] font-semibold text-amber-700">
+                        Varian {a.varianAr}×
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => hapus(t.id)}
+                    className="grid h-7 w-7 place-items-center rounded-md text-ink-400 hover:bg-red-50 hover:text-red-600"
+                    title="Hapus"
+                  >
+                    <IconTrash className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -177,6 +235,33 @@ export function IstilahTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Proj
             .map((g) => `${g[0].id_label} → ${g.map((x) => x.ar).join(" / ")}`)
             .join("; ")}
           . Pilih satu bentuk dan pakai di seluruh naskah.
+        </Note>
+      )}
+
+      {analisis.labelSaja.length > 0 && (
+        <Note jenis="warn">
+          <strong>Padanan belum dipakai di draf:</strong>{" "}
+          {analisis.labelSaja
+            .map(
+              (a) =>
+                `${a.istilah.id_label} → ${a.istilah.ar} (label muncul ${a.munculLabel}×, padanan 0×)`,
+            )
+            .join("; ")}
+          . Labelnya sudah tertulis di draf, tetapi padanan Arab yang ditetapkan belum pernah
+          dipakai. Ganti penyebutan label itu dengan padanannya agar konsisten.
+        </Note>
+      )}
+
+      {analisis.varian.length > 0 && (
+        <Note jenis="warn">
+          <strong>Bentuk lain dari padanan tetap:</strong>{" "}
+          {analisis.varian
+            .map(
+              (a) =>
+                `«${a.istilah.ar}» tertulis «${a.kutipanVarian}» ${a.varianAr}× di draf`,
+            )
+            .join("; ")}
+          . Samakan penulisannya dengan bentuk tetap di kolom padanan.
         </Note>
       )}
 
