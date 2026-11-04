@@ -37,6 +37,23 @@
  *    (penomoranFootnote): Mangkoso bersambung antar-bab, As'adiyah mulai
  *    dari 1 tiap bab. Mesin footnote-nya dikerjakan tahap lain.
  *
+ * Koreksi telaah silang Tahap 1 (REVIEW-TAHAP-1.md: S1, R1, R2, R4):
+ *  - Sub-bab tunggal bab isi Mangkoso ("Jawaban Isykal Pertama/Kedua/
+ *    Ketiga") adalah PERANCAH APLIKASI, bukan sub-bab bernama dari
+ *    pedoman (pedoman mencontohkan fashl bertajuk topikal mengikuti
+ *    judul risalah), jadi ditandai wajib: false. Kewajiban menjawab
+ *    isykal itu sendiri tetap wajib lewat ikatan menjawabIsykal dan
+ *    aturan babnya; yang bukan kewajiban pedoman hanya nama sub-babnya.
+ *  - Pembagian dua fashl pada Bab 2, 3, 4 As'adiyah adalah PENATAAN
+ *    APLIKASI: nama-namanya frasa panduan sendiri dan cakupan isinya
+ *    persis isi wajib babnya, tetapi panduan tidak menetapkan pembagian
+ *    dua fashl itu. Bendera wajib di situ menunjuk isi babnya, bukan
+ *    bentuk fashlnya.
+ *  - Urutan sub-bab Bab 1 Mangkoso mengikuti urutan prosa dan contoh
+ *    daftar isi pedoman (penelitian terdahulu lebih awal), yang memang
+ *    berbeda dari urutan daftar unsur proposal di pedoman yang sama
+ *    (yang menaruh definisi istilah sebelum penelitian terdahulu).
+ *
  * Aturan kejujuran data: yang dimasukkan HANYA struktur dan aturan yang
  * terbaca nyata di kedua dokumen itu. Angka/format yang tidak terbaca
  * utuh dari ekstraksi PDF tidak ditebak. Bila kampus menerbitkan edisi
@@ -89,7 +106,7 @@ const MANGKOSO: StrukturPedoman = SkemaStrukturPedoman.parse({
       tujuan:
         "Bab isi pertama (من صلب الرسالة): memuat hasil kerja peneliti untuk menjawab pertanyaan pertama yang ada dalam rumusan masalah. Pedoman tidak memberi nama tetap untuk bab isi; judul bab mengikuti topik jawabannya.",
       menjawabIsykal: 1,
-      subBab: [{ nama: "Jawaban Isykal Pertama", namaAr: "الإجابة عن السؤال الأول", wajib: true }],
+      subBab: [{ nama: "Jawaban Isykal Pertama", namaAr: "الإجابة عن السؤال الأول", wajib: false }],
       aturan: [
         { teks: "Isi bab adalah jawaban atas pertanyaan pertama pada rumusan masalah, hasil analisis peneliti sendiri.", wajib: true },
         { teks: "Kutipan langsung kurang dari enam baris ditulis menyatu dengan teks dalam tanda kutip; enam baris atau lebih ditulis terpisah dengan jarak satu sejajar awal paragraf; kutipan tidak langsung ditulis menyatu tanpa tanda kutip. Terjemahan ayat dan hadis ditulis terpisah sejajar awal paragraf.", wajib: true },
@@ -103,9 +120,9 @@ const MANGKOSO: StrukturPedoman = SkemaStrukturPedoman.parse({
       tujuan:
         "Bab isi kedua (من صلب الرسالة): memuat hasil kerja peneliti untuk menjawab pertanyaan kedua yang ada dalam rumusan masalah. Pedoman tidak memberi nama tetap untuk bab isi; judul bab mengikuti topik jawabannya.",
       menjawabIsykal: 2,
-      subBab: [{ nama: "Jawaban Isykal Kedua", namaAr: "الإجابة عن السؤال الثاني", wajib: true }],
+      subBab: [{ nama: "Jawaban Isykal Kedua", namaAr: "الإجابة عن السؤال الثاني", wajib: false }],
       aturan: [
-        { teks: "Isi bab adalah jawaban atas pertanyaan kedua pada rumusan masalah, dengan kedalaman analisis yang sama seperti bab sebelumnya.", wajib: true },
+        { teks: "Isi bab adalah jawaban atas pertanyaan kedua pada rumusan masalah, hasil analisis peneliti sendiri.", wajib: true },
         { teks: "Sub-bab (فصل dan مبحث) bab ini disusun mengikuti materi jawaban; jangan menyalin susunan Bab 1 ke sini.", wajib: false },
       ],
     },
@@ -116,7 +133,7 @@ const MANGKOSO: StrukturPedoman = SkemaStrukturPedoman.parse({
       tujuan:
         "Bab isi ketiga (من صلب الرسالة): memuat hasil kerja peneliti untuk menjawab pertanyaan ketiga yang ada dalam rumusan masalah. Pedoman tidak memberi nama tetap untuk bab isi; judul bab mengikuti topik jawabannya.",
       menjawabIsykal: 3,
-      subBab: [{ nama: "Jawaban Isykal Ketiga", namaAr: "الإجابة عن السؤال الثالث", wajib: true }],
+      subBab: [{ nama: "Jawaban Isykal Ketiga", namaAr: "الإجابة عن السؤال الثالث", wajib: false }],
       aturan: [
         { teks: "Isi bab adalah jawaban atas pertanyaan ketiga pada rumusan masalah, hasil analisis peneliti sendiri.", wajib: true },
         { teks: "Pedoman mengikat bab ini pada pertanyaan ketiga dan tidak mengatur keadaannya bila rumusan masalah berjumlah lain; keadaan seperti itu disesuaikan dengan pembimbing.", wajib: false },
