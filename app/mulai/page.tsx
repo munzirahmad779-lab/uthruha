@@ -371,6 +371,10 @@ export default function MulaiPage() {
                 Tulis dalam huruf Arab bila sudah ada. Yang masih kosong akan ditandai sebagai
                 penanda di draf.
               </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-500">
+                Teks redup pada kolom adalah contoh dan akan hilang saat Anda mengetik; kolom yang
+                dikosongkan tampil sebagai penanda kurung di draf.
+              </p>
               <div className="mt-5 grid gap-4">
                 <Field
                   label="Topik / kalimat kunci penelitian (Arab)"
@@ -381,7 +385,7 @@ export default function MulaiPage() {
                     dir="rtl"
                     value={topikAr}
                     onChange={(e) => setTopikAr(e.target.value)}
-                    placeholder="تعليم اللغة العربية في المعاهد الإسلامية"
+                    placeholder="مثال: تعليم اللغة العربية في المعاهد الإسلامية"
                   />
                 </Field>
                 <Field label="Judul sementara (Arab)" hint="Boleh dikosongkan; bisa diisi nanti.">
@@ -390,7 +394,7 @@ export default function MulaiPage() {
                     dir="rtl"
                     value={judulAr}
                     onChange={(e) => setJudulAr(e.target.value)}
-                    placeholder="فاعلية طريقة المحاورة في تنمية مهارة الكلام"
+                    placeholder={`مثال: ${bidang.contohTopik[0]?.ar ?? "فاعلية طريقة المحاورة في تنمية مهارة الكلام"}`}
                   />
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -400,7 +404,7 @@ export default function MulaiPage() {
                       dir="rtl"
                       value={lokasi}
                       onChange={(e) => setLokasi(e.target.value)}
-                      placeholder="معهد دار المعارف"
+                      placeholder="مثال: معهد دار المعارف"
                     />
                   </Field>
                   <Field label="Populasi / subjek (Arab)">
@@ -409,7 +413,7 @@ export default function MulaiPage() {
                       dir="rtl"
                       value={populasi}
                       onChange={(e) => setPopulasi(e.target.value)}
-                      placeholder="طلاب الصف الثاني"
+                      placeholder="مثال: طلاب الصف الثاني"
                     />
                   </Field>
                 </div>
@@ -422,7 +426,7 @@ export default function MulaiPage() {
                     dir="rtl"
                     value={fenomenaAr}
                     onChange={(e) => setFenomenaAr(e.target.value)}
-                    placeholder="يلاحظ الباحث ضعف الطلاب في المحادثة باللغة العربية رغم دراستهم للنحو"
+                    placeholder="مثال: يلاحظ الباحث ضعف الطلاب في المحادثة باللغة العربية رغم دراستهم للنحو"
                   />
                 </Field>
               </div>

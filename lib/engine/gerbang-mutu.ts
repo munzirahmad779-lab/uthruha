@@ -117,7 +117,7 @@ export function periksaGerbang(p: Project): HasilGerbang {
       periksa.penandaTotal === 0
         ? "Belum ada penanda sitasi di naskah."
         : kritis === 0
-          ? `${periksa.penandaSehat}/${periksa.penandaTotal} penanda sehat.`
+          ? `${periksa.penandaSehat}/${periksa.penandaTotal} penanda lengkap, semua punya rujukan tersimpan.`
           : `${kritis} penanda menunjuk rujukan yang sudah tidak ada.`,
   });
 

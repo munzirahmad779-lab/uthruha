@@ -94,6 +94,30 @@ export function AuditTab({
         <Stat label="Temuan" nilai={laporan.temuan.length} />
       </div>
 
+      <div className={`rounded-xl border p-4 ${gerbang.lolos ? "border-emerald-600/30 bg-emerald-50" : "border-red-300 bg-red-50"}`}>
+        <h3 className="text-[12.5px] font-bold text-ink-900">
+          Gerbang mutu {gerbang.jenjang}:{" "}
+          {gerbang.lolos ? "LOLOS ✓" : `BELUM LOLOS (${gerbang.syarat.filter((s) => !s.terpenuhi).length} dari ${gerbang.syarat.length} syarat)`}
+        </h3>
+        <p className="mt-1 text-[11.5px] leading-relaxed text-ink-600">
+          Aturan ketat khusus jenjang karya ini: setiap jenjang punya syaratnya sendiri, tidak
+          disamakan. Gerbang ini menilai syarat yang bisa diperiksa mesin; mutu isi tetap dinilai
+          pembimbing dan penguji.
+        </p>
+        <ul className="mt-2 space-y-1.5">
+          {gerbang.syarat.map((s) => (
+            <li key={s.id} className="flex items-start gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-[12px] leading-relaxed text-ink-700">
+              <span className={s.terpenuhi ? "font-bold text-emerald-700" : "font-bold text-red-700"}>
+                {s.terpenuhi ? "✓" : "✗"}
+              </span>
+              <span>
+                <b>{s.label}.</b> <span className="text-ink-500">{s.detail}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <div className="flex flex-wrap gap-1.5">
         {(["semua", "kritis", "saran", "info"] as const).map((f) => {
           const n =
@@ -181,33 +205,10 @@ export function AuditTab({
             <li>• Kebenaran isi dan kesesuaian data lapangan</li>
             <li>• Ketepatan nahwu/sharaf pada kalimat Anda</li>
             <li>• Validitas kutipan terhadap sumber aslinya</li>
+            <li>• Kesesuaian topik sumber dengan bidang proyek (dijaga gerbang relevansi saat pemasangan, tidak dinilai ulang di sini)</li>
             <li>• Pedoman format kampus (margin, font, penomoran)</li>
           </ul>
         </div>
-      </div>
-
-      <div className={`rounded-xl border p-4 ${gerbang.lolos ? "border-emerald-600/30 bg-emerald-50" : "border-amber-500/40 bg-amber-50"}`}>
-        <h3 className="text-[12.5px] font-bold text-ink-900">
-          Gerbang mutu {gerbang.jenjang} —{" "}
-          {gerbang.lolos ? "LOLOS ✓" : `BELUM LOLOS (${gerbang.syarat.filter((s) => !s.terpenuhi).length} dari ${gerbang.syarat.length} syarat)`}
-        </h3>
-        <p className="mt-1 text-[11.5px] leading-relaxed text-ink-600">
-          Aturan ketat khusus jenjang karya ini — setiap jenjang punya syaratnya sendiri, tidak
-          disamakan. Gerbang ini menilai syarat yang bisa diperiksa mesin; mutu isi tetap dinilai
-          pembimbing dan penguji.
-        </p>
-        <ul className="mt-2 space-y-1.5">
-          {gerbang.syarat.map((s) => (
-            <li key={s.id} className="flex items-start gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-[12px] leading-relaxed text-ink-700">
-              <span className={s.terpenuhi ? "font-bold text-emerald-700" : "font-bold text-amber-700"}>
-                {s.terpenuhi ? "✓" : "✗"}
-              </span>
-              <span>
-                <b>{s.label}.</b> <span className="text-ink-500">{s.detail}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
       </div>
 
       <PemeriksaanSitasiPanel p={p} ubah={ubah} />

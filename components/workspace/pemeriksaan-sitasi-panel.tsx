@@ -55,10 +55,14 @@ export function PemeriksaanSitasiPanel({
       {laporan && (
         <div className="space-y-2">
           <p className="text-[12px] text-ink-700">
-            Penanda sitasi: <b>{laporan.penandaSehat}/{laporan.penandaTotal}</b> sehat.
+            Penanda sitasi: <b>{laporan.penandaSehat}/{laporan.penandaTotal}</b> lengkap (punya rujukan tersimpan).
             {laporan.masalah.length === 0
-              ? " Tidak ada masalah ditemukan — semua sitasi dikenal, berhalaman, dan terverifikasi."
+              ? " Tidak ada masalah ditemukan: semua sitasi dikenal, berhalaman, dan terverifikasi."
               : ` ${laporan.masalah.length} hal perlu dibereskan:`}
+          </p>
+          <p className="text-[11.5px] leading-relaxed text-ink-600">
+            Lengkap berarti penanda tidak yatim karena rujukannya tersimpan, bukan berarti sumbernya sesuai
+            topik. Kesesuaian topik dijaga gerbang relevansi saat pemasangan.
           </p>
           {laporan.masalah.map((m, i) => (
             <div

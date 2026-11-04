@@ -59,7 +59,7 @@ export function OverviewTab({
               className="input text-right font-naskh"
               value={p.lokasi}
               onChange={(e) => ubah({ lokasi: e.target.value })}
-              placeholder="معهد دار المعارف"
+              placeholder="مثال: معهد دار المعارف"
             />
           </Field>
           <Field label="Populasi / subjek (Arab)">
@@ -68,7 +68,7 @@ export function OverviewTab({
               className="input text-right font-naskh"
               value={p.populasi}
               onChange={(e) => ubah({ populasi: e.target.value })}
-              placeholder="طلاب الصف الثاني"
+              placeholder="مثال: طلاب الصف الثاني"
             />
           </Field>
           <Field
@@ -81,7 +81,7 @@ export function OverviewTab({
               className="input min-h-24 text-right font-naskh text-[15px] leading-loose"
               value={p.fenomenaAr}
               onChange={(e) => ubah({ fenomenaAr: e.target.value })}
-              placeholder="يلاحظ الباحث ضعف الطلاب في المحادثة رغم دراستهم للنحو"
+              placeholder="مثال: يلاحظ الباحث ضعف الطلاب في المحادثة رغم دراستهم للنحو"
             />
           </Field>
         </div>
