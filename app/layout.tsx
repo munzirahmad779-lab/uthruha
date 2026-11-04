@@ -31,6 +31,21 @@ export const metadata: Metadata = {
     type: "website",
     locale: "id_ID",
     siteName: "Kitabah",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Kitabah, ruang kerja karya ilmiah berbahasa Arab",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "كتابة Kitabah — Ruang Kerja Karya Ilmiah Berbahasa Arab",
+    description:
+      "Dari topik yang masih kabur menjadi naskah skripsi, tesis, disertasi, atau artikel jurnal berbahasa Arab yang tertata.",
+    images: ["/og-image.png"],
   },
   robots: { index: true, follow: true },
   icons: {
