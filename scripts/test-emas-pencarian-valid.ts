@@ -1,13 +1,19 @@
 /**
- * Set uji emas v1 — Aturan Pencarian Valid (Tahap G1, 6 Nov 2026).
+ * Set uji emas v1 — Aturan Pencarian Valid (Tahap G1, 6 Nov 2026;
+ * diperluas Tahap G2 di bagian 7-8).
  *
  * Regresi TETAP untuk kasus-kasus nyata yang pernah membuktikan
  * bocor atau gerbang bekerja, dijalankan LURING dan deterministik:
  * gerbang kategori kitab bermesin sembilan aturan (kasus uang panai
  * + kasus leksikon takamul dari bahan resmi pemilik), periksa
  * metadata (bandingkanDenganRekod), dan penanda bidang jurnal.
- * Pasangan hidupnya (adapter nyata, endpoint, jembatan model) ada
- * di scripts/test-emas-hidup.ts.
+ * Bagian 7 (G2): gerbangJurnal deterministik + labelCabangDariTeks
+ * dengan label persis seperti rekod OpenAlex nyata keempat fixture
+ * wajib. Bagian 8 (G2): validator skema ketat keluaran pencarian
+ * (kasus wajib tolak + wajib sah dari contoh bahan resmi), kamus
+ * ambiguitas takamul, dan pengerasan parser lama. Pasangan hidupnya
+ * (adapter nyata, endpoint, jembatan model) ada di
+ * scripts/test-emas-hidup.ts.
  *
  * Kasus intinya diambil dari bukti uji nyata di
  * ~/workspace/your_files/Uji-Kitabah/: proyek fikih berjudul
@@ -26,10 +32,17 @@
  * Keluar dengan kode non-nol bila ada butir GAGAL.
  */
 import {
+  gerbangJurnal,
   gerbangKategoriKitab,
+  labelCabangDariTeks,
   namaKategoriSumber,
   normalisasiKategoriKitab,
 } from "../lib/engine/kategori-kitab";
+import {
+  kamusAmbiguitasUntuk,
+  validasiKeluaranPencarian,
+} from "../lib/engine/skema-pencarian";
+import { parseKalimat, parseKata } from "../lib/engine/kata-kunci-server";
 import {
   bandingkanDenganRekod,
   type KandidatVerifikasi,
@@ -341,6 +354,261 @@ const KONTEKS_FIQH: KonteksProyek = {
   cek("penanda: الشرعية التنظيمية terdeteksi Manajemen", b === "Manajemen dan administrasi", b ?? "(null)");
   cek("penanda: Manajemen bukan milik proyek fiqh", b !== null && bidangMilikProyek(b, KONTEKS_FIQH) === false);
 }
+
+/* ── 7. Gerbang jurnal deterministik (Tahap G2, luring) ──────────────
+ * Label cabang diberikan manual persis seperti yang dibaca
+ * lib/server/label-sumber.ts dari rekod OpenAlex nyata keempat
+ * fixture (diperiksa hidup 6 Nov 2026): Ihya {tafsir, fiqh};
+ * maqashid {tafsir}; ekonomi {iqtishad}; الشرعية التنظيمية
+ * {iqtishad}. Pasangan hidupnya ada di test-emas-hidup.ts bagian E. */
+
+cek("label teks: Qur'anic Interpretation Studies → tafsir",
+  labelCabangDariTeks("Qur'anic Interpretation Studies") === "tafsir");
+cek("label teks: Qur’anic (kutip lengkung) → tafsir",
+  labelCabangDariTeks("Qur’anic Interpretation Studies") === "tafsir");
+cek("label teks: Fiqh (konsep OpenAlex) → fiqh", labelCabangDariTeks("Fiqh") === "fiqh");
+cek("label teks: Global trade and economics → iqtishad",
+  labelCabangDariTeks("Global trade and economics") === "iqtishad");
+cek("label teks: Islamic Finance and Banking Studies → iqtishad",
+  labelCabangDariTeks("Islamic Finance and Banking Studies") === "iqtishad");
+cek("label teks: التكامل الاقتصادي (nama jurnal) → iqtishad",
+  labelCabangDariTeks("التكامل الاقتصادي") === "iqtishad");
+cek("label teks: مجلة الإحياء → null (nama jurnal bukan cabang)",
+  labelCabangDariTeks("مجلة الإحياء") === null);
+cek("label teks: nama jurnal Ihya → null",
+  labelCabangDariTeks("International Journal Ihya' 'Ulum al-Din") === null);
+cek("label teks: Islamic Thought and Society Studies → null (domain saja, bukan cabang)",
+  labelCabangDariTeks("Islamic Thought and Society Studies") === null);
+cek("label teks: Education and Islamic Studies → null (education telanjang bukan tarbiyah)",
+  labelCabangDariTeks("Education and Islamic Studies") === null);
+cek("label teks: Workplace Spirituality and Leadership → null",
+  labelCabangDariTeks("Workplace Spirituality and Leadership") === null);
+
+const JUDUL_TAKAMUL_EMAS = "التكامل المعرفي بين علوم القرآن وأصول الفقه";
+const JUDUL_IHYA =
+  "Kaidah Fiqh dan Ushul Fiqh Tentang Produk Halal, Metode Istinbath dan Ijtihad dalam Menetapkan Hukum Produk Halal";
+{
+  const h = gerbangJurnal(
+    {
+      judul: JUDUL_IHYA,
+      jurnal: "International Journal Ihya' 'Ulum al-Din",
+      isi: "The purpose of the discovery of Islamic law must be understood by the mujtahid in order to develop legal thinking in Islam and answer contemporary legal issues, especially those related to the field of muamalah, based on the Qur'an and Sunnah.",
+      labelSumber: ["tafsir", "fiqh"],
+      judulProyek: JUDUL_TAKAMUL_EMAS,
+    },
+    "quran",
+  );
+  cek("jurnal: Ihya vs takamul: LOLOS deterministik", h.putusan === "lolos", `${h.kode} :: ${h.alasan}`);
+  const h2 = gerbangJurnal(
+    {
+      judul: JUDUL_IHYA,
+      jurnal: "International Journal Ihya' 'Ulum al-Din",
+      isi: "Islamic law and muamalah.",
+      labelSumber: ["tafsir", "fiqh"],
+      judulProyek: JUDUL_UANG_PANAI,
+    },
+    "fiqh",
+  );
+  cek("jurnal: Ihya vs uang panai (munakahat): LOLOS", h2.putusan === "lolos", `${h2.kode} :: ${h2.alasan}`);
+}
+{
+  const h = gerbangJurnal(
+    {
+      judul:
+        "التكامل المعرفي بين مقاصد القرآن ومقاصد الشريعة في تفسير أطوار العمران من خلال مقدمة ابن خلدون",
+      jurnal: "مجلة الإحياء",
+      labelSumber: ["tafsir"],
+      judulProyek: JUDUL_TAKAMUL_EMAS,
+    },
+    "quran",
+  );
+  cek("jurnal: maqashid (label tafsir, tanpa abstrak) vs takamul: LOLOS",
+    h.putusan === "lolos", `${h.kode} :: ${h.alasan}`);
+}
+{
+  const kandidatEkonomi = {
+    judul: "التكامل مع الجيران: دراسة في اتفاقية التجارة الحرة العربية الكبرى ومنطقة التبادل الحر",
+    jurnal: "التكامل الاقتصادي",
+    labelSumber: ["iqtishad"] as const,
+  };
+  const gugur = gerbangJurnal(
+    { ...kandidatEkonomi, labelSumber: [...kandidatEkonomi.labelSumber], judulProyek: JUDUL_UANG_PANAI },
+    "fiqh",
+  );
+  cek("jurnal: ekonomi vs uang panai: GUGUR gagal-bidang",
+    gugur.putusan === "gagal-bidang", `${gugur.kode} :: ${gugur.alasan}`);
+  const lolos = gerbangJurnal(
+    {
+      ...kandidatEkonomi,
+      labelSumber: [...kandidatEkonomi.labelSumber],
+      judulProyek: "التكامل الاقتصادي بين الدول العربية والإسلامية",
+    },
+    "iqtishad",
+  );
+  cek("jurnal: ekonomi vs iqtishad (penolak ekonomi diskop keluar): LOLOS",
+    lolos.putusan === "lolos", `${lolos.kode} :: ${lolos.alasan}`);
+}
+{
+  const h = gerbangJurnal(
+    {
+      judul: "الشرعية التنظيمية بين النظرية والتطبيق",
+      jurnal: "مجلة أبحاث",
+      labelSumber: ["iqtishad"],
+      judulProyek: JUDUL_UANG_PANAI,
+    },
+    "fiqh",
+  );
+  cek("jurnal: الشرعية التنظيمية (label iqtishad) vs uang panai: GUGUR CAB_BERTENTANGAN",
+    h.putusan === "gagal-bidang" && h.kode === "CAB_BERTENTANGAN", `${h.kode} :: ${h.alasan}`);
+}
+{
+  // Aturan 2 jurnal: label bertentangan menggugurkan SEBELUM istilah
+  // inti menolong — cermin kasus kitab akidah berjudul الزواج.
+  const h = gerbangJurnal(
+    {
+      judul: "التوحيد وأثره في الزواج",
+      labelSumber: ["akidah"],
+      judulProyek: JUDUL_UANG_PANAI,
+    },
+    "fiqh",
+  );
+  cek("jurnal: artikel akidah berjudul الزواج tetap GUGUR (label lebih dulu)",
+    h.putusan === "gagal-bidang" && h.kode === "CAB_BERTENTANGAN", `${h.kode} :: ${h.alasan}`);
+}
+{
+  // Aturan 5 versi artikel pada mode cadangan (bidang fiqh generik):
+  // label sesuai tanpa inti — BERABSTRAK gugur, TANPA abstrak tertahan.
+  const dasar = {
+    judul: "دراسة تحليلية في موضوعات معاصرة متنوعة",
+    jurnal: "مجلة الدراسات المعاصرة",
+    labelSumber: ["fiqh"] as const,
+  };
+  const berabstrak = gerbangJurnal(
+    { ...dasar, labelSumber: [...dasar.labelSumber], isi: "يتناول هذا البحث موضوعات عامة متنوعة في الدراسات المعاصرة من جوانب متعددة دون تركيز على مسألة بعينها." },
+    "fiqh",
+  );
+  cek("jurnal aturan 5: sesuai tanpa inti + abstrak terbaca: GUGUR",
+    berabstrak.putusan === "gagal-bidang" && berabstrak.kode === "GUGUR_SESUAI_TANPA_INTI",
+    `${berabstrak.kode} :: ${berabstrak.alasan}`);
+  const tanpaAbstrak = gerbangJurnal({ ...dasar, labelSumber: [...dasar.labelSumber] }, "fiqh");
+  cek("jurnal aturan 5: sesuai tanpa inti + tanpa abstrak: KONFIRMASI tertahan",
+    tanpaAbstrak.putusan === "belum-terverifikasi" && tanpaAbstrak.alasan.startsWith("Perlu konfirmasi:"),
+    `${tanpaAbstrak.kode} :: ${tanpaAbstrak.alasan}`);
+}
+{
+  // Aturan 8: label kosong + istilah inti leksikon → tertahan, BUKAN
+  // lolos (model tidak bisa menaikkan; deterministiknya tertahan).
+  const h = gerbangJurnal(
+    {
+      judul: "التكامل بين العلوم الشرعية والعلوم الكونية",
+      labelSumber: [],
+      judulProyek: JUDUL_TAKAMUL_EMAS,
+    },
+    "quran",
+  );
+  cek("jurnal aturan 8: label kosong + inti leksikon: KONFIRMASI tertahan",
+    h.putusan === "belum-terverifikasi" && h.kode === "KONF_TAKJELAS_INTI", `${h.kode} :: ${h.alasan}`);
+  // Aturan 6: cabang bersebelahan (hadis pada munakahat) + inti → tertahan.
+  const h6 = gerbangJurnal(
+    {
+      judul: "أحاديث النكاح في صحيح البخاري دراسة تحليلية",
+      labelSumber: ["hadis"],
+      judulProyek: JUDUL_UANG_PANAI,
+    },
+    "fiqh",
+  );
+  cek("jurnal aturan 6: hadis bersebelahan + inti نكاح: KONFIRMASI tertahan",
+    h6.putusan === "belum-terverifikasi" && h6.kode === "KONF_SEBELAHAN_INTI", `${h6.kode} :: ${h6.alasan}`);
+  // Aturan 3: domain sains keras → GUGUR.
+  const h3 = gerbangJurnal(
+    { judul: "A randomized trial of a new drug compound", labelSumber: [], domainAsingKeras: true },
+    "fiqh",
+  );
+  cek("jurnal aturan 3: domainAsingKeras: GUGUR DOMAIN_ASING",
+    h3.putusan === "gagal-bidang" && h3.kode === "DOMAIN_ASING", `${h3.kode} :: ${h3.alasan}`);
+}
+
+/* ── 8. Skema ketat keluaran pencarian (Tahap G2) ──────────────────── */
+
+const SKEMA_SIAP_KHULU = {
+  status: "siap",
+  kata_kunci_inti: [
+    { istilah: "خلع", bahasa: "ar", pendamping_konteks: ["فقه الأسرة", "أحكام النكاح"] },
+    { istilah: "khulu", bahasa: "en", pendamping_konteks: ["Islamic family law"] },
+  ],
+  perluasan_kueri: [
+    { teks: "حكم الخلع في الفقه الإسلامي", bahasa: "ar", jenis: "inti", sumber_target: ["shamela", "turath"] },
+    { teks: "khulu in Islamic family law", bahasa: "en", jenis: "inti", sumber_target: ["crossref", "openalex"] },
+  ],
+  bidang_utama: "fikih_munakahat",
+  bidang_pendukung: ["ushul_fikih"],
+};
+cek("skema: contoh siap khulu' munakahat SAH", validasiKeluaranPencarian(SKEMA_SIAP_KHULU).sah === true);
+
+const SKEMA_DISAMBIGUASI_TAKAMUL = {
+  status: "perlu_disambiguasi",
+  ambiguitas: {
+    istilah_ambigu: "التكامل",
+    kemungkinan_makna: [
+      { makna: "Integrasi keilmuan", bidang: "integrasi_keilmuan" },
+      { makna: "Integrasi ekonomi", bidang: "di_luar_studi_islam" },
+      { makna: "Kalkulus", bidang: "di_luar_studi_islam" },
+    ],
+  },
+};
+cek("skema: contoh perlu_disambiguasi takamul SAH",
+  validasiKeluaranPencarian(SKEMA_DISAMBIGUASI_TAKAMUL).sah === true);
+cek("skema: tidak_ditemukan bersih SAH",
+  validasiKeluaranPencarian({ status: "tidak_ditemukan", alasan_tidak_ditemukan: "topik_tidak_spesifik" }).sah === true);
+
+cek("skema tolak: field kandidat berisi judul/DOI fiktif",
+  validasiKeluaranPencarian({
+    ...SKEMA_SIAP_KHULU,
+    kandidat: [{ judul: "Artikel Fiktif tentang Khulu", doi: "10.9999/fiktif.123" }],
+  }).sah === false);
+cek("skema tolak: field judul bibliografis di tingkat atas",
+  validasiKeluaranPencarian({ ...SKEMA_SIAP_KHULU, judul: "Judul karangan model" }).sah === false);
+cek("skema tolak: kueri satu kata تكامل",
+  validasiKeluaranPencarian({
+    ...SKEMA_SIAP_KHULU,
+    perluasan_kueri: [
+      { teks: "تكامل", bahasa: "ar", jenis: "inti", sumber_target: ["shamela"] },
+    ],
+  }).sah === false);
+cek("skema tolak: tidak_ditemukan membawa kueri",
+  validasiKeluaranPencarian({
+    status: "tidak_ditemukan",
+    alasan_tidak_ditemukan: "tidak_cukup_informasi",
+    perluasan_kueri: [
+      { teks: "حكم الخلع في الفقه", bahasa: "ar", jenis: "inti", sumber_target: ["shamela"] },
+    ],
+  }).sah === false);
+cek("skema tolak: tidak_ditemukan tanpa alasan enum",
+  validasiKeluaranPencarian({ status: "tidak_ditemukan" }).sah === false);
+cek("skema tolak: pola DOI di dalam teks kueri",
+  validasiKeluaranPencarian({
+    ...SKEMA_SIAP_KHULU,
+    perluasan_kueri: [
+      { teks: "khulu sebagaimana doi 10.1234/abcd.5678 dibahas", bahasa: "en", jenis: "inti", sumber_target: ["crossref"] },
+    ],
+  }).sah === false);
+cek("skema tolak: bidang di luar enum",
+  validasiKeluaranPencarian({ ...SKEMA_SIAP_KHULU, bidang_utama: "kedokteran" }).sah === false);
+
+{
+  const kamus = kamusAmbiguitasUntuk("التكامل المعرفي بين علوم القرآن وأصول الفقه");
+  cek("kamus: takamul tercatat dengan 4 makna", kamus !== null && kamus.makna.length === 4,
+    kamus ? kamus.makna.map((m) => m.bidang).join(",") : "(null)");
+  cek("kamus: makna integrasi_keilmuan membawa konteks wajib العلوم الشرعية",
+    kamus?.makna.find((m) => m.bidang === "integrasi_keilmuan")?.konteks.includes("العلوم الشرعية") === true);
+  cek("kamus: khulu' tidak ambigu di kamus", kamusAmbiguitasUntuk("حكم الخلع في الفقه") === null);
+}
+cek("parser lama dikeraskan: parseKalimat menolak keluaran berfield doi",
+  parseKalimat(JSON.stringify({ kalimat: [{ teks: "حكم الخلع في الفقه الإسلامي", arti: "hukum khulu", alasan: "uji", peran: "taswir" }], doi: "10.9999/fiktif.123" })) === null);
+cek("parser lama dikeraskan: parseKalimat bersih tetap lolos",
+  parseKalimat(JSON.stringify({ kalimat: [{ teks: "حكم الخلع في الفقه الإسلامي", arti: "hukum khulu", alasan: "uji", peran: "taswir" }] })) !== null);
+cek("parser lama dikeraskan: parseKata menolak keluaran berfield judul",
+  parseKata(JSON.stringify({ kata: [{ ar: "الخلع", id: "khulu" }], judul: "Karangan" })) === null);
 
 console.log(`\nHASIL: ${lulus} PASS, ${gagal} GAGAL`);
 if (gagal > 0) process.exit(1);

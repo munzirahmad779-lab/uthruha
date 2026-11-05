@@ -26,6 +26,14 @@
  *     DOI ekonomi vs proyek fikih uang panai → gagal-bidang; DOI
  *     yang sama vs proyek iqtishad → terverifikasi; DOI fiktif
  *     10.9999/fiktif.123 → gagal-metadata.
+ *  E. Taksonomi jurnal G2 (endpoint yang sama, label cabang dari
+ *     metadata OpenAlex + model hanya veto): DOI Ihya 10.21580/
+ *     ihya.20.2.4048 vs fikih+takamul → terverifikasi; DOI maqashid
+ *     10.35553/1699-020-024-006 vs quran+takamul → terverifikasi;
+ *     DOI الشرعية التنظيمية 10.54528/1549-004-001-003 vs fikih+uang
+ *     panai → gagal-bidang. Putusan JSC 10.61212/jsc/577 dicetak
+ *     sebagai INFO (kasus tepi yang diketahui: lolos deterministik,
+ *     nasib akhirnya di tangan veto model), bukan asersi.
  *
  * Syarat jalan (pola uji hidup tahap sebelumnya):
  *  - Jembatan LLM hidup di KOLAM_UJI_BASE (bawaan
@@ -262,6 +270,50 @@ async function main() {
         `Pastikan server dev hidup di ${BASE} (UTH_MODE_UJI=1, store seed-uji) dan jembatan LLM hidup.`,
     );
     console.log(`\nHASIL SEMENTARA (A–C): ${lulus} PASS, ${gagal} FAIL`);
+    process.exit(2);
+  }
+
+  /* ── E. Taksonomi jurnal G2 lewat endpoint yang sama ──────────── */
+  const JUDUL_TAKAMUL = "التكامل المعرفي بين علوم القرآن وأصول الفقه";
+  try {
+    const rekodIhya = await ambilRekod("10.21580/ihya.20.2.4048");
+    const kartuIhya = [{ id: "emas-ihya", doi: "10.21580/ihya.20.2.4048", ...rekodIhya }];
+    const ihyaTakamul = await panggilEndpoint(kartuIhya, "fiqh", JUDUL_TAKAMUL);
+    cek("E1 DOI Ihya (fiqh/ushul) vs proyek fikih bertopik takamul: terverifikasi",
+      ihyaTakamul.get("emas-ihya")?.status === "terverifikasi",
+      (ihyaTakamul.get("emas-ihya")?.alasan ?? "").slice(0, 110));
+    const ihyaPanai = await panggilEndpoint(kartuIhya, "fiqh", JUDUL_UANG_PANAI);
+    cek("E2 DOI Ihya yang sama vs proyek uang panai (munakahat): terverifikasi",
+      ihyaPanai.get("emas-ihya")?.status === "terverifikasi",
+      (ihyaPanai.get("emas-ihya")?.alasan ?? "").slice(0, 110));
+    const rekodMaqashid = await ambilRekod("10.35553/1699-020-024-006");
+    const kartuMaqashid = [{ id: "emas-maqashid", doi: "10.35553/1699-020-024-006", ...rekodMaqashid }];
+    const maqashidTakamul = await panggilEndpoint(kartuMaqashid, "quran", JUDUL_TAKAMUL);
+    cek("E3 DOI maqashid (مجلة الإحياء) vs proyek quran bertopik takamul: terverifikasi",
+      maqashidTakamul.get("emas-maqashid")?.status === "terverifikasi",
+      (maqashidTakamul.get("emas-maqashid")?.alasan ?? "").slice(0, 110));
+    const rekodSyariyyah = await ambilRekod("10.54528/1549-004-001-003");
+    const kartuSyariyyah = [{ id: "emas-syariyyah", doi: "10.54528/1549-004-001-003", ...rekodSyariyyah }];
+    const syariyyahPanai = await panggilEndpoint(kartuSyariyyah, "fiqh", JUDUL_UANG_PANAI);
+    cek("E4 DOI الشرعية التنظيمية vs proyek fikih uang panai: gagal-bidang (label sumber iqtishad bertentangan)",
+      syariyyahPanai.get("emas-syariyyah")?.status === "gagal-bidang",
+      (syariyyahPanai.get("emas-syariyyah")?.alasan ?? "").slice(0, 110));
+    // Kasus tepi yang diketahui (bukan asersi): JSC 2025 lolos
+    // gerbang deterministik (label tafsir + istilah inti takamul),
+    // jadi nasibnya ditentukan veto model yang memang berhak
+    // menggugurkannya di bawah aturan G2.
+    const rekodJsc = await ambilRekod("10.61212/jsc/577");
+    const kartuJsc = [{ id: "emas-jsc", doi: "10.61212/jsc/577", ...rekodJsc }];
+    const jscTakamul = await panggilEndpoint(kartuJsc, "quran", JUDUL_TAKAMUL);
+    console.log(
+      `INFO E5 DOI JSC 10.61212/jsc/577 vs quran+takamul: ${jscTakamul.get("emas-jsc")?.status ?? "(tidak ada putusan)"} — ` +
+        `${(jscTakamul.get("emas-jsc")?.alasan ?? "").slice(0, 140)}`,
+    );
+  } catch (e) {
+    console.error(
+      `BAGIAN E TIDAK BISA JALAN: ${e instanceof Error ? e.message : e}.`,
+    );
+    console.log(`\nHASIL SEMENTARA (A–D): ${lulus} PASS, ${gagal} FAIL`);
     process.exit(2);
   }
 
