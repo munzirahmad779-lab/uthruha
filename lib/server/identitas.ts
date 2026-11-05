@@ -66,14 +66,16 @@ export interface Pengguna {
    *  Google pertama. */
   mahasiswa?: boolean;
   /** Akun uji coba berbasis email (perintah pemilik 6 Nov 2026,
-   *  pengembangan jalur persona tunggal 5 Nov 2026): satu dari
-   *  sepuluh akun @uji.kitabah.web.id pada daftar putih
-   *  lib/server/persona.ts, dipakai agen AI lain milik pemilik untuk
-   *  menguji web dari luar. Bukan hasil login Google, bukan pemilik,
-   *  dan tidak pernah mahasiswa (mahasiswa wajib menyetor kunci API
-   *  pribadi; akun uji tidak punya kunci pribadi). Diterbitkan hanya
-   *  lewat env UTH_PERSONA_AKTIF di server; dinonaktifkan per akun
-   *  dari panel Super Admin (penggunaDariCookie menolak nonaktif). */
+   *  pengembangan jalur persona tunggal 5 Nov 2026): satu dari akun
+   *  @uji.kitabah.web.id pada daftar putih lib/server/persona.ts,
+   *  dipakai agen AI lain milik pemilik untuk menguji web dari luar.
+   *  Bukan hasil login Google dan bukan pemilik. Sepuluh akun pertama
+   *  tidak pernah mahasiswa; lima akun terakhir justru berpenanda
+   *  mahasiswa (dari tabel persona.ts saja, bukan daftar kampus)
+   *  untuk percobaan alur BYOK, dan wajib menyetor kunci API pribadi
+   *  seperti mahasiswa sungguhan. Diterbitkan hanya lewat env
+   *  UTH_PERSONA_AKTIF di server; dinonaktifkan per akun dari panel
+   *  Super Admin (penggunaDariCookie menolak nonaktif). */
   personaUji?: boolean;
 }
 

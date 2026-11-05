@@ -49,8 +49,8 @@ function ditolakUmum() {
 
 /**
  * Masuk akun uji coba berbasis email (perintah pemilik, 6 Nov 2026):
- * agen AI lain milik pemilik mengirim { email }; hanya sepuluh email
- * daftar putih di lib/server/persona.ts yang diterima, dan tiap email
+ * agen AI lain milik pemilik mengirim { email }; hanya lima belas
+ * email daftar putih di lib/server/persona.ts yang diterima, dan tiap email
  * masuk ke akun ujinya sendiri dengan lapis yang terkunci dari tabel.
  * Pengembangan dari jalur persona tunggal 5 Nov 2026: kunci bersama
  * jalur gugur, daftar putih inilah gerbangnya, dan saklarnya tetap
@@ -62,9 +62,16 @@ function ditolakUmum() {
  *  - Tanpa saring perangkat: agen penguji berjalan dari lingkungan
  *    yang berganti-ganti; batas perangkat per akun dibuat untuk akun
  *    manusia dan akan mengunci agen keluar tanpa manfaat keamanan.
- *  - Tanpa sinkron mahasiswa: akun uji tidak pernah mahasiswa (lihat
- *    field personaUji di lib/server/identitas.ts), jadi gerbang setor
- *    kunci API pribadi tidak berlaku untuknya.
+ *  - Tanpa sinkronMahasiswa dan tanpa daftar mahasiswa kampus:
+ *    status mahasiswa akun uji bersumber dari tabel AKUN_UJI saja
+ *    (ditetapkan ambilAkunUji saat akun diwujudkan). Sepuluh akun
+ *    pertama bukan mahasiswa; lima akun mahasiswa uji dikenai gerbang
+ *    kunci pribadi di rute AI persis seperti mahasiswa sungguhan.
+ *    Gerbang masuk WAJIB_ISI_KUNCI di /api/masuk TIDAK ditiru di
+ *    sini: akun mahasiswa uji tetap bisa masuk walau belum punya
+ *    kunci, agar agen penguji bisa mencapai halaman /kunci dan
+ *    menyetor kunci pertamanya lewat jalur yang sama (perbedaan
+ *    yang disengaja dan tercatat).
  */
 export async function POST(req: Request) {
   if (!personaAktif()) return tidakDitemukan();

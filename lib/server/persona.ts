@@ -23,11 +23,19 @@
  *    sedang berjalan karena penggunaDariCookie menolak catatan
  *    nonaktif.
  *
- * Akun uji TIDAK pernah mahasiswa dan TIDAK memakai kunci API
- * pribadi: ia tidak melewati sinkronMahasiswa dan tidak menyetor
- * kunci apa pun. Ia juga tidak disaring perangkat (agen penguji
- * berjalan dari lingkungan yang berganti-ganti) dan tidak menerima
- * email pemberitahuan masuk (akun mesin, bukan manusia).
+ * Sepuluh akun pertama BUKAN mahasiswa dan tidak memakai kunci API
+ * pribadi. Lima akun terakhir (perluasan 6 Nov 2026) adalah akun uji
+ * MAHASISWA untuk percobaan alur mahasiswa (BYOK kunci pribadi):
+ * penanda mahasiswanya bersumber dari tabel ini SAJA, ditetapkan pada
+ * catatan pengguna saat akun diwujudkan, dan persis seperti mahasiswa
+ * sungguhan mereka wajib menyetor kunci API pribadi di /kunci sebelum
+ * rute AI mau bekerja. Daftar mahasiswa kampus di store (koleksi
+ * "mahasiswa") TIDAK dilibatkan sama sekali untuk akun uji, dan
+ * sinkronMahasiswa tidak pernah dipanggil di jalur ini.
+ *
+ * Semua akun uji tidak disaring perangkat (agen penguji berjalan
+ * dari lingkungan yang berganti-ganti) dan tidak menerima email
+ * pemberitahuan masuk (akun mesin, bukan manusia).
  */
 import { ambil, simpan } from "./store";
 import type { Pengguna } from "./identitas";
@@ -41,6 +49,11 @@ export interface AkunUjiDef {
   judulProyek: string;
   /** Bidang proyek tetap (id dari lib/content/bidang.ts). */
   bidangId: string;
+  /** Penanda mahasiswa akun uji: true HANYA untuk lima akun percobaan
+   *  alur mahasiswa (BYOK). Ditempel ke catatan pengguna saat akun
+   *  diwujudkan dan disamakan terus ke tabel ini; bukan berasal dari
+   *  daftar mahasiswa kampus di store. */
+  mahasiswa: boolean;
 }
 
 /**
@@ -49,16 +62,25 @@ export interface AkunUjiDef {
  * mengubah siapa yang boleh masuk sebagai akun uji.
  */
 export const AKUN_UJI: AkunUjiDef[] = [
-  { email: "rahmawati.salsabila92@uji.kitabah.web.id", tier: "gratis", judulProyek: "Konsep Wakaf Produktif dalam Fikih Muamalah Kontemporer", bidangId: "iqtishad" },
-  { email: "fajar.pratama171@uji.kitabah.web.id", tier: "gratis", judulProyek: "Metode Tafsir Tematik dalam Studi Al-Qur'an", bidangId: "quran" },
-  { email: "nur.hikmah034@uji.kitabah.web.id", tier: "gratis", judulProyek: "Peran Zakat dalam Pemberdayaan Ekonomi Umat", bidangId: "iqtishad" },
-  { email: "dandi.setiawan58@uji.kitabah.web.id", tier: "gratis", judulProyek: "Etika Dakwah di Media Sosial Perspektif Hadis", bidangId: "dakwah" },
-  { email: "siti.maryam207@uji.kitabah.web.id", tier: "gratis", judulProyek: "Sejarah Perkembangan Pondok Pesantren di Sulawesi Selatan", bidangId: "tarikh" },
-  { email: "andi.basri64@uji.kitabah.web.id", tier: "premium", judulProyek: "حكم uang panai في الشريعة الإسلامية: دراسة مقاصدية", bidangId: "fiqh" },
-  { email: "yusra.amilia19@uji.kitabah.web.id", tier: "premium", judulProyek: "التكامل المعرفي بين علوم القرآن وأصول الفقه: دراسة فكرية", bidangId: "fiqh" },
-  { email: "muh.ridwan883@uji.kitabah.web.id", tier: "premium", judulProyek: "Hukum Khulu' dan Akibat Hukumnya dalam Fikih Munakahat", bidangId: "fiqh" },
-  { email: "fitriani.zahra42@uji.kitabah.web.id", tier: "premium", judulProyek: "Maqashid Syariah dalam Penetapan Hukum Keluarga", bidangId: "fiqh" },
-  { email: "ikhlasul.amal76@uji.kitabah.web.id", tier: "premium", judulProyek: "Kritik Sanad Hadis dalam Kitab Shahih al-Bukhari: Studi Ilmu Hadis", bidangId: "hadis" },
+  { email: "rahmawati.salsabila92@uji.kitabah.web.id", tier: "gratis", judulProyek: "Konsep Wakaf Produktif dalam Fikih Muamalah Kontemporer", bidangId: "iqtishad", mahasiswa: false },
+  { email: "fajar.pratama171@uji.kitabah.web.id", tier: "gratis", judulProyek: "Metode Tafsir Tematik dalam Studi Al-Qur'an", bidangId: "quran", mahasiswa: false },
+  { email: "nur.hikmah034@uji.kitabah.web.id", tier: "gratis", judulProyek: "Peran Zakat dalam Pemberdayaan Ekonomi Umat", bidangId: "iqtishad", mahasiswa: false },
+  { email: "dandi.setiawan58@uji.kitabah.web.id", tier: "gratis", judulProyek: "Etika Dakwah di Media Sosial Perspektif Hadis", bidangId: "dakwah", mahasiswa: false },
+  { email: "siti.maryam207@uji.kitabah.web.id", tier: "gratis", judulProyek: "Sejarah Perkembangan Pondok Pesantren di Sulawesi Selatan", bidangId: "tarikh", mahasiswa: false },
+  { email: "andi.basri64@uji.kitabah.web.id", tier: "premium", judulProyek: "حكم uang panai في الشريعة الإسلامية: دراسة مقاصدية", bidangId: "fiqh", mahasiswa: false },
+  { email: "yusra.amilia19@uji.kitabah.web.id", tier: "premium", judulProyek: "التكامل المعرفي بين علوم القرآن وأصول الفقه: دراسة فكرية", bidangId: "fiqh", mahasiswa: false },
+  { email: "muh.ridwan883@uji.kitabah.web.id", tier: "premium", judulProyek: "Hukum Khulu' dan Akibat Hukumnya dalam Fikih Munakahat", bidangId: "fiqh", mahasiswa: false },
+  { email: "fitriani.zahra42@uji.kitabah.web.id", tier: "premium", judulProyek: "Maqashid Syariah dalam Penetapan Hukum Keluarga", bidangId: "fiqh", mahasiswa: false },
+  { email: "ikhlasul.amal76@uji.kitabah.web.id", tier: "premium", judulProyek: "Kritik Sanad Hadis dalam Kitab Shahih al-Bukhari: Studi Ilmu Hadis", bidangId: "hadis", mahasiswa: false },
+  // Lima akun uji MAHASISWA (perintah pemilik, 6 Nov 2026): lapis
+  // gratis seperti mahasiswa sungguhan; penanda mahasiswa membuat
+  // gerbang BYOK berlaku penuh untuk mereka (rute AI menolak
+  // KUNCI_PRIBADI sebelum kunci pribadi disetor lewat /kunci).
+  { email: "ahmad.fauzi127@uji.kitabah.web.id", tier: "gratis", judulProyek: "Ketentuan Waris bagi Anak Angkat dalam Fikih dan Kompilasi Hukum Islam", bidangId: "fiqh", mahasiswa: true },
+  { email: "siti.aminah310@uji.kitabah.web.id", tier: "gratis", judulProyek: "Konsep Ijarah dalam Akad Pembiayaan di Lembaga Keuangan Syariah", bidangId: "iqtishad", mahasiswa: true },
+  { email: "dewi.lestari88@uji.kitabah.web.id", tier: "gratis", judulProyek: "Hadis-Hadis tentang Adab Menuntut Ilmu dalam Kitab Ta'lim al-Muta'allim", bidangId: "hadis", mahasiswa: true },
+  { email: "budi.santoso456@uji.kitabah.web.id", tier: "gratis", judulProyek: "Sejarah Masuknya Islam di Nusantara Menurut Sumber Lokal dan Asing", bidangId: "tarikh", mahasiswa: true },
+  { email: "rahma.ayu219@uji.kitabah.web.id", tier: "gratis", judulProyek: "Tafsir Ayat-Ayat Keluarga Sakinah dalam Al-Qur'an: Studi Tematik", bidangId: "quran", mahasiswa: true },
 ];
 
 /** Apakah jalur akun uji aktif: hanya saklar env yang menentukan. */
@@ -102,10 +124,12 @@ export function idAkunUji(email: string): string {
 
 /**
  * Ambil akun uji dari store; buat baru bila belum ada. Nama, email,
- * dan lapis pada catatan yang sudah ada DISAMAKAN ke tabel (lapis
- * terkunci: sesi atau suntingan lama tidak bisa mengubahnya). Catatan
- * yang sudah dinonaktifkan pemilik dikembalikan apa adanya: fungsi
- * ini TIDAK pernah mengaktifkan ulang akun nonaktif; pemanggil yang
+ * lapis, dan penanda mahasiswa pada catatan yang sudah ada DISAMAKAN
+ * ke tabel (terkunci: sesi atau suntingan lama tidak bisa
+ * mengubahnya; penanda mahasiswa akun uji bersumber dari tabel ini
+ * saja, tidak pernah dari daftar mahasiswa kampus). Catatan yang
+ * sudah dinonaktifkan pemilik dikembalikan apa adanya: fungsi ini
+ * TIDAK pernah mengaktifkan ulang akun nonaktif; pemanggil yang
  * wajib menolaknya.
  */
 export async function ambilAkunUji(def: AkunUjiDef): Promise<Pengguna> {
@@ -118,7 +142,8 @@ export async function ambilAkunUji(def: AkunUjiDef): Promise<Pengguna> {
       ada.nama !== nama ||
       ada.tier !== def.tier ||
       ada.premiumSampai !== null ||
-      ada.personaUji !== true
+      ada.personaUji !== true ||
+      (ada.mahasiswa === true) !== def.mahasiswa
     ) {
       const baru: Pengguna = {
         ...ada,
@@ -127,6 +152,7 @@ export async function ambilAkunUji(def: AkunUjiDef): Promise<Pengguna> {
         tier: def.tier,
         premiumSampai: null,
         personaUji: true,
+        mahasiswa: def.mahasiswa,
       };
       await simpan("pengguna", baru as unknown as Record<string, unknown> & { id: string });
       return baru;
@@ -142,6 +168,7 @@ export async function ambilAkunUji(def: AkunUjiDef): Promise<Pengguna> {
     premiumSampai: null,
     dibuat: new Date().toISOString(),
     personaUji: true,
+    mahasiswa: def.mahasiswa,
   };
   await simpan("pengguna", baru as unknown as Record<string, unknown> & { id: string });
   return baru;

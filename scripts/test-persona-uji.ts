@@ -5,18 +5,34 @@
  *
  * Skrip ini menyalakan server pengembangan SENDIRI pada port bebas
  * dengan berkas data temp sendiri, lalu memeriksa:
- *  n. Fungsi nama murni: kesepuluh email menghasilkan nama tampilan
- *     yang ditetapkan pemilik.
+ *  n. Fungsi nama murni: kelima belas email menghasilkan nama
+ *     tampilan yang ditetapkan pemilik.
  *  a. Jalur menyala: GET /masuk memuat formulir email akun uji
  *     (id="masuk-uji"); halaman lama /masuk-persona menjawab 404.
  *  b. Email di luar daftar putih: 403 dengan pesan umum persis,
  *     tanpa cookie identitas apa pun.
- *  c. Kesepuluh email daftar putih: POST 200 + cookie sesi dan
- *     cookie gerbang; /api/auth/status menampilkan tier terkunci,
- *     nama turunan, judulProyekUji, dan bidangProyekUji yang benar.
+ *  c. Kelima belas email daftar putih: POST 200 + cookie sesi dan
+ *     cookie gerbang; /api/auth/status menampilkan tier (akun
+ *     mahasiswa: efektif premium dari promosi mahasiswa, persis
+ *     seperti mahasiswa sungguhan, walau lapis catatannya gratis),
+ *     status mahasiswa, nama turunan, judulProyekUji, dan
+ *     bidangProyekUji yang benar. Server dinyalakan ulang sekali di
+ *     tengah daftar: pembatas laju rute persona (10 percobaan per
+ *     15 menit per IP per proses) memang lebih kecil dari jumlah
+ *     akun, dan menyalakan ulang proses adalah cara suite yang
+ *     sudah dipakai bagian f untuk mengatur ulangnya.
  *  d. Identitas per akun: dua email berbeda menghasilkan dua id
  *     berbeda; email yang sama dua kali menghasilkan id yang sama;
  *     cookie gerbang lapis gratis berbeda dari lapis premium.
+ *  h. Paritas akun uji mahasiswa (lima akun terakhir): catatan store
+ *     berpenanda mahasiswa dengan lapis gratis; cookie gerbangnya
+ *     cookie lapis gratis; tanpa kunci pribadi rute AI menolak 403
+ *     berkode KUNCI_PRIBADI; kunci dummy berformat sah (aturan
+ *     kunciPribadiSah: 20 sampai 200 karakter tanpa spasi) bisa
+ *     disetor lewat /api/kunci-pribadi dan sesudahnya gerbang rute
+ *     AI terbuka (permintaan teks pendek berhenti di pemeriksaan
+ *     panjang 400, bukan lagi di gerbang kunci, tanpa memanggil
+ *     model apa pun).
  *  f. Penonaktifan: catatan akun disunting nonaktif di berkas data
  *     (server dinyalakan ulang agar cache store terbaca segar);
  *     login email itu ditolak dengan pesan umum yang sama dan sesi
@@ -62,7 +78,19 @@ const NAMA_WAJIB: Record<string, string> = {
   "muh.ridwan883@uji.kitabah.web.id": "Muh Ridwan",
   "fitriani.zahra42@uji.kitabah.web.id": "Fitriani Zahra",
   "ikhlasul.amal76@uji.kitabah.web.id": "Ikhlasul Amal",
+  "ahmad.fauzi127@uji.kitabah.web.id": "Ahmad Fauzi",
+  "siti.aminah310@uji.kitabah.web.id": "Siti Aminah",
+  "dewi.lestari88@uji.kitabah.web.id": "Dewi Lestari",
+  "budi.santoso456@uji.kitabah.web.id": "Budi Santoso",
+  "rahma.ayu219@uji.kitabah.web.id": "Rahma Ayu",
 };
+
+/**
+ * Kunci dummy untuk uji simpan kunci pribadi: mengikuti aturan format
+ * nyata kunciPribadiSah di lib/server/kunci-pribadi.ts (string 20
+ * sampai 200 karakter, tanpa spasi). Bukan kunci sungguhan.
+ */
+const KUNCI_DUMMY_UJI = "AIzaSyUjiPersonaMahasiswa0123456789";
 
 /** Cari port bebas dari sistem operasi agar uji tidak menabrak server lain. */
 function portBebas(): Promise<number> {
@@ -195,9 +223,39 @@ async function statusDenganCookie(
   return { status: res.status, data };
 }
 
+/** GET /api/kunci-pribadi dengan cookie sesi (status kunci pribadi pemanggil). */
+async function getKunciPribadi(
+  base: string,
+  cookie: string,
+): Promise<{ status: number; data: Record<string, unknown> }> {
+  const res = await fetch(`${base}/api/kunci-pribadi`, {
+    headers: { Cookie: cookie },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  return { status: res.status, data };
+}
+
+/** POST JSON ke jalur API dengan cookie sesi + gerbang milik akun uji. */
+async function postJsonDenganCookie(
+  base: string,
+  jalur: string,
+  cookie: string,
+  body: unknown,
+): Promise<{ status: number; data: Record<string, unknown> }> {
+  const res = await fetch(`${base}${jalur}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  return { status: res.status, data };
+}
+
 async function main() {
   /* ---------- n. Fungsi nama murni ---------- */
-  cek("n0 tabel daftar putih memuat tepat 10 akun", AKUN_UJI.length === 10, `${AKUN_UJI.length}`);
+  cek("n0 tabel daftar putih memuat tepat 15 akun", AKUN_UJI.length === 15, `${AKUN_UJI.length}`);
   AKUN_UJI.forEach((def, i) => {
     cek(
       `n${i + 1} nama dari ${def.email}`,
@@ -253,10 +311,21 @@ async function main() {
         !luar.setCookieMentah.includes("uthruha_akses="),
     );
 
-    /* ---------- c. Kesepuluh email daftar putih ---------- */
+    /* ---------- c. Kelima belas email daftar putih ---------- */
     for (let i = 0; i < AKUN_UJI.length; i += 1) {
       const def = AKUN_UJI[i]!;
       const no = i + 1;
+      if (i === 9) {
+        // Sembilan akun pertama + satu percobaan luar daftar sudah
+        // menghabiskan jatah pembatas laju proses ini (10/15 menit).
+        // Nyalakan ulang dengan berkas data yang sama: sesi dan
+        // catatan tetap sah, penghitung laju mulai dari nol.
+        await matikanServer(server);
+        server = nyalakanServer(port, berkasData, true);
+        const siapC = await tungguSiap(base, server);
+        cek("c9r server dinyalakan ulang di tengah daftar (pembatas laju diatur ulang)", siapC);
+        if (!siapC) return;
+      }
       const post = await postEmail(base, def.email);
       cek(`c${no}a POST ${def.email} adalah 200`, post.status === 200, `HTTP ${post.status}`);
       cek(
@@ -267,17 +336,27 @@ async function main() {
       cookiePerEmail.set(def.email, post.cookie);
       aksesPerEmail.set(def.email, nilaiCookie(post.setCookieMentah, "uthruha_akses"));
       const st = await statusDenganCookie(base, post.cookie);
-      const pengguna = (st.data.pengguna ?? {}) as { id?: string; nama?: string; email?: string };
+      const pengguna = (st.data.pengguna ?? {}) as {
+        id?: string;
+        nama?: string;
+        email?: string;
+        mahasiswa?: boolean;
+      };
       if (pengguna.id) idPerEmail.set(def.email, pengguna.id);
+      // Tier pada status adalah tier EFEKTIF: akun mahasiswa selalu
+      // premium efektif (tierEfektif), persis seperti mahasiswa
+      // sungguhan, walau lapis catatan dan cookie gerbangnya gratis.
+      const tierStatus = def.mahasiswa ? "premium" : def.tier;
       cek(
-        `c${no}c status: tier ${def.tier}, nama turunan, proyek tetap benar`,
-        st.data.tier === def.tier &&
+        `c${no}c status: tier ${tierStatus}${def.mahasiswa ? " (efektif mahasiswa)" : ""}, mahasiswa ${def.mahasiswa}, nama turunan, proyek tetap benar`,
+        st.data.tier === tierStatus &&
+          pengguna.mahasiswa === def.mahasiswa &&
           pengguna.email === def.email &&
           pengguna.nama === NAMA_WAJIB[def.email] &&
           pengguna.id === idAkunUji(def.email) &&
           st.data.judulProyekUji === def.judulProyek &&
           st.data.bidangProyekUji === def.bidangId,
-        `tier=${String(st.data.tier)} nama=${String(pengguna.nama ?? "")} judul=${String(st.data.judulProyekUji ?? "")}`,
+        `tier=${String(st.data.tier)} mahasiswa=${String(pengguna.mahasiswa)} nama=${String(pengguna.nama ?? "")} judul=${String(st.data.judulProyekUji ?? "")}`,
       );
     }
 
@@ -304,6 +383,81 @@ async function main() {
           aksesPerEmail.get(AKUN_UJI[5]!.email) &&
           aksesPerEmail.get(AKUN_UJI[0]!.email) !== aksesPerEmail.get(AKUN_UJI[5]!.email),
       ),
+    );
+
+    /* ---------- h. Paritas akun uji mahasiswa (BYOK) ---------- */
+    const defMhs = AKUN_UJI[10]!; // ahmad.fauzi127: mahasiswa uji pertama
+    const cookieMhs = cookiePerEmail.get(defMhs.email) ?? "";
+    const dbH = JSON.parse(readFileSync(berkasData, "utf8")) as {
+      pengguna?: Record<string, Record<string, unknown>>;
+    };
+    const catatanMhs = dbH.pengguna?.[idAkunUji(defMhs.email)];
+    cek(
+      "h1 catatan store akun mahasiswa uji: mahasiswa true, lapis gratis, berlabel akun uji",
+      catatanMhs?.mahasiswa === true &&
+        catatanMhs?.tier === "gratis" &&
+        catatanMhs?.personaUji === true,
+      `mahasiswa=${String(catatanMhs?.mahasiswa)} tier=${String(catatanMhs?.tier)}`,
+    );
+    const catatanLama = dbH.pengguna?.[idAkunUji(AKUN_UJI[0]!.email)];
+    cek(
+      "h2 catatan store akun uji lama tetap mahasiswa false",
+      catatanLama?.mahasiswa === false,
+      `mahasiswa=${String(catatanLama?.mahasiswa)}`,
+    );
+    // Cookie gerbang memuat cap detik terbit di nilainya, jadi dua
+    // cookie lapis yang sama hampir tidak pernah sama persis sebagai
+    // string. Yang diperiksa: tanda cookie akun mahasiswa cocok
+    // dihitung ulang dengan kunci GRATIS uji pada cap detiknya, dan
+    // TIDAK cocok dengan kunci premium uji.
+    const nilaiAksesMhs = aksesPerEmail.get(defMhs.email) ?? "";
+    const tsAksesMhs = Number(nilaiAksesMhs.split(".")[0]);
+    const aksesModul = await import("../lib/security/akses");
+    cek(
+      "h3 cookie gerbang akun mahasiswa uji ditandatangani kunci lapis gratis",
+      Number.isFinite(tsAksesMhs) &&
+        tsAksesMhs > 0 &&
+        aksesModul.tandaSama(nilaiAksesMhs, aksesModul.tandaAkses(KUNCI_GRATIS_UJI, tsAksesMhs)) &&
+        !aksesModul.tandaSama(nilaiAksesMhs, aksesModul.tandaAkses(KUNCI_AKSES_UJI, tsAksesMhs)),
+      `cap=${String(tsAksesMhs)}`,
+    );
+    const kunciAwal = await getKunciPribadi(base, cookieMhs);
+    const geminiAwal = (kunciAwal.data.gemini ?? {}) as { ada?: boolean };
+    const groqAwal = (kunciAwal.data.groq ?? {}) as { ada?: boolean };
+    cek(
+      "h4 status kunci pribadi akun mahasiswa uji: mahasiswa true, kedua kunci belum terisi",
+      kunciAwal.status === 200 &&
+        kunciAwal.data.mahasiswa === true &&
+        geminiAwal.ada === false &&
+        groqAwal.ada === false,
+      `HTTP ${kunciAwal.status} mahasiswa=${String(kunciAwal.data.mahasiswa)}`,
+    );
+    const probeSebelum = await postJsonDenganCookie(base, "/api/kata-kunci", cookieMhs, {
+      teks: "Teks percobaan yang cukup panjang untuk melewati pemeriksaan panjang minimal.",
+    });
+    cek(
+      "h5 tanpa kunci pribadi, rute AI menolak 403 berkode KUNCI_PRIBADI",
+      probeSebelum.status === 403 && probeSebelum.data.kode === "KUNCI_PRIBADI",
+      `HTTP ${probeSebelum.status} kode=${String(probeSebelum.data.kode ?? "")}`,
+    );
+    const simpanDummy = await postJsonDenganCookie(base, "/api/kunci-pribadi", cookieMhs, {
+      gemini: KUNCI_DUMMY_UJI,
+    });
+    const geminiSesudah = (simpanDummy.data.gemini ?? {}) as { ada?: boolean; ekor?: string | null };
+    cek(
+      "h6 kunci dummy berformat sah diterima /api/kunci-pribadi (terisi, ekor cocok)",
+      simpanDummy.status === 200 &&
+        geminiSesudah.ada === true &&
+        geminiSesudah.ekor === KUNCI_DUMMY_UJI.slice(-4),
+      `HTTP ${simpanDummy.status} ekor=${String(geminiSesudah.ekor ?? "")}`,
+    );
+    const probeSesudah = await postJsonDenganCookie(base, "/api/kata-kunci", cookieMhs, {
+      teks: "pendek",
+    });
+    cek(
+      "h7 sesudah kunci tersimpan, gerbang terbuka: berhenti di 400 teks pendek, bukan KUNCI_PRIBADI",
+      probeSesudah.status === 400 && probeSesudah.data.kode !== "KUNCI_PRIBADI",
+      `HTTP ${probeSesudah.status} kode=${String(probeSesudah.data.kode ?? "")}`,
     );
 
     /* ---------- f. Penonaktifan akun ---------- */

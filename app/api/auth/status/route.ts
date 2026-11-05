@@ -56,6 +56,9 @@ export async function GET(req: Request) {
         email: pengguna.email,
         nama: pengguna.nama,
         foto: pengguna.foto,
+        // Status mahasiswa pemanggil sendiri (untuk UI /kunci dan
+        // penanda akun uji mahasiswa); bukan data pengguna lain.
+        mahasiswa: Boolean(pengguna.mahasiswa),
       },
       tier,
       premiumSampai: pengguna.premiumSampai,
