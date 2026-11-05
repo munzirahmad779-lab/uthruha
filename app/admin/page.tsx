@@ -36,6 +36,7 @@ interface Laporan {
       premiumSampai: string;
       nonaktif: boolean;
       mahasiswa: boolean;
+      akunUji: boolean;
       kunciGemini: boolean;
       kunciGroq: boolean;
       jumlahPerangkat: number;
@@ -387,6 +388,11 @@ export default function AdminPage() {
                             <span className="block text-[11px] font-semibold text-gold-700">
                               Mahasiswa · kunci: {x.kunciGemini ? "Gemini ✓" : "Gemini –"} /{" "}
                               {x.kunciGroq ? "Groq ✓" : "Groq –"}
+                            </span>
+                          )}
+                          {x.akunUji && (
+                            <span className="block text-[11px] font-semibold text-ink-500">
+                              Akun Uji
                             </span>
                           )}
                         </td>

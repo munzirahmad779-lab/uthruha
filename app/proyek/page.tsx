@@ -24,6 +24,14 @@ import { TEMPLATE_PEDOMAN } from "@/lib/pedoman/template-pedoman";
 /** Kunci localStorage serah-terima dari uji coba tamu (components/uji-coba). */
 const KUNCI_JUDUL_UJI = "uthruha.judulUjiCoba";
 
+/** Judul mengandung aksara Arab (blok U+0600 sampai U+06FF)? */
+function adaAksaraArab(teks: string): boolean {
+  return [...teks].some((c) => {
+    const k = c.codePointAt(0) ?? 0;
+    return k >= 0x600 && k <= 0x6ff;
+  });
+}
+
 export default function DaftarProyekPage() {
   const [proyek, setProyek] = useState<Project[] | null>(null);
   const [konfirmasi, setKonfirmasi] = useState<string | null>(null);
@@ -88,6 +96,45 @@ export default function DaftarProyekPage() {
                   );
                 }
               } catch { /* jaringan gagal: draf lokal tetap ada */ }
+            }
+          }
+        }
+      } catch { /* abaikan — daftar proyek tetap dimuat */ }
+      // Bootstrap proyek tetap akun uji (perintah pemilik, 6 Nov 2026):
+      // status auth akun berlabel Akun Uji membawa judul dan bidang
+      // proyek tetapnya dari daftar putih di server. Bila belum ada
+      // proyek berjudul PERSIS itu di peramban ini, proyek diwujudkan
+      // satu kali lewat jalur pembuatan yang sudah ada. Judul masuk
+      // slot judul proyek (judulAr, satu-satunya slot judul di model
+      // proyek); bahasanya mengikuti aksara judulnya: judul beraksara
+      // Arab berbahasa "ar", judul Indonesia berbahasa "id". Idempoten
+      // lewat periksa-judul yang sama, dan untuk akun non-uji status
+      // tidak membawa field ini sehingga blok ini tidak pernah jalan.
+      try {
+        const res = await fetch("/api/auth/status", { cache: "no-store" });
+        if (res.ok) {
+          const st = (await res.json()) as {
+            judulProyekUji?: unknown;
+            bidangProyekUji?: unknown;
+          };
+          const judulUji = typeof st.judulProyekUji === "string" ? st.judulProyekUji : "";
+          if (judulUji) {
+            const sudahAdaUji = daftarProyek().some(
+              (p) => p.judulAr === judulUji || p.topikAr === judulUji,
+            );
+            if (!sudahAdaUji) {
+              const bidangUji =
+                typeof st.bidangProyekUji === "string" &&
+                BIDANG.some((b) => b.id === st.bidangProyekUji)
+                  ? st.bidangProyekUji
+                  : undefined;
+              simpanProyek(
+                newProject({
+                  judulAr: judulUji,
+                  ...(bidangUji ? { bidangId: bidangUji } : {}),
+                  bahasa: adaAksaraArab(judulUji) ? "ar" : "id",
+                }),
+              );
             }
           }
         }

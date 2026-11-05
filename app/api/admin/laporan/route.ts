@@ -57,6 +57,7 @@ export async function GET(req: Request) {
         premiumSampai: teks((x as { premiumSampai?: unknown }).premiumSampai, 40),
         nonaktif: (x as { nonaktif?: unknown }).nonaktif === true,
         mahasiswa: (x as { mahasiswa?: unknown }).mahasiswa === true,
+        akunUji: (x as { personaUji?: unknown }).personaUji === true,
         kunciGemini: st?.gemini.ada ?? false,
         kunciGroq: st?.groq.ada ?? false,
         jumlahPerangkat: Array.isArray((x as { perangkatAkun?: unknown }).perangkatAkun)
