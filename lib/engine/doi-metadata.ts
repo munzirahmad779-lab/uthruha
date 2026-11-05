@@ -24,10 +24,43 @@ export interface MetadataDoi {
   url?: string;
 }
 
+/** Kolom metadata yang asal sumbernya dilacak satu per satu. */
+export type KolomMetadataDoi =
+  | "penulis"
+  | "judul"
+  | "jurnal"
+  | "penerbit"
+  | "tahun"
+  | "volume"
+  | "nomor"
+  | "halaman";
+
+/** Sumber yang memasok nilai satu kolom pada penggabungan. */
+export type AsalKolomDoi = "crossref" | "openalex";
+
 export interface HasilMetadata {
   data: MetadataDoi;
   kurang: string[];
   catatan: string[];
+  /** Asal tiap kolom yang terisi, agar formulir bisa menandai per
+   *  kolom mana yang datang dari rekod dan mana yang kosong di rekod
+   *  (kejujuran metadata DOI, kasus N9: kolom kosong TIDAK boleh
+   *  tampil seolah terisi nilai bawaan karangan). */
+  asal: Partial<Record<KolomMetadataDoi, AsalKolomDoi>>;
+}
+
+/**
+ * Keterangan asal satu kolom untuk label formulir. Kolom terisi
+ * menyebut rekod pemasoknya; kolom kosong dinyatakan tidak ada di
+ * rekod, bukan dibiarkan seolah nilai bawaannya berasal dari rekod.
+ */
+export function keteranganAsalKolom(asal: AsalKolomDoi | undefined, adaNilai: boolean): string {
+  if (adaNilai) {
+    if (asal === "crossref") return "dari Crossref";
+    if (asal === "openalex") return "dari OpenAlex";
+    return "terisi (asal rekod tidak tercatat)";
+  }
+  return "tidak ada di rekod Crossref/OpenAlex, isi dari sumber cetak";
 }
 
 /** Hasil pemetaan Crossref apa adanya, sebelum penggabungan. */
@@ -330,6 +363,16 @@ export function gabungMetadata(
   const doi = cr?.doi || oa?.doi || bersihDoi(doiCadangan);
   const url = cr?.url ?? oa?.url;
 
+  // Asal per kolom dicatat bersamaan dengan pemilihannya: kolom yang
+  // nilainya datang dari Crossref bertanda crossref, dari OpenAlex
+  // bertanda openalex; kolom yang akhirnya kosong tidak bertanda,
+  // dan formulir wajib menyatakannya tidak ada di rekod.
+  const asal: Partial<Record<KolomMetadataDoi, AsalKolomDoi>> = {};
+  if (penulis) asal.penulis = cr?.penulis ? "crossref" : "openalex";
+  if (judul) asal.judul = cr?.judul ? "crossref" : "openalex";
+  if (jurnal) asal.jurnal = cr?.jurnal ? "crossref" : "openalex";
+  if (tahun) asal.tahun = cr?.tahun ? "crossref" : "openalex";
+
   function gabungAngka(
     nama: "volume" | "nomor",
     nilaiCr: string | undefined,
@@ -341,7 +384,9 @@ export function gabungMetadata(
       );
       return undefined;
     }
-    return nilaiCr ?? nilaiOa;
+    const nilai = nilaiCr ?? nilaiOa;
+    if (nilai) asal[nama] = nilaiCr ? "crossref" : "openalex";
+    return nilai;
   }
 
   const volume = gabungAngka("volume", cr?.volume, oa?.volume);
@@ -353,11 +398,16 @@ export function gabungMetadata(
   const awalOa = oa?.halamanAwal;
   const akhirOa = oa?.halamanAkhir;
   if (halamanCr && mengandungRentang(halamanCr)) {
+    // Rentang halaman rekod tampil UTUH ("29-46"), tidak pernah
+    // dipotong menjadi halaman awalnya saja.
     halaman = halamanCr;
+    asal.halaman = "crossref";
   } else if (awalOa && akhirOa && awalOa !== akhirOa) {
     halaman = `${awalOa}-${akhirOa}`;
+    asal.halaman = "openalex";
   } else if (halamanCr || awalOa || oa?.halaman) {
     halaman = halamanCr ?? awalOa ?? oa?.halaman;
+    asal.halaman = halamanCr ? "crossref" : "openalex";
     rentangKurang = true;
   } else {
     halaman = undefined;
@@ -366,6 +416,7 @@ export function gabungMetadata(
   let penerbit: string | undefined;
   if (oa?.penerbit) {
     penerbit = oa.penerbit;
+    asal.penerbit = "openalex";
   } else if (cr?.penerbit) {
     if (deteksiPenerbitPalsu(cr.penerbit, jurnal)) {
       catatan.push(
@@ -374,6 +425,7 @@ export function gabungMetadata(
       penerbit = undefined;
     } else {
       penerbit = cr.penerbit;
+      asal.penerbit = "crossref";
     }
   }
 
@@ -399,7 +451,7 @@ export function gabungMetadata(
     doi,
     ...(url ? { url } : {}),
   };
-  return { data, kurang, catatan };
+  return { data, kurang, catatan, asal };
 }
 
 /**

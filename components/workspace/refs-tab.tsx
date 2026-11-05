@@ -20,10 +20,28 @@ import { IconPlus, IconTrash } from "@/components/icons";
 import { CopyButton, Field, Note } from "@/components/ui";
 import { PedomanPanel } from "@/components/workspace/pedoman-panel";
 import { verifikasiDoi } from "@/lib/engine/validasi-ref";
-import { ambilMetadataDoi } from "@/lib/engine/doi-metadata";
+import {
+  ambilMetadataDoi,
+  keteranganAsalKolom,
+  type AsalKolomDoi,
+  type KolomMetadataDoi,
+} from "@/lib/engine/doi-metadata";
 import { PencarianTopikPanel } from "@/components/workspace/pencarian-topik-panel";
 
 const KOSONG: Sumber = sumberBaru("kitab");
+
+/** Label asal satu kolom formulir sesudah pengambilan DOI
+ *  (kejujuran metadata DOI): kolom yang terisi menyebut rekod
+ *  pemasoknya; kolom yang kosong dinyatakan tidak ada di rekod,
+ *  supaya nilai bawaan tampilan (mis. placeholder) tidak pernah
+ *  terbaca sebagai data dari rekod. */
+function CatatanAsalKolom({ asal, nilai }: { asal: AsalKolomDoi | undefined; nilai: string }) {
+  return (
+    <p className="mt-1 text-[10px] leading-relaxed text-ink-500">
+      {keteranganAsalKolom(asal, Boolean(nilai.trim()))}
+    </p>
+  );
+}
 
 export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>) => void }) {
   const [baru, setBaru] = useState<Sumber>(KOSONG);
@@ -34,6 +52,9 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
   const [doiAmbil, setDoiAmbil] = useState("");
   const [sibukDoi, setSibukDoi] = useState(false);
   const [pesanDoi, setPesanDoi] = useState("");
+  /** Asal per kolom dari pengambilan DOI terakhir; null berarti
+   *  belum ada pengambilan pada formulir ini (label tidak tampil). */
+  const [asalDoi, setAsalDoi] = useState<Partial<Record<KolomMetadataDoi, AsalKolomDoi>> | null>(null);
   const [pesanVerif, setPesanVerif] = useState("");
   const [isbnAmbil, setIsbnAmbil] = useState("");
   const [sibukIsbn, setSibukIsbn] = useState(false);
@@ -45,9 +66,11 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     if (doi.length < 6) return;
     setSibukDoi(true);
     setPesanDoi("");
+    setAsalDoi(null);
     try {
       const hasil = await ambilMetadataDoi(doi);
       const d = hasil.data;
+      setAsalDoi(hasil.asal);
       setBaru((b) => {
         const next = { ...b, jenis: "artikel" as const, doi: d.doi || doi };
         if (d.penulis) next.penulis = d.penulis;
@@ -393,6 +416,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
               onChange={(e) => setBaru({ ...baru, penulis: e.target.value })}
               placeholder="القرطبي، أبو عبد الله محمد"
             />
+            {asalDoi && <CatatanAsalKolom asal={asalDoi.penulis} nilai={baru.penulis} />}
           </Field>
           <Field label="Tahun">
             <input
@@ -401,6 +425,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
               onChange={(e) => setBaru({ ...baru, tahun: e.target.value })}
               placeholder="1964"
             />
+            {asalDoi && <CatatanAsalKolom asal={asalDoi.tahun} nilai={baru.tahun} />}
           </Field>
           <Field label="Judul (Arab)" className="sm:col-span-3">
             <input
@@ -410,6 +435,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
               onChange={(e) => setBaru({ ...baru, judul: e.target.value })}
               placeholder="الجامع لأحكام القرآن"
             />
+            {asalDoi && <CatatanAsalKolom asal={asalDoi.judul} nilai={baru.judul} />}
           </Field>
           <Field label="Kota">
             <input
@@ -428,6 +454,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
               onChange={(e) => setBaru({ ...baru, penerbit: e.target.value })}
               placeholder="دار الكتب المصرية"
             />
+            {asalDoi && <CatatanAsalKolom asal={asalDoi.penerbit} nilai={baru.penerbit ?? ""} />}
           </Field>
           <Field label="تحقيق">
             <input
@@ -453,6 +480,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
               onChange={(e) => setBaru({ ...baru, halaman: e.target.value })}
               placeholder="23"
             />
+            {asalDoi && <CatatanAsalKolom asal={asalDoi.halaman} nilai={baru.halaman ?? ""} />}
           </Field>
           {baru.jenis === "artikel" && (
             <>
@@ -464,6 +492,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
                   onChange={(e) => setBaru({ ...baru, jurnal: e.target.value })}
                   placeholder="مجلة الدراسات الإسلامية"
                 />
+                {asalDoi && <CatatanAsalKolom asal={asalDoi.jurnal} nilai={baru.jurnal ?? ""} />}
               </Field>
               <Field label="Volume / Nomor">
                 <div className="flex gap-2">
@@ -480,6 +509,12 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
                     placeholder="2"
                   />
                 </div>
+                {asalDoi && (
+                  <p className="mt-1 text-[10px] leading-relaxed text-ink-500">
+                    Volume: {keteranganAsalKolom(asalDoi.volume, Boolean((baru.volume ?? "").trim()))}
+                    {" · "}Nomor: {keteranganAsalKolom(asalDoi.nomor, Boolean((baru.nomor ?? "").trim()))}
+                  </p>
+                )}
               </Field>
             </>
           )}

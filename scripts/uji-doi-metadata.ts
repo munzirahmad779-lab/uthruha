@@ -1,6 +1,11 @@
 // Uji luring metadata DOI: fixture persis respons API yang diverifikasi
 // koordinator untuk DOI 10.54528/1549-004-001-003, tanpa jaringan.
-import { gabungMetadata, petakanCrossref, petakanOpenAlex } from "../lib/engine/doi-metadata";
+import {
+  gabungMetadata,
+  keteranganAsalKolom,
+  petakanCrossref,
+  petakanOpenAlex,
+} from "../lib/engine/doi-metadata";
 
 let gagal = 0;
 const cek = (nama: string, ok: boolean, detail = "") => {
@@ -84,6 +89,71 @@ cek('kasus lengkap: volume "4"', hasil2.data.volume === "4", String(hasil2.data.
 cek('kasus lengkap: nomor "1"', hasil2.data.nomor === "1", String(hasil2.data.nomor ?? ""));
 cek('kasus lengkap: halaman "29-46"', hasil2.data.halaman === "29-46", String(hasil2.data.halaman ?? ""));
 cek("kasus lengkap: kurang kosong", hasil2.kurang.length === 0, hasil2.kurang.join(", "));
+
+// Asal per kolom pada kasus lengkap: nilai yang sama di dua sumber
+// dicatat dari Crossref (sumber yang didahulukan penggabungan).
+cek("asal: jurnal dari Crossref", hasil2.asal.jurnal === "crossref", String(hasil2.asal.jurnal ?? ""));
+cek("asal: volume dari Crossref", hasil2.asal.volume === "crossref", String(hasil2.asal.volume ?? ""));
+cek("asal: halaman dari Crossref", hasil2.asal.halaman === "crossref", String(hasil2.asal.halaman ?? ""));
+cek("asal: kolom kosong pada kasus patokan tidak bertanda",
+  hasil1.asal.volume === undefined && hasil1.asal.nomor === undefined);
+
+// Kasus ketiga (kejujuran metadata DOI, pola kasus N9): rekod TANPA
+// volume tetapi halaman berupa rentang penuh. Volume wajib tetap
+// kosong (dilarang nilai bawaan karangan seperti "1"), rentang
+// halaman wajib tampil utuh "29-46", tidak dipotong menjadi "29".
+const crossrefTanpaVolume = {
+  DOI: "10.54528/1549-004-001-003",
+  title: ["الشرعية التنظيمية بين النظرية والتطبيق"],
+  "container-title": ["مجلة أبحاث"],
+  publisher: "University of Djelfa Press",
+  issue: "1",
+  page: "29-46",
+  type: "journal-article",
+  author: [{ given: "كريم", family: "إموداش" }],
+  issued: { "date-parts": [[2019]] },
+  URL: "https://doi.org/10.54528/1549-004-001-003",
+};
+const hasil3 = gabungMetadata(petakanCrossref(crossrefTanpaVolume), null);
+cek("tanpa volume: volume tetap kosong, tidak diisi bawaan", !hasil3.data.volume, String(hasil3.data.volume ?? ""));
+cek('tanpa volume: "volume" ada di kurang', hasil3.kurang.includes("volume"), hasil3.kurang.join(", "));
+cek('tanpa volume: halaman rentang utuh "29-46"', hasil3.data.halaman === "29-46", String(hasil3.data.halaman ?? ""));
+cek("tanpa volume: rentang halaman tidak dicatat kurang", !hasil3.kurang.includes("rentang halaman"), hasil3.kurang.join(", "));
+cek("tanpa volume: asal halaman Crossref", hasil3.asal.halaman === "crossref", String(hasil3.asal.halaman ?? ""));
+cek("tanpa volume: asal volume tidak bertanda", hasil3.asal.volume === undefined);
+
+// Kasus keempat: rekod TANPA halaman sama sekali (Crossref tidak
+// mencantumkan page, OpenAlex tidak punya first/last page). Halaman
+// wajib kosong dan tercatat kurang; tidak boleh lahir angka karangan.
+const crossrefTanpaHalaman = {
+  DOI: "10.54528/1549-004-001-003",
+  title: ["الشرعية التنظيمية بين النظرية والتطبيق"],
+  "container-title": ["مجلة أبحاث"],
+  publisher: "University of Djelfa Press",
+  volume: "4",
+  issue: "1",
+  type: "journal-article",
+  author: [{ given: "كريم", family: "إموداش" }],
+  issued: { "date-parts": [[2019]] },
+  URL: "https://doi.org/10.54528/1549-004-001-003",
+};
+const openAlexTanpaHalaman = {
+  doi: "https://doi.org/10.54528/1549-004-001-003",
+  biblio: { volume: "4", issue: "1", first_page: null, last_page: null },
+  type: "article",
+  primary_location: { source: null },
+  publication_year: 2019,
+};
+const hasil4 = gabungMetadata(petakanCrossref(crossrefTanpaHalaman), petakanOpenAlex(openAlexTanpaHalaman));
+cek("tanpa halaman: halaman tetap kosong", !hasil4.data.halaman, String(hasil4.data.halaman ?? ""));
+cek('tanpa halaman: "halaman" ada di kurang', hasil4.kurang.includes("halaman"), hasil4.kurang.join(", "));
+cek("tanpa halaman: asal halaman tidak bertanda", hasil4.asal.halaman === undefined);
+
+// Keterangan asal untuk label formulir per kolom.
+cek('keterangan asal Crossref', keteranganAsalKolom("crossref", true) === "dari Crossref");
+cek('keterangan asal OpenAlex', keteranganAsalKolom("openalex", true) === "dari OpenAlex");
+cek("keterangan asal kolom kosong menyatakan tidak ada di rekod",
+  keteranganAsalKolom(undefined, false).includes("tidak ada di rekod"));
 
 console.log(gagal === 0 ? "\nSEMUA LULUS" : `\n${gagal} GAGAL`);
 process.exit(gagal ? 1 : 0);
