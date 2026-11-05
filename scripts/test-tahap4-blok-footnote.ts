@@ -334,7 +334,7 @@ async function main() {
     hasilA.kandidat?.some((k) => k.sumber.judul.includes("مصادر التشريع") && k.tanpaKalimatIsi === true && !k.kalimatIsi) === true);
   cek("A9 jurnal tanpa halaman masuk daftar ditolak sebagai belum terverifikasi dengan tanda halaman kosong (Tahap C)",
     hasilA.ditolak?.some((t) => t.sumber.judul.includes("أثر القياس") && t.halamanKosong === true && t.status === "belum-terverifikasi") === true);
-  cek("A10 kandidat yang ditolak model masuk daftar ditolak gagal-bidang TANPA sidik, tidak ikut terpasang (Tahap C)",
+  cek("A10 buku web tanpa kategori digugurkan gerbang kategori sebagai gagal-bidang TANPA sidik sebelum dinilai model, tidak ikut terpasang (Paket B)",
     hasilA.ditolak?.some((t) => t.sumber.judul.includes("TERTAHAN-UJI") && t.status === "gagal-bidang" && !("sidik" in t)) === true &&
     hasilA.kandidat?.some((k) => k.sumber.judul.includes("TERTAHAN-UJI")) !== true);
   cek("A11 ketemu karena ada kandidat yang bisa dipilih", hasilA.ketemu === true);
@@ -437,6 +437,13 @@ async function main() {
     tahun: "2020",
     judul: "كتاب الأصول في الفقه المقارن",
     penerbit: "دار النشر العلمية",
+    // Paket B: buku web kini dinilai gerbang kategori kitab juga di
+    // titik pasang. Fixture kontrol ini meniru buku web dari jalur
+    // penyedia yang mengirim kategorinya (pola Ketabonline/Usul):
+    // kategori أصول الفقه sesuai topik proyek dan judulnya memuat
+    // istilah inti, jadi gerbang meloloskannya ke periksa ulang
+    // bidang umum, dan yang diuji di sini tetap umur rekam sidiknya.
+    kategoriKitab: "أصول الفقه",
   };
   const sidikR2 = sidikKandidatDariSumber(kandidatR2);
   await simpanStore("tembolok", { id: `konf:${sidikR2}`, tipe: "konf", pemilik: "uji-pemilik" });
@@ -509,7 +516,7 @@ async function main() {
     pemilik: "uji-pemilik",
     ...KONTEKS_PASANG,
   });
-  cek("E10 periksa ulang bidang di titik pasang menolak kandidat walau sidiknya sah (Tahap C)",
+  cek("E10 periksa ulang di titik pasang menolak kandidat walau sidiknya sah: buku web gugur di gerbang kategori kitab (Paket B)",
     pasangE10.ketemu === false && /bidang/i.test(pasangE10.alasanTolak ?? ""),
     (pasangE10.alasanTolak ?? "").slice(0, 60));
   // Kandidat jurnal ber-DOI karangan: metadata periksa ulang gugur di

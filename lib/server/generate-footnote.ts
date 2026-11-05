@@ -958,6 +958,29 @@ export async function pasangFootnoteDisetujui(opsi: {
       );
     }
     bidangSudahDinilai = true;
+  } else if (kandidat.jenis === "kitab" || kandidat.jenis === "skripsi") {
+    // Buku web (bukan masadir, bukan artikel, tanpa DOI): gerbang
+    // kategori kitab dinilai ulang segar di titik pasang (Paket B,
+    // keputusan pemilik 6 Nov 2026, pasangan gerbang generate di
+    // atas). Buku web umumnya tidak membawa kategori; tanpa bukti
+    // sebutan persis judulnya pada paragraf/judul proyek ia
+    // tertahan di sini, sebelum penilaian ulang bidang umum di
+    // bawah, persis seperti kitab masadir pada cabang pertama.
+    const gerbangBukuPasang = gerbangKategoriKitab(
+      {
+        judul: kandidat.judul,
+        kategoriKitab: kandidat.kategoriKitab,
+        daftarIsi: kandidat.daftarIsi,
+        teksParagraf: paragraf,
+        judulProyek: opsi.judulProyek,
+      },
+      opsi.bidangId ?? "",
+    );
+    if (gerbangBukuPasang.putusan !== "lolos") {
+      return gagal(
+        `Pemasangan ditolak pada periksa ulang kategori kitab (${labelStatusVerifikasi(gerbangBukuPasang.putusan)}): ${gerbangBukuPasang.alasan}`,
+      );
+    }
   }
   // Buku web tanpa DOI tidak punya rekod metadata untuk diperiksa
   // ulang; keberadaannya dibuktikan sidik itu sendiri (server hanya
@@ -1315,24 +1338,37 @@ export async function generateFootnoteUntukParagraf(opsi: {
       continue;
     }
 
-    /* ---- Gerbang kategori kitab (Tahap G1) ----
-     * Kandidat kitab masadir dinilai mesin gerbang deterministik
-     * (lib/engine/kategori-kitab.ts: relasi cabang kategori sumber
-     * terhadap topik proyek + istilah inti/penolak pada judul dan
-     * daftar isi) TERLEBIH DULU, sebelum penilaian model apa pun.
-     * Putusan selain "lolos" berhenti di sini: gagal-bidang untuk
-     * yang gugur keras (kasus uang panai: kitab tauhid berkategori
-     * akidah, cabang bertentangan dengan topik munakahat, sempat
-     * lolos lewat skor model 90 dan tersimpan), dan
-     * belum-terverifikasi berlabel "Perlu konfirmasi: ..." untuk
-     * yang tertahan — keduanya TANPA sidik, tanpa dinilai model,
-     * tanpa memakai jatah penilaian. Model sesudah ini hanya boleh
-     * menggugurkan, tidak pernah meloloskan yang tertahan/gugur.
+    /* ---- Gerbang kategori kitab (Tahap G1 + Paket B) ----
+     * Kandidat kitab masadir DAN buku dari pencarian web dinilai
+     * mesin gerbang deterministik (lib/engine/kategori-kitab.ts:
+     * relasi cabang kategori sumber terhadap topik proyek + istilah
+     * inti/penolak pada judul dan daftar isi) TERLEBIH DULU, sebelum
+     * penilaian model apa pun. Putusan selain "lolos" berhenti di
+     * sini: gagal-bidang untuk yang gugur keras (kasus uang panai:
+     * kitab tauhid berkategori akidah, cabang bertentangan dengan
+     * topik munakahat, sempat lolos lewat skor model 90 dan
+     * tersimpan), dan belum-terverifikasi berlabel "Perlu
+     * konfirmasi: ..." untuk yang tertahan — keduanya TANPA sidik,
+     * tanpa dinilai model, tanpa memakai jatah penilaian. Model
+     * sesudah ini hanya boleh menggugurkan, tidak pernah
+     * meloloskan yang tertahan/gugur.
      * Kelas jurnal tidak lewat gerbang kitab ini (sumbernya tidak
      * punya sistem kategori kitab); ia dinilai gerbang jurnal G2
-     * tepat di bawah. Buku web tetap pada periksa Tahap C + gerbang
-     * relevansi kalimat seperti sebelumnya. */
-    if (kelas === "masadir") {
+     * tepat di bawah.
+     * Paket B (keputusan pemilik, 6 Nov 2026): buku web DISAMAKAN
+     * fail-closed dengan masadir. Sebelumnya buku web hanya
+     * melewati periksa keberadaan Tahap C + skor model, sehingga
+     * buku berkategori asing yang tidak tercatat kategorinya bisa
+     * terpasang hanya karena skor modelnya tinggi (celah yang sama
+     * dengan kasus uang panai, hanya lewat pintu lain). Kini buku
+     * web membawa kategoriKitab apa adanya (umumnya kosong):
+     * kategori dikenal dinilai aturan penuh; kategori tidak
+     * dikenal hanya bisa lolos ke tahap model lewat bukti sebutan
+     * persis judulnya pada paragraf/judul proyek; selain itu
+     * tertahan belum-terverifikasi TANPA sidik, apa pun skor
+     * modelnya. Pemilik menegaskan: "kalau memang tidak valid"
+     * berarti tertahan, bukan diloloskan. */
+    if (kelas === "masadir" || kelas === "buku") {
       const gerbangKitab = gerbangKategoriKitab(
         {
           judul: kandidat.judul,

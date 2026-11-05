@@ -261,6 +261,62 @@ const JUDUL_TAKAMUL = "التكامل المعرفي بين علوم القرآ�
     h.putusan === "lolos" && h.kode === "SEBUT_PERSIS", h.alasan);
 }
 
+// Paket B (keputusan pemilik, 6 Nov 2026): buku dari pencarian web
+// kini melewati gerbang yang sama SEBELUM skor model, dengan bentuk
+// masukan persis seperti yang diberikan loop generate untuk kelas
+// buku (kategoriKitab kosong, tanpa daftar isi). Fixture di bawah
+// meniru kandidat yang pada jalur lama hanya dinilai model: skor
+// model setinggi apa pun tidak lagi bisa meloloskan yang tertahan
+// gerbang, karena loop berhenti pada putusan gerbang.
+{
+  // Kembaran web dari kasus uang panai: kitab tauhid TANPA kategori
+  // tercatat pada proyek munakahat. Jalur lama menyerahkannya ke
+  // skor model; kini gugur deterministik sebelum model dipanggil.
+  const h = gerbangKategoriKitab(
+    {
+      judul: "القواعد في توحيد العبادة",
+      teksParagraf:
+        "يتناول هذا البحث حكم العرف المالي المعروف بالuang panai في أعراس البوغيس من جهة مشروعيته وآثاره على عقد النكاح.",
+      judulProyek: "حكم uang panai في الشريعة الإسلامية: دراسة مقاصدية",
+    },
+    "fiqh",
+  );
+  cek("paketB: buku web tauhid tanpa kategori vs uang panai: GUGUR sebelum model",
+    h.putusan === "gagal-bidang" && h.kode === "GUGUR_TAKJELAS_KOSONG", h.alasan);
+}
+{
+  // Tanpa kategori dan tanpa sebutan persis, tetapi judul memuat
+  // istilah inti topik: tertahan belum-terverifikasi (bukan lolos),
+  // apa pun skor model yang akan diberikan tahap berikutnya.
+  const h = gerbangKategoriKitab(
+    {
+      judul: "كتاب الأصول في الفقه المقارن",
+      teksParagraf:
+        "تُعدّ زكاة المهنة من النوازل الفقهية المعاصرة التي اختلف فيها المعاصرون، إذ لم يرد فيها نص صريح من الكتاب أو السنة.",
+      judulProyek: "أثر أصول الفقه في الحياة المعاصرة",
+    },
+    "fiqh",
+  );
+  cek("paketB: buku web tanpa kategori + tanpa sebutan persis: tertahan belum-terverifikasi",
+    h.putusan === "belum-terverifikasi" && h.kode === "KONF_TAKJELAS_INTI", h.alasan);
+}
+{
+  // Satu-satunya jalan lolos buku web tak berkategori: judulnya
+  // disebut persis pada paragraf. Sesudah gerbang ini barulah tahap
+  // model boleh menilai.
+  const h = gerbangKategoriKitab(
+    {
+      judul: "القياس عند الأصوليين: دراسة تأصيلية مقارنة",
+      teksParagraf:
+        "يُعدّ القياس من أهم مصادر التشريع عند الأصوليين، إذ يُلحق الفرع بالأصل في الحكم لعلة جامعة بينهما.",
+      judulProyek: "أثر أصول الفقه في الحياة المعاصرة",
+    },
+    "fiqh",
+  );
+  cek("paketB: buku web yang judulnya disebut persis di paragraf: lolos gerbang ke tahap model",
+    h.putusan === "lolos" && h.kode === "SEBUT_PERSIS", h.alasan);
+}
+
 // Irisan tabel: kitab ushul fiqh pada proyek fikih generik lolos;
 // pada bidang quran (topik tafsir) gugur.
 {
