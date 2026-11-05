@@ -19,8 +19,19 @@
  * Semua kandidat dari kedua jalur, maraji' maupun masadir, melewati
  * gerbang relevansi yang sama, dan gerbang itu gagal tertutup: model
  * yang tidak bisa menilai menahan kandidat, bukan meloloskannya.
- * Kandidat tertahan hanya dipasang lewat pasangFootnoteDisetujui
- * dengan sidik terbitan server untuk kandidat yang persis ditampilkan.
+ *
+ * Tahap C (Aturan Pencarian Valid, putusan pemilik 5 Nov 2026 15:57 —
+ * blokir keras penuh): di atas gerbang bidang, kandidat wajib lolos
+ * PERIKSA KEBERADAAN sesuai sumbernya sebelum boleh dipasang:
+ * kandidat jurnal diperiksa metadata hidupnya ke Crossref lewat
+ * periksaMetadata (lib/server/verifikasi-rujukan.ts), kandidat kitab
+ * Turath/Shamela dibuktikan rekod sumbernya sendiri, buku web
+ * dibuktikan verifikasi DOI/ISBN jalur pencariannya. Kandidat yang
+ * gagal periksa atau belum terverifikasi TIDAK BISA DIPASANG dengan
+ * cara apa pun: jalur konfirmasi sadar untuk kandidat tertahan
+ * DICABUT. Sidik hanya diterbitkan untuk kandidat yang LOLOS, dan
+ * pasangFootnoteDisetujui memeriksa ulang kelulusannya (metadata +
+ * bidang, dihitung segar) pada saat pemasangan.
  *
  * Dua jalur rujukan: MARAJI' dari web umum (jurnal/buku modern, boleh
  * dari mana saja) dan MASADIR dari Turath.io + Shamela (kitab turath,
@@ -55,8 +66,14 @@ import {
   bidangMilikProyek,
   deteksiBidangSumber,
   nilaiRelevansi,
+  nilaiUntukCariRujukan,
   type KonteksProyek,
 } from "./gerbang-relevansi";
+import {
+  jangkarBidangUntuk,
+  periksaMetadata,
+  type StatusVerifikasi,
+} from "./verifikasi-rujukan";
 import { bersihkanJudul, type Sumber } from "@/lib/engine/cite";
 import { idStabilDariIdentitas } from "@/lib/refs/footnote";
 import { cari as cariTurath, cariKonsep as cariKonsepTurath } from "@/lib/refs/adapters/turath";
@@ -552,10 +569,15 @@ function pilihKalimat(
   return terbaik;
 }
 
-/** Satu kandidat yang LOLOS gerbang pada mode seleksi, siap dipilih
- *  mahasiswa di panel kandidat. */
+/** Satu kandidat yang LOLOS semua periksa pada mode seleksi, siap
+ *  dipilih mahasiswa di panel kandidat. Sidiknya diterbitkan server
+ *  untuk kandidat ini persis: pemasangan berjalan lewat
+ *  pasangFootnoteDisetujui yang memeriksa ulang kelulusannya pada
+ *  saat pemasangan (Tahap C). */
 export interface KandidatHasil {
   sumber: Sumber;
+  /** Sidik kandidat lolos terbitan server. */
+  sidik: string;
   /** Kalimat isi nyata dari sumbernya yang cocok dengan teks yang
    *  diblok. Tidak ada (undefined) bila sumber tidak menyediakan isi
    *  atau tidak ada kalimat isinya yang menyentuh teks tersebut. */
@@ -572,14 +594,17 @@ export interface KandidatHasil {
   halamanKosong?: boolean;
 }
 
-/** Satu kandidat TERTAHAN gerbang pada mode seleksi atau alur lama.
- *  Hanya bisa dipasang lewat pasangFootnoteDisetujui dengan sidiknya. */
-export interface TertahanHasil {
+/** Satu kandidat yang TIDAK lolos periksa pada mode seleksi (Tahap C).
+ *  Ditampilkan dengan label putusannya agar penulis tahu apa yang
+ *  ditolak dan kenapa, tetapi TANPA sidik dan tanpa jalan pemasangan:
+ *  kandidat yang gagal periksa atau belum terverifikasi tidak bisa
+ *  dipasang dengan cara apa pun (putusan pemilik 5 Nov 2026 15:57). */
+export interface DitolakHasil {
   sumber: Sumber;
-  /** Sidik kandidat yang diterbitkan server untuk kandidat ini. */
-  sidik: string;
-  bidangSumber: string;
+  /** Putusan periksa yang menggagalkan kandidat ini. */
+  status: Exclude<StatusVerifikasi, "terverifikasi">;
   alasan: string;
+  bidangSumber: string;
   kalimatIsi?: string;
   tanpaKalimatIsi?: boolean;
   /** Sama seperti pada KandidatHasil: kandidat tanpa nomor halaman. */
@@ -594,13 +619,14 @@ export interface HasilGenerate {
   dariBank: boolean;
   dariSidik: boolean;
   catatan?: string;
-  /** Mode seleksi: kandidat yang lolos gerbang (target minimal 3 bila
-   *  tersedia), urut penilaian. Mahasiswa memilih sendiri; tidak ada
-   *  pemasangan otomatis. */
+  /** Mode seleksi: kandidat yang lolos semua periksa (target minimal
+   *  3 bila tersedia), urut penilaian. Mahasiswa memilih sendiri;
+   *  tidak ada pemasangan otomatis. */
   kandidat?: KandidatHasil[];
-  /** Mode seleksi: kandidat tertahan gerbang yang masih boleh dipasang
-   *  paksa lewat sidiknya (maksimal 3 ditampilkan). */
-  tertahan?: TertahanHasil[];
+  /** Kandidat yang TIDAK lolos periksa, dengan label putusannya
+   *  (maksimal 5 pada mode seleksi, 3 pada alur kursor). Tidak ada
+   *  sidik dan tidak ada jalan memasang mereka (Tahap C). */
+  ditolak?: DitolakHasil[];
   /** Mode seleksi: rumusan makna kalimat yang diblok. dariModel false
    *  berarti analisis model tidak tersedia dan pencarian berjalan
    *  dengan teks seleksi apa adanya. */
@@ -610,37 +636,34 @@ export interface HasilGenerate {
     kebutuhan: string;
     dariModel: boolean;
   };
-  /** Kandidat terbaik tertahan gerbang relevansi (alur kursor lama):
-   *  klien menampilkan alasannya dan menanyakan pengguna; pengguna
-   *  memasang persis kandidat ini lewat sidiknya
-   *  (pasangFootnoteDisetujui), bukan dengan menjalankan ulang jalur. */
-  perluKonfirmasi?: {
-    sumber: Sumber;
-    kalimatIdx: number;
-    bidangSumber: string;
-    bidangProyek: string;
-    alasan: string;
-    sidik: string;
-  };
   /** Penolakan gerbang yang dicatat selama mencoba kandidat, urut
    *  pemeriksaan. Untuk audit dan pesan jujur ke pengguna. */
   penolakan?: { judul: string; alasan: string }[];
 }
 
 /* ------------------------------------------------------------------ */
-/* Sidik kandidat tertahan (Tahap 4, menutup temuan S2 + R1 telaah      */
-/* komit koreksi). Persetujuan pengguna terikat pada kandidat yang      */
-/* benar-benar ia lihat: server menerbitkan sidik (hash isi kandidat)   */
-/* dan mencatatnya di store atas nama pemiliknya. Pemasangan paksa      */
-/* hanya memasang kandidat yang sidiknya tercatat DAN cocok dengan      */
-/* data kandidat yang dikirim balik — jalur tidak dijalankan ulang,     */
-/* dan paksaKonfirmasi tanpa sidik tidak berlaku lagi.                  */
-/* Pengerasan telaah silang Tahap 4 (R2): rekam SEKALI PAKAI — sesudah */
-/* satu pemasangan berhasil rekamnya dihapus, jadi satu persetujuan    */
-/* hanya membuahkan satu pemasangan; memasang kandidat yang sama di    */
-/* tempat lain berjalan lewat generate dan persetujuan baru (atau      */
-/* lewat daftar sumber proyek yang sudah memuatnya). Rekam tanpa       */
-/* tanggal pembuatan yang sah dianggap kedaluwarsa, bukan lolos.       */
+/* Sidik kandidat (Tahap 4 bentuk awal; Tahap C MEMBALIK arahnya).      */
+/*                                                                      */
+/* Bentuk awal Tahap 4: sidik diterbitkan untuk kandidat TERTAHAN dan   */
+/* pemasangan paksa memasang persis kandidat itu tanpa penilaian        */
+/* ulang, atas dasar persetujuan sadar pengguna. Putusan pemilik        */
+/* 5 Nov 2026 15:57 mencabut model itu: kandidat yang gagal periksa     */
+/* atau belum terverifikasi tidak boleh terpasang dengan cara apa       */
+/* pun, jadi sidik kini diterbitkan HANYA untuk kandidat yang LOLOS     */
+/* semua periksa saat generate, dan pasangFootnoteDisetujui adalah      */
+/* gerbang pemasangan servernya:                                        */
+/*  1. sidik (hash isi kandidat) cocok dengan data yang dikirim balik   */
+/*     DAN tercatat di store atas nama pemiliknya, belum kedaluwarsa    */
+/*     (24 jam; rekam tanpa tanggal sah dianggap kedaluwarsa);          */
+/*  2. PERIKSA ULANG SEGAR pada saat pemasangan: metadata Crossref      */
+/*     untuk kandidat jurnal, penanda rekod sumber untuk kitab          */
+/*     Turath/Shamela, dan penilaian bidang gerbang untuk semua         */
+/*     kandidat. Status dari klien atau hasil periksa lama tidak        */
+/*     pernah dipercaya — yang gagal periksa ulang DITOLAK.             */
+/*  3. Rekam SEKALI PAKAI: dihapus sesudah semua periksa lolos dan       */
+/*     pemasangan terjadi. Penolakan periksa ulang tidak membakar       */
+/*     rekamnya, tetapi percobaan berikutnya dinilai ulang dari nol     */
+/*     dan akan ditolak lagi dengan alasan yang sama.                   */
 /* ------------------------------------------------------------------ */
 
 function hashSidik(teks: string): string {
@@ -692,8 +715,22 @@ export function sidikKandidatDariSumber(s: Sumber): string {
 
 const UMUR_SIDIK_MS = 24 * 60 * 60 * 1000;
 
-/** Catat sidik kandidat tertahan atas nama pemiliknya agar pemasangan
- *  paksa nanti bisa diverifikasi. Kegagalan mencatat tidak menggagalkan
+/** Label putusan verifikasi untuk pesan ke pengguna. */
+export function labelStatusVerifikasi(status: StatusVerifikasi): string {
+  switch (status) {
+    case "terverifikasi":
+      return "Terverifikasi";
+    case "gagal-metadata":
+      return "Gagal periksa metadata";
+    case "gagal-bidang":
+      return "Tidak sesuai bidang";
+    case "belum-terverifikasi":
+      return "Belum terverifikasi";
+  }
+}
+
+/** Catat sidik kandidat lolos atas nama pemiliknya agar pemasangan
+ *  nanti bisa diverifikasi. Kegagalan mencatat tidak menggagalkan
  *  generate; ia hanya membuat sidik itu tidak bisa dipakai memasang. */
 async function terbitkanSidik(sidik: string, pemilik: string): Promise<void> {
   if (!pemilik) return;
@@ -706,12 +743,20 @@ async function terbitkanSidik(sidik: string, pemilik: string): Promise<void> {
 }
 
 /**
- * Pasang PERSIS kandidat tertahan yang disetujui pengguna (Tahap 4).
- * Tidak ada pencarian ulang dan tidak ada penilaian ulang: yang
- * dipasang adalah data kandidat yang ditampilkan server sebelumnya,
- * diverifikasi lewat sidik terbitan server + kecocokan isi data.
- * Sumber hasil selalu bertanda perluVerifikasi. Persetujuannya
- * sekali pakai: rekam sidik dihapus pada pemasangan yang berhasil.
+ * Pasang PERSIS kandidat lolos yang dipilih pengguna, dengan PERIKSA
+ * ULANG SEGAR di server (Tahap C). Sidik hanya membuktikan server
+ * pernah menerbitkan kandidat ini sebagai kandidat lolos untuk
+ * pemiliknya; kelulusannya TIDAK dipercaya dari sidik itu:
+ *  - kandidat jurnal: metadata diperiksa ulang ke Crossref hidup;
+ *  - kandidat kitab Turath/Shamela: penanda rekod sumbernya (tautan
+ *    rekod) wajib masih ada;
+ *  - semua kandidat: bidang dinilai ulang oleh gerbang relevansi
+ *    dengan standar tataran bidang yang sama dengan verifikasi
+ *    tambah jurnal (bidang proyek atau irisan langsungnya).
+ * Kandidat yang pada periksa ulang gagal atau belum terverifikasi
+ * DITOLAK (hasil membawa alasanTolak; route menjawab 403). Rekam
+ * sidik sekali pakai: dihapus hanya sesudah semua periksa lolos dan
+ * pemasangan terjadi.
  */
 export async function pasangFootnoteDisetujui(opsi: {
   sidik: string;
@@ -720,21 +765,29 @@ export async function pasangFootnoteDisetujui(opsi: {
   kalimatIdx?: number;
   /** Id pengguna pemilik sidik (dari sesi server, bukan dari klien). */
   pemilik: string;
-}): Promise<HasilGenerate> {
-  const gagal = (catatan: string): HasilGenerate => ({
+  /** Konteks proyek untuk periksa ulang bidang (dari klien proyek,
+   *  pola yang sama dengan /api/refs/search dan verifikasi-jurnal). */
+  bidangId?: string;
+  judulProyek?: string;
+  topikAr?: string;
+  /** BYOK: kunci pribadi pemanggil, diteruskan ke penilaian gerbang. */
+  kolam?: OpsiKolamTerusan;
+}): Promise<HasilGenerate & { alasanTolak?: string }> {
+  const gagal = (catatan: string): HasilGenerate & { alasanTolak: string } => ({
     ketemu: false,
     kalimatKunci: [],
     dariBank: false,
     dariSidik: false,
     catatan,
+    alasanTolak: catatan,
   });
   const sidik = (opsi.sidik ?? "").trim();
   if (!sidik || !opsi.kandidat || typeof opsi.kandidat.judul !== "string" || !opsi.kandidat.judul.trim()) {
-    return gagal("Data kandidat yang disetujui tidak lengkap. Minta generate ulang, lalu setujui kandidat yang ditampilkan.");
+    return gagal("Data kandidat yang akan dipasang tidak lengkap. Minta generate ulang, lalu pasang kandidat lolos yang ditampilkan.");
   }
   if (sidikKandidatDariSumber(opsi.kandidat) !== sidik) {
     return gagal(
-      "Sidik kandidat tidak cocok dengan data kandidat yang dikirim balik, jadi pemasangan dibatalkan. Minta generate ulang, lalu setujui kandidat yang ditampilkan.",
+      "Sidik kandidat tidak cocok dengan data kandidat yang dikirim balik, jadi pemasangan dibatalkan. Minta generate ulang, lalu pasang kandidat yang ditampilkan.",
     );
   }
   const rec = (await ambil("tembolok", `konf:${sidik}`).catch(() => null)) as
@@ -742,27 +795,121 @@ export async function pasangFootnoteDisetujui(opsi: {
     | null;
   if (!rec || rec.pemilik !== opsi.pemilik) {
     return gagal(
-      "Kandidat ini tidak tercatat sebagai kandidat tertahan yang diterbitkan server untuk akun Anda. Minta generate ulang, lalu setujui dari panel yang baru.",
+      "Kandidat ini tidak tercatat sebagai kandidat lolos yang diterbitkan server untuk akun Anda. Minta generate ulang, lalu pasang dari panel yang baru.",
     );
   }
   const dibuat = Date.parse(rec.dibuat ?? "");
   if (!Number.isFinite(dibuat) || Date.now() - dibuat > UMUR_SIDIK_MS) {
     return gagal(
-      "Persetujuan kandidat ini sudah kedaluwarsa (lebih dari 24 jam) atau catatan persetujuannya tidak lengkap. Minta generate ulang.",
+      "Sidik kandidat ini sudah kedaluwarsa (lebih dari 24 jam) atau catatan sidiknya tidak lengkap. Minta generate ulang.",
     );
   }
   const paragraf = opsi.paragraf.replace(/\[\[ref:[^\]]*\]\]/g, "").trim();
-  const jumlahKalimat = Math.max(1, pecahKalimatServer(paragraf).length);
+  const kalimatParagraf = pecahKalimatServer(paragraf);
+  const jumlahKalimat = Math.max(1, kalimatParagraf.length);
   const kalimatIdx = Math.min(
     Math.max(0, typeof opsi.kalimatIdx === "number" && Number.isFinite(opsi.kalimatIdx) ? Math.floor(opsi.kalimatIdx) : 0),
     jumlahKalimat - 1,
   );
-  // SEKALI PAKAI: semua pemeriksaan lolos, pemasangan akan terjadi —
-  // bakar rekam persetujuannya sekarang agar sidik yang sama tidak
-  // bisa diputar ulang untuk pemasangan kedua. Kegagalan menghapus
-  // tidak membatalkan pemasangan yang sah ini.
+  /* ---- Periksa ulang segar: metadata / penanda sumber ---- */
+  const kandidat = opsi.kandidat;
+  const dariMasadir =
+    /turath|shamela/i.test(kandidat.sumberImpor ?? "") || /turath|shamela/i.test(kandidat.url ?? "");
+  if (dariMasadir) {
+    // Keberadaan kitab adalah rekod sumbernya sendiri; tanpa tautan
+    // rekod itu tidak ada yang bisa dicek ulang.
+    if (!(kandidat.url ?? "").trim()) {
+      return gagal(
+        "Pemasangan ditolak pada periksa ulang (Belum terverifikasi): kitab ini tidak membawa tautan rekod sumber Turath/Shamela yang bisa dicek.",
+      );
+    }
+  } else if (kandidat.jenis === "artikel" || (kandidat.doi ?? "").trim()) {
+    const meta = await periksaMetadata({
+      id: kandidat.id,
+      doi: kandidat.doi ?? undefined,
+      judul: kandidat.judul,
+      jurnal: kandidat.jurnal,
+      tahun: kandidat.tahun || undefined,
+    });
+    if (meta.status !== "lolos") {
+      return gagal(
+        `Pemasangan ditolak pada periksa ulang metadata (${labelStatusVerifikasi(meta.status)}): ${meta.alasan}`,
+      );
+    }
+    if (kandidat.jenis === "artikel" && !(kandidat.halaman ?? "").trim()) {
+      return gagal(
+        "Pemasangan ditolak pada periksa ulang (Belum terverifikasi): artikel jurnal ini tidak membawa nomor halaman, jadi footnote-nya belum bisa dipasang.",
+      );
+    }
+  }
+  // Buku web tanpa DOI tidak punya rekod metadata untuk diperiksa
+  // ulang; keberadaannya dibuktikan sidik itu sendiri (server hanya
+  // menerbitkannya bagi kandidat yang lolos periksa saat generate).
+  // Bidang semua kandidat tetap dinilai ulang di bawah ini.
+
+  /* ---- Periksa ulang segar: bidang lewat gerbang ----
+   * Standar bidang di titik pasang adalah standar tataran bidang
+   * yang sama dengan verifikasi tambah jurnal (Tahap A,
+   * jangkarBidangUntuk): bidang SESUAI atau BERIRISAN langsung
+   * dengan bidang proyek = lolos. Kesesuaian kandidat dengan
+   * kalimat tujuan sendiri sudah dinilai pada tahap generate
+   * (kalimat + rumusan makna menjadi jangkarnya di sana) dan
+   * kandidat ini dipilih pengguna untuk kalimat itu; titik pasang
+   * membuktikan kandidatnya nyata dan se-bidang, bukan mengadili
+   * ulang kecocokan kalimatnya. Penilaian berjangkar judul sempit
+   * di sini terbukti menggagalkan artikel sebidang yang sah (kasus
+   * Ihya pada proyek takamul: model mengenalinya sebagai Fiqh &
+   * Ushul Fiqh tetapi menolaknya hanya karena tidak membahas frasa
+   * judul proyek, skor 45 pada uji hidup Tahap C). */
+  const bidangPasang = opsi.bidangId ? getBidang(opsi.bidangId) : null;
+  const konteksPasang: KonteksProyek = {
+    bidangId: opsi.bidangId ?? "",
+    bidangLabel: bidangPasang ? `${bidangPasang.labelId} (${bidangPasang.labelAr})` : "",
+    judulProyek: opsi.judulProyek ?? "",
+    topik: opsi.topikAr ?? "",
+  };
+  const { putusan: putusanPasang } = await nilaiUntukCariRujukan(
+    [
+      {
+        kunci: "pasang",
+        judul: kandidat.judul,
+        wadah: kandidat.jurnal ?? kandidat.penerbit ?? "",
+        jenis: kandidat.jenis === "artikel" ? "jurnal" : "buku",
+        kalimat: jangkarBidangUntuk(konteksPasang),
+      },
+    ],
+    konteksPasang,
+    opsi.kolam,
+    1,
+  );
+  const nilaiPasang = putusanPasang.get("pasang");
+  if (!nilaiPasang || !(nilaiPasang.lolos && nilaiPasang.statusPenilaian === "dinilai")) {
+    // Pemetaan blokir keras yang sama dengan verifikasiKandidat:
+    // model tidak menilai (atau putusan tidak terbit) berarti
+    // bidangnya belum terbukti; penolakan yang dinilai berarti
+    // bidangnya tidak sesuai.
+    const statusPasang: StatusVerifikasi =
+      !nilaiPasang || nilaiPasang.statusPenilaian === "tidak-dinilai"
+        ? "belum-terverifikasi"
+        : "gagal-bidang";
+    return gagal(
+      `Pemasangan ditolak pada periksa ulang bidang (${labelStatusVerifikasi(statusPasang)}): ${nilaiPasang?.alasan ?? "Kandidat tidak mendapat putusan bidang dari gerbang."}`,
+    );
+  }
+
+  // SEKALI PAKAI: semua periksa lolos, pemasangan akan terjadi —
+  // bakar rekam sidiknya sekarang agar sidik yang sama tidak bisa
+  // diputar ulang untuk pemasangan kedua. Kegagalan menghapus tidak
+  // membatalkan pemasangan yang sah ini.
   await hapus("tembolok", `konf:${sidik}`).catch(() => undefined);
-  const sumber: Sumber = { ...opsi.kandidat, perluVerifikasi: true };
+  const sumber: Sumber = {
+    ...kandidat,
+    // Kitab Turath/Shamela tetap bertanda perlu verifikasi: metadata
+    // cetak korpus tidak lengkap dan halaman wajib diperiksa penulis
+    // pada kitab cetaknya (keputusan lama yang dipertahankan).
+    // Kandidat lain membawa tandanya sendiri dari hasil periksa.
+    perluVerifikasi: dariMasadir ? true : kandidat.perluVerifikasi,
+  };
   return {
     ketemu: true,
     sumber,
@@ -771,7 +918,7 @@ export async function pasangFootnoteDisetujui(opsi: {
     dariBank: false,
     dariSidik: false,
     catatan:
-      "Dipasang persis kandidat yang Anda setujui pada panel konfirmasi, tanpa pencarian atau penilaian ulang. Sumber ditandai perlu verifikasi.",
+      "Dipasang sesudah periksa ulang di server pada saat pemasangan: metadata dan bidang kandidat ini lulus periksa.",
   };
 }
 
@@ -794,15 +941,27 @@ function apakahMasadir(r: RujukanTamu): boolean {
   return r.asal === "turath" || r.asal === "shamela";
 }
 
+/** Kelas periksa keberadaan kandidat (Tahap C): jurnal diperiksa
+ *  metadata hidupnya ke Crossref, kitab Turath/Shamela dibuktikan
+ *  rekod sumbernya sendiri, buku web dibuktikan verifikasi DOI/ISBN
+ *  jalur pencariannya. Yang disebut jurnal di sini adalah kandidat
+ *  ber-DOI atau berjenis jurnal. */
+function kelasKandidat(r: RujukanTamu): "jurnal" | "masadir" | "buku" {
+  if (apakahMasadir(r)) return "masadir";
+  if ((r.doi ?? "").trim() || r.jenis === "jurnal") return "jurnal";
+  return "buku";
+}
+
 interface NilaiKandidat {
   rujukan: RujukanTamu;
   kalimatIdx: number;
   skorModel?: number;
 }
 
-interface TertahanKandidat {
+interface DitolakKandidat {
   rujukan: RujukanTamu;
   kalimatIdx: number;
+  status: Exclude<StatusVerifikasi, "terverifikasi">;
   bidangSumber: string;
   alasan: string;
 }
@@ -950,7 +1109,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
 
   const penolakan: { judul: string; alasan: string }[] = [];
   const lolosList: NilaiKandidat[] = [];
-  const tertahanList: TertahanKandidat[] = [];
+  const ditolakList: DitolakKandidat[] = [];
   let penilaianModel = 0;
   let jatahHabisAdaSisa = false;
   let adaTidakDinilai = false;
@@ -961,21 +1120,83 @@ export async function generateFootnoteUntukParagraf(opsi: {
       ? indeksKalimatSeleksi(paragraf, seleksi)
       : pilihKalimat(paragraf, kandidat, kalimatKunci, opsi.kalimatKursor);
 
-    // Footnote jurnal tanpa halaman tidak boleh terpasang diam-diam:
-    // tertahan selama masih ada kandidat lain; keputusan akhirnya
-    // tetap di tangan pengguna lewat panel/sidik.
+    // Footnote jurnal tanpa halaman tidak bisa dipasang sama sekali
+    // (Tahap C): dulu kelas ini tertahan dan bisa dipasang paksa
+    // lewat konfirmasi sadar; putusan blokir keras mencabut jalan
+    // itu. Bila bidangnya juga terdeteksi asing putusannya
+    // gagal-bidang; selain itu belum-terverifikasi karena data
+    // rujukannya tidak lengkap untuk sebuah footnote.
     if (kandidat.jenis === "jurnal" && !(kandidat.halaman ?? "").trim()) {
       const bidangJurnalIni = deteksiBidangSumber(kandidat.judul, kandidat.wadah);
       const asingJurnalIni = Boolean(bidangJurnalIni && !bidangMilikProyek(bidangJurnalIni, konteks));
       const alasanJurnalIni = asingJurnalIni
         ? `Judul atau nama jurnal menunjukkan bidang ${bidangJurnalIni}, sedangkan proyek ini bidang ${bidangProyekTampil}. Artikel ini juga tidak membawa nomor halaman.`
-        : "Artikel jurnal ini tidak membawa nomor halaman. Footnote tanpa halaman harus dikonfirmasi penulis sebelum dipasang.";
+        : "Artikel jurnal ini tidak membawa nomor halaman. Footnote jurnal wajib mencantumkan halaman, jadi kandidat ini tidak bisa dipasang.";
       penolakan.push({ judul: kandidat.judul, alasan: alasanJurnalIni });
-      tertahanList.push({
+      ditolakList.push({
         rujukan: kandidat,
         kalimatIdx: kalimatIdxKandidat,
+        status: asingJurnalIni ? "gagal-bidang" : "belum-terverifikasi",
         bidangSumber: bidangJurnalIni ?? "",
         alasan: alasanJurnalIni,
+      });
+      continue;
+    }
+
+    /* ---- Periksa keberadaan (Tahap C), sesuai kelas sumbernya ---- */
+    const kelas = kelasKandidat(kandidat);
+    if (kelas === "jurnal") {
+      const meta = await periksaMetadata({
+        id: kandidat.id,
+        doi: kandidat.doi ?? undefined,
+        judul: bersihkanJudul(kandidat.judul),
+        jurnal: kandidat.wadah || undefined,
+        tahun: kandidat.tahun || undefined,
+      });
+      if (meta.status !== "lolos") {
+        penolakan.push({ judul: kandidat.judul, alasan: meta.alasan });
+        ditolakList.push({
+          rujukan: kandidat,
+          kalimatIdx: kalimatIdxKandidat,
+          status: meta.status,
+          bidangSumber: "",
+          alasan: meta.alasan,
+        });
+        continue;
+      }
+    } else if (kelas === "masadir") {
+      // Keberadaan kitab dibuktikan rekod sumbernya sendiri: tautan
+      // rekod Turath/Shamela yang diterbitkan adapternya. Tanpa
+      // penanda itu tidak ada yang bisa dicek, jadi kandidat belum
+      // terverifikasi dan tidak bisa dipasang. Kitab TIDAK dipaksa
+      // ke Crossref: korpusnya memang di luar indeks itu.
+      if (!(kandidat.tautan ?? "").trim()) {
+        const alasanMasadir =
+          "Kitab ini tidak membawa tautan rekod sumber Turath/Shamela yang bisa dicek, jadi keberadaannya belum terverifikasi.";
+        penolakan.push({ judul: kandidat.judul, alasan: alasanMasadir });
+        ditolakList.push({
+          rujukan: kandidat,
+          kalimatIdx: kalimatIdxKandidat,
+          status: "belum-terverifikasi",
+          bidangSumber: "",
+          alasan: alasanMasadir,
+        });
+        continue;
+      }
+    } else if (!kandidat.terverifikasi) {
+      // Buku/disertasi web tanpa DOI: keberadaannya dibuktikan
+      // verifikasi DOI/ISBN pada jalur pencariannya sendiri (flag
+      // terverifikasi pipeline rujukan). Belum terverifikasi di sana
+      // berarti belum terverifikasi di sini juga.
+      const alasanBuku =
+        "Keberadaan buku ini belum terverifikasi (DOI/ISBN tidak terkonfirmasi pada jalur pencariannya), jadi belum bisa dipasang.";
+      penolakan.push({ judul: kandidat.judul, alasan: alasanBuku });
+      ditolakList.push({
+        rujukan: kandidat,
+        kalimatIdx: kalimatIdxKandidat,
+        status: "belum-terverifikasi",
+        bidangSumber: "",
+        alasan: alasanBuku,
       });
       continue;
     }
@@ -1018,9 +1239,13 @@ export async function generateFootnoteUntukParagraf(opsi: {
       continue;
     }
     penolakan.push({ judul: kandidat.judul, alasan: nilai.alasan });
-    tertahanList.push({
+    ditolakList.push({
       rujukan: kandidat,
       kalimatIdx: kalimatIdxKandidat,
+      // Model yang tidak menilai berarti kesesuaiannya belum terbukti
+      // (belum-terverifikasi); penolakan yang benar-benar dinilai
+      // berarti bidangnya tidak sesuai (gagal-bidang).
+      status: nilai.statusPenilaian === "tidak-dinilai" ? "belum-terverifikasi" : "gagal-bidang",
       bidangSumber: nilai.bidangSumber,
       alasan: nilai.alasan,
     });
@@ -1031,26 +1256,30 @@ export async function generateFootnoteUntukParagraf(opsi: {
     jatahHabisAdaSisa = true;
   }
 
-  const keKandidatHasil = (n: NilaiKandidat): KandidatHasil => {
+  const keKandidatHasil = async (n: NilaiKandidat): Promise<KandidatHasil> => {
+    // Sidik diterbitkan HANYA untuk kandidat lolos (Tahap C):
+    // pemasangannya berjalan lewat pasangFootnoteDisetujui yang
+    // memeriksa ulang kelulusan kandidat ini persis.
+    const sidik = sidikKandidatDariRujukan(n.rujukan);
+    await terbitkanSidik(sidik, opsi.pemilik ?? "");
     const kalimatIsi = pilihKalimatIsi(n.rujukan.cuplikan, modeSeleksi ? seleksi : paragraf, {
       dariMasadir: apakahMasadir(n.rujukan),
     });
     return {
       sumber: rujukanKeSumber(n.rujukan),
+      sidik,
       ...(kalimatIsi ? { kalimatIsi } : { tanpaKalimatIsi: true }),
       ...(typeof n.skorModel === "number" ? { skorModel: n.skorModel } : {}),
       ...(!(n.rujukan.halaman ?? "").trim() ? { halamanKosong: true } : {}),
     };
   };
-  const keTertahanHasil = async (t: TertahanKandidat): Promise<TertahanHasil> => {
-    const sidik = sidikKandidatDariRujukan(t.rujukan);
-    await terbitkanSidik(sidik, opsi.pemilik ?? "");
+  const keDitolakHasil = (t: DitolakKandidat): DitolakHasil => {
     const kalimatIsi = pilihKalimatIsi(t.rujukan.cuplikan, modeSeleksi ? seleksi : paragraf, {
       dariMasadir: apakahMasadir(t.rujukan),
     });
     return {
       sumber: rujukanKeSumber(t.rujukan),
-      sidik,
+      status: t.status,
       bidangSumber: t.bidangSumber,
       alasan: t.alasan,
       ...(kalimatIsi ? { kalimatIsi } : { tanpaKalimatIsi: true }),
@@ -1060,14 +1289,19 @@ export async function generateFootnoteUntukParagraf(opsi: {
 
   /* ---- Hasil mode seleksi: daftar kandidat untuk dipilih ---- */
   if (modeSeleksi) {
-    const kandidatHasil = lolosList.map(keKandidatHasil);
-    const tertahanHasil = await Promise.all(tertahanList.slice(0, 3).map(keTertahanHasil));
+    const kandidatHasil = await Promise.all(lolosList.map(keKandidatHasil));
+    const ditolakHasil = ditolakList.slice(0, 5).map(keDitolakHasil);
     const catatanBagian: string[] = [];
     if (kandidatHasil.length === 0) {
-      catatanBagian.push("Tidak ada kandidat yang lolos gerbang relevansi untuk teks yang diblok ini.");
+      catatanBagian.push("Tidak ada kandidat yang lolos periksa untuk teks yang diblok ini.");
     } else if (kandidatHasil.length < 3) {
       catatanBagian.push(
-        `Hanya ${kandidatHasil.length} kandidat yang lolos gerbang relevansi dari ${Math.min(urutan.length, maksPeriksa)} yang diperiksa; tidak ada kandidat tambahan yang dikarang untuk mengejar jumlah.`,
+        `Hanya ${kandidatHasil.length} kandidat yang lolos periksa dari ${Math.min(urutan.length, maksPeriksa)} yang diperiksa; tidak ada kandidat tambahan yang dikarang untuk mengejar jumlah.`,
+      );
+    }
+    if (ditolakHasil.length > 0) {
+      catatanBagian.push(
+        `${ditolakHasil.length} kandidat tidak lolos periksa dan tidak bisa dipasang; putusannya tampil pada daftar ditolak di panel.`,
       );
     }
     if (!makna) {
@@ -1077,7 +1311,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
     }
     if (adaTidakDinilai) {
       catatanBagian.push(
-        "Sebagian kandidat belum dinilai model (layanan AI terganggu atau kuota habis); kandidat itu ditahan, bukan diloloskan.",
+        "Sebagian kandidat belum dinilai model (layanan AI terganggu atau kuota habis); kandidat itu masuk daftar ditolak sebagai belum terverifikasi, bukan diloloskan.",
       );
     }
     if (jatahHabisAdaSisa) {
@@ -1087,7 +1321,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
       ketemu: kandidatHasil.length > 0,
       kalimatIdx: indeksKalimatSeleksi(paragraf, seleksi),
       kandidat: kandidatHasil,
-      ...(tertahanHasil.length > 0 ? { tertahan: tertahanHasil } : {}),
+      ...(ditolakHasil.length > 0 ? { ditolak: ditolakHasil } : {}),
       makna: {
         topikParagraf: makna?.topikParagraf ?? "",
         klaim: makna?.klaim ?? "",
@@ -1121,52 +1355,24 @@ export async function generateFootnoteUntukParagraf(opsi: {
     };
   }
 
-  const tertahan = tertahanList[0];
-  if (tertahan) {
-    // Jatah penilaian habis padahal masih ada kandidat bersih belum
-    // dinilai: jangan tawarkan kandidat tertahan; minta generate lagi
-    // (temuan S5 telaah komit koreksi).
-    if (jatahHabisAdaSisa) {
-      return {
-        ketemu: false,
-        kalimatKunci,
-        dariBank,
-        dariSidik: Boolean(sidikLama),
-        penolakan,
-        catatan:
-          "Kandidat teratas tertahan gerbang relevansi, tetapi masih ada kandidat lain yang belum sempat dinilai pada generate ini. Jalankan Generate footnote sekali lagi agar kandidat berikutnya dinilai, sebelum memutuskan memasang yang tertahan.",
-      };
-    }
-    const tertahanHasil = await keTertahanHasil(tertahan);
-    return {
-      ketemu: false,
-      perluKonfirmasi: {
-        sumber: tertahanHasil.sumber,
-        kalimatIdx: tertahan.kalimatIdx,
-        bidangSumber: tertahan.bidangSumber,
-        bidangProyek: bidangProyekTampil,
-        alasan: tertahan.alasan,
-        sidik: tertahanHasil.sidik,
-      },
-      kalimatKunci,
-      dariBank,
-      dariSidik: Boolean(sidikLama),
-      penolakan,
-      catatan: `Rujukan teratas tertahan gerbang relevansi: ${tertahan.alasan} Periksa kandidatnya, lalu pasang persis kandidat itu bila memang disengaja.`,
-    };
-  }
-
-  const teratas = penolakan[0];
+  // Tidak ada kandidat yang lolos: alur kursor TIDAK lagi menawarkan
+  // kandidat tertahan untuk dipasang paksa (Tahap C mencabut jalur
+  // perluKonfirmasi + sidik untuk kandidat tertahan). Yang tidak
+  // lolos tampil sebagai daftar ditolak berlabel putusan; jalan
+  // berikutnya adalah generate ulang atau Cari rujukan (AI).
+  const ditolakHasil = ditolakList.slice(0, 3).map(keDitolakHasil);
+  const teratasDitolak = ditolakHasil[0];
   return {
     ketemu: false,
     kalimatKunci,
     dariBank,
     dariSidik: Boolean(sidikLama),
     ...(penolakan.length > 0 ? { penolakan } : {}),
+    ...(ditolakHasil.length > 0 ? { ditolak: ditolakHasil } : {}),
     catatan: jatahHabisAdaSisa
       ? "Kandidat yang tersedia belum sempat dinilai semua pada generate ini. Jalankan Generate footnote sekali lagi."
-      : teratas
-        ? `Semua rujukan tertolak gerbang relevansi. Penolakan teratas: "${teratas.judul}" karena ${teratas.alasan} Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.`
+      : teratasDitolak
+        ? `Tidak ada kandidat yang lolos periksa untuk paragraf ini. Kandidat teratas berstatus ${labelStatusVerifikasi(teratasDitolak.status)}: ${teratasDitolak.alasan} Kandidat yang tidak lolos periksa tidak bisa dipasang. Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI).`
         : "Belum ditemukan rujukan yang cukup relevan untuk paragraf ini. Coba perjelas pokok datanya, atau cari lewat Cari rujukan (AI) lalu pasang dengan dialog manual.",
   };
 }

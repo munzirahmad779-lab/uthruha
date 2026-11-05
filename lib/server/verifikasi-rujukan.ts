@@ -285,6 +285,29 @@ export async function periksaMetadata(k: KandidatVerifikasi): Promise<HasilMetad
   return bandingkanDenganRekod(k, terbaik.rekod);
 }
 
+/**
+ * Jangkar penilaian bidang untuk rujukan sebuah proyek, dirumuskan
+ * pada tataran BIDANG, bukan judul sempit: standar pemilik (kasus
+ * perbaikan N8) adalah bidang SESUAI atau BERIRISAN langsung lolos.
+ * Bila jangkarnya judul proyek persis, artikel Ushul Fiqh murni
+ * (Kaidah Fiqh, Ihya' 'Ulum al-Din) gugur hanya karena tidak membahas
+ * frasa judul, padahal bidangnya tepat dan model sendiri mengenalinya
+ * sebagai bidang proyek. Gerbang, prompt, dan ambang 60 tidak berubah;
+ * yang dirumuskan pemanggil hanyalah kalimat tujuannya.
+ *
+ * Dipakai bersama oleh verifikasiKandidat (tambah jurnal) dan
+ * periksa ulang pasang footnote (lib/server/generate-footnote.ts)
+ * agar standar bidangnya SATU di semua jalur (penyempurnaan pemilik
+ * 5 Nov 2026 15:52: standar tunggal semua jalur sumber).
+ */
+export function jangkarBidangUntuk(konteks: KonteksProyek): string {
+  return (
+    `Daftar rujukan jurnal proyek. Nilai kesesuaian HANYA dari bidang kandidat: sesuai bila bidangnya sama dengan bidang proyek (${konteks.bidangLabel || konteks.bidangId || "yang dipilih penulis"}) atau beririsan langsung dengan bidang itu; judul proyek yang sempit bukan topik yang wajib dibahas kandidat.` +
+    (konteks.judulProyek ? ` Judul proyek: "${konteks.judulProyek}".` : "") +
+    (konteks.topik ? ` Topik proyek: ${konteks.topik}.` : "")
+  );
+}
+
 /** Jalankan fungsi atas daftar dengan jumlah serentak terbatas. */
 async function petaTerbatas<T, R>(daftar: T[], maksSerentak: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const hasil: R[] = new Array(daftar.length);
@@ -353,18 +376,9 @@ export async function verifikasiKandidat(
         wajibPribadi: opsiP?.wajibPribadi,
         pinjaman: opsiP?.pinjaman,
       };
-      // Jangkar penilaian untuk rujukan jurnal PROYEK dirumuskan pada
-      // tataran bidang, bukan judul sempit: standar pemilik (kasus
-      // perbaikan N8) adalah bidang SESUAI atau BERIRISAN langsung
-      // lolos. Bila jangkarnya judul proyek persis, artikel Ushul Fiqh
-      // murni (Kaidah Fiqh, Ihya' 'Ulum al-Din) gugur hanya karena
-      // tidak membahas frasa judul, padahal bidangnya tepat. Gerbang,
-      // prompt, dan ambang 60 tidak berubah; yang disesuaikan hanyalah
-      // kalimat tujuan yang memang hak pemanggil untuk merumuskan.
-      const jangkarBidang =
-        `Daftar rujukan jurnal proyek. Nilai kesesuaian HANYA dari bidang kandidat: sesuai bila bidangnya sama dengan bidang proyek (${konteks.bidangLabel || konteks.bidangId || "yang dipilih penulis"}) atau beririsan langsung dengan bidang itu; judul proyek yang sempit bukan topik yang wajib dibahas kandidat.` +
-        (konteks.judulProyek ? ` Judul proyek: "${konteks.judulProyek}".` : "") +
-        (konteks.topik ? ` Topik proyek: ${konteks.topik}.` : "");
+      // Jangkar penilaian dirumuskan pada tataran bidang lewat
+      // jangkarBidangUntuk (lihat komentar fungsinya).
+      const jangkarBidang = jangkarBidangUntuk(konteks);
       const bentuk = lolosMetadata.map(({ k }) => ({
         kunci: k.id,
         judul: k.judul,

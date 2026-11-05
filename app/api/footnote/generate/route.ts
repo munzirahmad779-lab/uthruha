@@ -92,10 +92,12 @@ export async function POST(req: NextRequest) {
   const bidangId = typeof body?.bidangId === "string" ? body.bidangId.trim().slice(0, 60) : undefined;
   const topikAr = typeof body?.topikAr === "string" ? body.topikAr.trim().slice(0, 300) : undefined;
 
-  // Pemasangan persis kandidat tertahan yang disetujui (Tahap 4):
-  // sidik terbitan server + data kandidat yang ditampilkan. Jalur
-  // generate TIDAK dijalankan ulang untuk permintaan ini, dan
-  // paksaKonfirmasi tanpa sidik tidak lagi berlaku (diabaikan).
+  // Pemasangan persis kandidat lolos lewat sidiknya (Tahap C): sidik
+  // terbitan server + data kandidat yang ditampilkan. Server
+  // memeriksa ulang kelulusan kandidat itu secara segar (metadata +
+  // bidang) sebelum memasang; penolakan periksa ulang dijawab 403.
+  // Jalur generate TIDAK dijalankan ulang untuk permintaan ini, dan
+  // tidak ada lagi jalur konfirmasi untuk kandidat yang tidak lolos.
   const sidikDisetujui =
     typeof body?.sidikDisetujui === "string" ? body.sidikDisetujui.trim().slice(0, 64) : "";
   if (sidikDisetujui) {
@@ -130,7 +132,23 @@ export async function POST(req: NextRequest) {
       paragraf,
       kalimatIdx: kalimatKursor,
       pemilik: pengguna.id,
+      bidangId,
+      judulProyek,
+      topikAr,
+      kolam: {
+        pribadi: opsiP.pribadi,
+        wajibPribadi: opsiP.wajibPribadi,
+        pinjaman: opsiP.pinjaman,
+      },
     });
+    // Penolakan periksa ulang (sidik tidak sah, metadata gagal, atau
+    // bidang tidak sesuai) adalah penolakan kebijakan: 403 + alasan.
+    if (hasilPasang.alasanTolak) {
+      return NextResponse.json(
+        { error: hasilPasang.alasanTolak, catatan: hasilPasang.alasanTolak },
+        { status: 403 },
+      );
+    }
     return NextResponse.json(hasilPasang);
   }
 
