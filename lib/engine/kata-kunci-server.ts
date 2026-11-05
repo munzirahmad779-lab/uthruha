@@ -18,6 +18,7 @@ Aturan:
 - Keluarkan HANYA JSON valid: {"kalimat":[{"teks":"...","arti":"...","alasan":"...","peran":"taswir|aqwal|tarjih"}]}
 - Tepat 3 item, peran berurutan: "taswir" (gambaran/definisi masalah), "aqwal" (pendapat ulama & dalil), "tarjih" (analisis & penetapan jawaban).
 - "teks": kalimat kunci HURUF ARAB, frasa utuh 3-7 kata yang khas untuk dicari persis di kitab.
+- "teks" DILARANG menyempit menjadi satu kata ambigu yang berdiri sendiri (kata umum tanpa pasangan konsepnya): kalimat kunci wajib frasa utuh bermakna lengkap yang berjangkar pada judul, karena kata tunggal ambigu menarik literatur bidang lain yang tidak relevan.
 - "arti": padanan Bahasa Indonesia kalimat itu.
 - "alasan": 1 kalimat Bahasa Indonesia menjelaskan kenapa kalimatnya disusun begitu (konsep yang diwakili + kenapa istilah Arab itu dipilih).
 - Susun HANYA dari kata kunci terpilih dan judul. Jangan mengarang referensi/DOI/penulis.`;
@@ -57,6 +58,11 @@ export function parseKalimat(raw: string): KalimatHasil[] | null {
             peran: peranSah.includes(k.peran) ? k.peran : (peranSah[i] ?? "taswir"),
           }))
           .filter((k: KalimatHasil) => k.teks.length > 0)
+          // Kalimat kunci wajib frasa utuh: item yang teksnya kurang
+          // dari 3 token adalah kata ambigu telanjang (larangan pada
+          // PROMPT_KALIMAT) dan dibuang di sini; pemanggil jatuh ke
+          // cadangan jujur bila semua item gugur.
+          .filter((k: KalimatHasil) => k.teks.split(/\s+/).filter(Boolean).length >= 3)
           .slice(0, 3)
       : [];
     return items.length > 0 ? items : null;

@@ -10,6 +10,7 @@ import {
   cariKitabKalimat,
   cariLokalBM25,
   ekstrakKataKunci,
+  ketatkanKunciJurnal,
   parseTempelanSitasi,
   type HasilLokal,
   type HitKitabMentah,
@@ -23,6 +24,39 @@ import { LugawiPanel } from "@/components/workspace/lugawi-panel";
 
 type Mode = "jurnal" | "kitab" | "lokal" | "lugawi";
 type HitKitab = HitKitabMentah;
+
+/** Status verifikasi satu kartu hasil pencarian jurnal (Aturan
+ *  Pencarian Valid): hanya "terverifikasi" yang boleh dipindah ke
+ *  draf; status lain menahan semua tombol pada kartu itu. */
+type StatusKartuJurnal =
+  | "memeriksa"
+  | "terverifikasi"
+  | "gagal-metadata"
+  | "gagal-bidang"
+  | "belum-terverifikasi";
+
+interface PutusanKartuJurnal {
+  status: StatusKartuJurnal;
+  alasan: string;
+}
+
+const LENCANA_JURNAL: Record<StatusKartuJurnal, { label: string; kelas: string }> = {
+  terverifikasi: { label: "Terverifikasi", kelas: "bg-emerald-100 text-emerald-800" },
+  "gagal-metadata": { label: "Gagal periksa metadata", kelas: "bg-red-100 text-red-800" },
+  "gagal-bidang": { label: "Tidak sesuai bidang", kelas: "bg-red-100 text-red-800" },
+  "belum-terverifikasi": { label: "Belum terverifikasi", kelas: "bg-amber-100 text-amber-800" },
+  memeriksa: { label: "Memeriksa", kelas: "bg-ink-900/10 text-ink-600" },
+};
+
+/** Peringkat tampil kartu jurnal sesudah putusan tiba: yang sahih di
+ *  atas, yang gagal paling bawah (penegasan pemilik: ditandai dan
+ *  diturunkan, bukan dicampur setara). */
+function peringkatKartuJurnal(status: StatusKartuJurnal): number {
+  if (status === "terverifikasi") return 0;
+  if (status === "memeriksa") return 1;
+  if (status === "belum-terverifikasi") return 2;
+  return 3;
+}
 
 const PERAN_LABEL: Record<KalimatKunci["peran"], string> = {
   taswir: "Gambaran masalah",
@@ -59,6 +93,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
   const [judul, setJudul] = useState(p.judulAr || p.topikAr || "");
   const [kk, setKk] = useState<KataKunci | null>(null);
   const [hasilJurnal, setHasilJurnal] = useState<Sumber[]>([]);
+  const [putusanJurnal, setPutusanJurnal] = useState<Record<string, PutusanKartuJurnal>>({});
   const [labelHasil, setLabelHasil] = useState("");
   const [statusJurnal, setStatusJurnal] = useState<{ sumber: string; ok: boolean; pesan?: string }[]>([]);
   const [hasilKitab, setHasilKitab] = useState<HitKitab[]>([]);
@@ -108,7 +143,91 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
     };
   }, []);
 
+  /**
+   * Periksa satu set hasil jurnal ke server verifikasi (Aturan
+   * Pencarian Valid 2+3): status awal tiap kartu "memeriksa", lalu
+   * putusan per kartu disimpan pada peta id. Bila panggilan itu sendiri
+   * gagal, SEMUA kartu menjadi "belum-terverifikasi" (tertahan), bukan
+   * lolos karena pemeriksanya tidak jalan.
+   */
+  async function periksaHasilJurnal(entri: Sumber[]) {
+    if (entri.length === 0) {
+      setPutusanJurnal({});
+      return;
+    }
+    setPutusanJurnal(
+      Object.fromEntries(
+        entri.map((s) => [
+          s.id,
+          { status: "memeriksa" as const, alasan: "Sedang diperiksa ke Crossref dan gerbang bidang." },
+        ]),
+      ),
+    );
+    try {
+      const res = await fetch("/api/refs/verifikasi-jurnal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kandidat: entri.map((s) => ({
+            id: s.id,
+            doi: s.doi,
+            judul: s.judul,
+            jurnal: s.jurnal,
+            tahun: s.tahun,
+            sumberImpor: s.sumberImpor,
+          })),
+          bidangId: p.bidangId,
+          judulProyek: p.judulAr ?? "",
+          topikAr: p.judulAr || p.topikAr,
+        }),
+      });
+      const data = (await res.json()) as {
+        hasil?: Array<{ id: string; status: StatusKartuJurnal; alasan: string }>;
+        error?: string;
+      };
+      if (!res.ok || !Array.isArray(data.hasil)) throw new Error(data.error ?? "gagal");
+      const peta: Record<string, PutusanKartuJurnal> = {};
+      for (const h of data.hasil) peta[h.id] = { status: h.status, alasan: h.alasan };
+      for (const s of entri) {
+        if (!peta[s.id]) {
+          peta[s.id] = {
+            status: "belum-terverifikasi",
+            alasan: "Kartu ini tidak mendapat putusan dari server verifikasi.",
+          };
+        }
+      }
+      setPutusanJurnal(peta);
+    } catch {
+      setPutusanJurnal(
+        Object.fromEntries(
+          entri.map((s) => [
+            s.id,
+            {
+              status: "belum-terverifikasi" as const,
+              alasan: "Pemeriksaan tidak dapat berjalan; coba cari lagi.",
+            },
+          ]),
+        ),
+      );
+    }
+  }
+
   function tambah(s: Sumber) {
+    // Penjaga verifikasi jurnal (Aturan Pencarian Valid): kartu hasil
+    // pencarian jurnal hanya boleh masuk draf bila putusannya
+    // "terverifikasi". Penjaga ini khusus kartu jurnal panel ini; jalur
+    // kitab dan tempelan tidak melewati peta putusan jurnal.
+    if (hasilJurnal.some((h) => h.id === s.id)) {
+      const put = putusanJurnal[s.id];
+      if (!put || put.status !== "terverifikasi") {
+        setPesan(
+          put
+            ? `Belum bisa ditambahkan: ${put.alasan}`
+            : "Belum bisa ditambahkan: kartu ini belum selesai diperiksa.",
+        );
+        return;
+      }
+    }
     if (cariDuplikat(s, p.sumber)) {
       setPesan(`"${s.judul}" tampaknya sudah ada di referensi Anda — dilewati.`);
       return;
@@ -231,6 +350,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
     setPesan("");
     try {
       let kunci: KataKunci;
+      let pesanAwal = "";
       if (setKunci.kalimat.length > 0) {
         kunci = {
           arab: setKunci.kalimat.map((k) => k.teks),
@@ -240,20 +360,31 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         };
       } else {
         kunci = await ekstrakKataKunci(teks);
-        setPesan("Belum ada kalimat kunci kurasi — pencarian memakai ekstrak otomatis dari teks. Lebih baik susun kalimat kunci dulu di atas.");
+        pesanAwal =
+          "Belum ada kalimat kunci kurasi: pencarian memakai ekstrak otomatis dari teks. Lebih baik susun kalimat kunci dulu di atas.";
+      }
+      // Aturan 1: kunci diketatkan ke frasa topik penuh sebelum dicari;
+      // catatan koreksinya digabung ke pesan, tidak ditelan.
+      const ketat = ketatkanKunciJurnal(kunci, judul);
+      kunci = ketat.kk;
+      if (ketat.catatan.length > 0) {
+        pesanAwal = [pesanAwal, ...ketat.catatan].filter(Boolean).join(" ");
       }
       setKk(kunci);
       setLabelHasil(setKunci.kalimat.length > 0 ? "gabungan semua kalimat kunci" : "ekstrak teks topik");
       const hasil = await cariJurnalTopik(kunci);
       setHasilJurnal(hasil.entri);
       setStatusJurnal(hasil.status);
+      void periksaHasilJurnal(hasil.entri);
       if (hasil.entri.length === 0) {
         const gagal = hasil.status.filter((s) => !s.ok).map((s) => s.sumber);
-        setPesan(
+        const pesanKosong =
           gagal.length > 0
             ? `Tidak ditemukan, dan sumber ini gagal menjawab: ${gagal.join(", ")}. Coba lagi sebentar, atau ubah kalimat kunci kurasi Anda.`
-            : "Tidak ditemukan. Coba ubah kalimat kunci kurasi Anda.",
-        );
+            : "Tidak ditemukan. Coba ubah kalimat kunci kurasi Anda.";
+        setPesan([pesanKosong, pesanAwal].filter(Boolean).join(" "));
+      } else if (pesanAwal) {
+        setPesan(pesanAwal);
       }
     } catch {
       setPesan("Pencarian jurnal gagal — periksa koneksi, lalu coba lagi. Pencarian lokal tetap bisa dipakai.");
@@ -296,18 +427,34 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
     setSibuk("jurnal");
     setPesan("");
     try {
-      const kunci: KataKunci = {
-        arab: [k.teks],
-        indonesia: k.arti ? [k.arti] : [],
-        inggris: [],
-        sumber: "kurasi Anda",
-      };
+      // Aturan 1 berlaku juga untuk pencarian dari satu kalimat: kalimat
+      // yang menyempit menjadi kata telanjang diganti frasa judul.
+      const ketat = ketatkanKunciJurnal(
+        {
+          arab: [k.teks],
+          indonesia: k.arti ? [k.arti] : [],
+          inggris: [],
+          sumber: "kurasi Anda",
+        },
+        judul,
+      );
+      const kunci: KataKunci = ketat.kk;
       setKk(kunci);
       setLabelHasil(`kalimat ${i + 1} — ${PERAN_LABEL[k.peran]}`);
       const hasil = await cariJurnalTopik(kunci);
       setHasilJurnal(hasil.entri);
       setStatusJurnal(hasil.status);
-      if (hasil.entri.length === 0) setPesan("Tidak ditemukan untuk kalimat ini. Coba kalimat lain, atau perbaiki padanan Indonesianya.");
+      void periksaHasilJurnal(hasil.entri);
+      if (hasil.entri.length === 0) {
+        setPesan(
+          [
+            "Tidak ditemukan untuk kalimat ini. Coba kalimat lain, atau perbaiki padanan Indonesianya.",
+            ...ketat.catatan,
+          ].join(" "),
+        );
+      } else if (ketat.catatan.length > 0) {
+        setPesan(ketat.catatan.join(" "));
+      }
       gulirKeHasil();
     } catch {
       setPesan("Pencarian jurnal gagal — periksa koneksi, lalu coba lagi.");
@@ -352,6 +499,15 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
   ].join("\n");
 
   const temuanBabIni = (p.temuan ?? []).filter((t) => t.babId === babKey);
+
+  // Urutan tampil kartu jurnal: sesudah putusan verifikasi tiba, kartu
+  // diurutkan ulang per peringkat status (stabil di dalam kelompoknya);
+  // sebelum putusan tiba semua kartu berstatus "memeriksa".
+  const hasilJurnalTerurut = [...hasilJurnal].sort(
+    (a, b) =>
+      peringkatKartuJurnal(putusanJurnal[a.id]?.status ?? "memeriksa") -
+      peringkatKartuJurnal(putusanJurnal[b.id]?.status ?? "memeriksa"),
+  );
 
   return (
     <div className="space-y-4">
@@ -615,24 +771,44 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
           <p className="text-[11.5px] font-semibold text-ink-700">
             {hasilJurnal.length} jurnal{labelHasil ? ` — hasil untuk: ${labelHasil}` : ""} <span className="font-normal text-ink-500">(ditampung maks 15)</span>
           </p>
-          {hasilJurnal.map((s) => (
+          {hasilJurnalTerurut.map((s) => {
+            // Blokir keras Aturan Pencarian Valid: ketiga tombol
+            // pindah-draf kartu jurnal ini hanya hidup bila putusannya
+            // "terverifikasi"; selagi "memeriksa" tombol nonaktif.
+            const put = putusanJurnal[s.id];
+            const statusKartu: StatusKartuJurnal = put?.status ?? "memeriksa";
+            const bolehPindah = statusKartu === "terverifikasi";
+            const lencana = LENCANA_JURNAL[statusKartu];
+            return (
             <div key={s.id} className="flex items-start justify-between gap-3 rounded-xl border border-ink-900/10 bg-white/70 p-3">
               <div className="min-w-0">
                 <p className="text-[12.5px] font-semibold text-ink-900">{s.judul}</p>
+                <p className="mt-1">
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${lencana.kelas}`}>
+                    {lencana.label}
+                  </span>
+                </p>
+                {put?.alasan ? (
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-ink-500">{put.alasan}</p>
+                ) : null}
                 <p className="mt-0.5 text-[11.5px] text-ink-600">
                   {s.penulis} — {s.jurnal} ({s.tahun}){s.doi ? ` · DOI ${s.doi}` : ""}
                 </p>
                 <span className="mt-1 inline-block rounded bg-sky-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-sky-700">
                   dari {s.sumberImpor}
                 </span>
+                {!bolehPindah && statusKartu !== "memeriksa" ? (
+                  <p className="mt-1 text-[10.5px] text-ink-500">Tidak bisa dipilih: {lencana.label.toLowerCase()}.</p>
+                ) : null}
               </div>
               <div className="flex shrink-0 flex-col gap-1">
-                <button type="button" className="btn-quiet" onClick={() => tambah(s)}>Tambah</button>
-                <button type="button" className="btn-quiet" onClick={() => setPasangTarget({ sumber: s })}>Pasang footnote</button>
-                <button type="button" className="btn-quiet" onClick={() => simpanTemuan(s, "")}>Simpan temuan</button>
+                <button type="button" className="btn-quiet disabled:cursor-not-allowed disabled:opacity-40" disabled={!bolehPindah} onClick={() => tambah(s)}>{statusKartu === "memeriksa" ? "Memeriksa…" : "Tambah"}</button>
+                <button type="button" className="btn-quiet disabled:cursor-not-allowed disabled:opacity-40" disabled={!bolehPindah} onClick={() => setPasangTarget({ sumber: s })}>Pasang footnote</button>
+                <button type="button" className="btn-quiet disabled:cursor-not-allowed disabled:opacity-40" disabled={!bolehPindah} onClick={() => simpanTemuan(s, "")}>Simpan temuan</button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
