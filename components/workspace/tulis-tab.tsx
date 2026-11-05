@@ -135,7 +135,7 @@ export function TulisTab({
   const [teks, setTeks] = useState(p.draf[bagian] ?? "");
   const [pratinjau, setPratinjau] = useState(false);
   const [cariRujukan, setCariRujukan] = useState(false);
-  const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string; paragrafIdx?: number; kalimatIdx?: number; gerbang?: { bidangSumber: string; alasan: string } } | null>(null);
+  const [pasangTarget, setPasangTarget] = useState<{ sumber: import("@/lib/engine/cite").Sumber; kutipan?: string; paragrafIdx?: number; kalimatIdx?: number } | null>(null);
   const [seleksi, setSeleksi] = useState<{ teks: string; awal: number; akhir: number } | null>(null);
   const [fokusPenanda, setFokusPenanda] = useState<FokusPenanda | null>(null);
   const [panelKandidat, setPanelKandidat] = useState<PanelKandidat | null>(null);
@@ -1027,9 +1027,9 @@ export function TulisTab({
           <RefFinder
             p={p}
             tutup={() => setCariRujukan(false)}
-            onPasang={(sumber, kutipan, gerbang) => {
+            onPasang={(sumber, kutipan) => {
               setCariRujukan(false);
-              setPasangTarget({ sumber, kutipan, gerbang });
+              setPasangTarget({ sumber, kutipan });
             }}
             onSisip={(blok, sumberBaru) => {
               const gabung = `${teks.trim()}\n\n${blok}`;
@@ -1059,7 +1059,6 @@ export function TulisTab({
             ubah={ubah}
             sumber={pasangTarget.sumber}
             kutipan={pasangTarget.kutipan}
-            gerbangTertahan={pasangTarget.gerbang ?? null}
             babAwalId={bagian}
             paragrafAwal={pasangTarget.paragrafIdx}
             kalimatAwal={pasangTarget.kalimatIdx}

@@ -125,7 +125,6 @@ export function PasangFootnote({
   babAwalId,
   paragrafAwal,
   kalimatAwal,
-  gerbangTertahan,
   onTutup,
   onTerpasang,
 }: {
@@ -137,10 +136,12 @@ export function PasangFootnote({
   /** Pra-pilih dari posisi kursor (fitur Premium): paragraf & kalimat tujuan. */
   paragrafAwal?: number;
   kalimatAwal?: number;
-  /** Putusan gerbang relevansi bidang dari Cari Rujukan (Tahap 4): bila
-   *  sumber ini tertahan gerbang, pemasangan wajib lewat konfirmasi
-   *  sadar penulis, sama seperti peringatan duplikat. */
-  gerbangTertahan?: { bidangSumber: string; alasan: string } | null;
+  // CATATAN Aturan Pencarian Valid (putusan pemilik 5 Nov 2026 15:57):
+  // dialog ini dulu menerima prop gerbangTertahan dari Cari Rujukan
+  // dan memasang sumber tertahan lewat centang konfirmasi sadar.
+  // Jalur itu DICABUT: sumber yang gagal atau belum terverifikasi
+  // diblokir di sisi pemanggil (RefFinder dan panel pencarian) dan
+  // tidak pernah sampai ke dialog ini.
   onTutup: () => void;
   onTerpasang: (pesan: string, drafBaru?: Record<string, string>) => void;
 }) {
@@ -172,15 +173,10 @@ export function PasangFootnote({
   const [halaman, setHalaman] = useState(sumber.halaman ?? "");
   const [jilid, setJilid] = useState(sumber.jilid ?? "");
   const [konfirmasiDuplikat, setKonfirmasiDuplikat] = useState(false);
-  const [konfirmasiGerbang, setKonfirmasiGerbang] = useState(false);
 
   useEffect(() => {
     setKonfirmasiDuplikat(false);
   }, [sectionId]);
-
-  useEffect(() => {
-    setKonfirmasiGerbang(false);
-  }, [sumber.id]);
 
   const jumlahDuplikat = useMemo(() => {
     // Pola penanda SATU-SATUNYA adalah cariMarker dari marker.ts
@@ -195,7 +191,6 @@ export function PasangFootnote({
   const halamanKosong = !halaman.trim();
   const blokirArtikel = sumber.jenis === "artikel" && halamanKosong;
   const blokirDuplikat = jumlahDuplikat > 0 && !konfirmasiDuplikat;
-  const blokirGerbang = Boolean(gerbangTertahan) && !konfirmasiGerbang;
 
   const drafLama = p.draf[sectionId] ?? "";
   // Blok mentah = semua blok teks draf, termasuk baris judul markdown.
@@ -454,28 +449,6 @@ export function PasangFootnote({
             Halaman masih kosong. Footnote tanpa halaman sulit ditelusuri pembaca, sebaiknya isi halaman yang dirujuk.
           </p>
         )}
-        {gerbangTertahan && (
-          <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2.5">
-            <p role="alert" className="text-[12px] font-semibold leading-relaxed text-red-700">
-              Peringatan gerbang relevansi bidang: sumber ini tertahan untuk proyek bidang Anda.
-              {gerbangTertahan.bidangSumber
-                ? ` Bidang sumber terdeteksi: ${gerbangTertahan.bidangSumber}.`
-                : ""}
-            </p>
-            {gerbangTertahan.alasan && (
-              <p className="mt-1 text-[12px] leading-relaxed text-red-700">{gerbangTertahan.alasan}</p>
-            )}
-            <label className="mt-2 flex items-start gap-2 text-[12px] leading-relaxed text-red-700">
-              <input
-                type="checkbox"
-                checked={konfirmasiGerbang}
-                onChange={(e) => setKonfirmasiGerbang(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0"
-              />
-              <span>Saya sudah memeriksa isi sumber ini dan tetap memasangnya dengan tanggung jawab saya.</span>
-            </label>
-          </div>
-        )}
         {jumlahDuplikat > 0 && (
           <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2.5">
             <p role="alert" className="text-[12px] font-semibold leading-relaxed text-red-700">
@@ -513,7 +486,7 @@ export function PasangFootnote({
           <button
             type="button"
             onClick={pasang}
-            disabled={memasang || (!modeBaru && paragraf.length === 0) || blokirArtikel || blokirDuplikat || blokirGerbang}
+            disabled={memasang || (!modeBaru && paragraf.length === 0) || blokirArtikel || blokirDuplikat}
             className="btn-primary disabled:opacity-40"
           >
             {memasang ? "Memeriksa lapis…" : "Pasang footnote"}

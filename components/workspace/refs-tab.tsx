@@ -56,9 +56,73 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
    *  belum ada pengambilan pada formulir ini (label tidak tampil). */
   const [asalDoi, setAsalDoi] = useState<Partial<Record<KolomMetadataDoi, AsalKolomDoi>> | null>(null);
   const [pesanVerif, setPesanVerif] = useState("");
+  /** Putusan verifikasi (bidang) untuk isian formulir ber-DOI,
+   *  terikat kunci isian yang diperiksa: suntingan pada DOI, judul,
+   *  jurnal, atau tahun membatalkan putusan lama. */
+  const [putusanForm, setPutusanForm] = useState<{ kunci: string; status: string; alasan: string } | null>(null);
+  const [memeriksaForm, setMemeriksaForm] = useState(false);
   const [isbnAmbil, setIsbnAmbil] = useState("");
   const [sibukIsbn, setSibukIsbn] = useState(false);
   const [pesanIsbn, setPesanIsbn] = useState("");
+
+  /** Kunci isian yang mengikat putusan bidang formulir: putusan hanya
+   *  berlaku untuk gabungan DOI, judul, jurnal, tahun yang persis ini. */
+  function kunciIsian(doi: string, judul: string, jurnal: string, tahun: string): string {
+    return [doi.trim(), judul.trim(), jurnal.trim(), tahun.trim()].join("|");
+  }
+
+  const kunciFormKini = kunciIsian(baru.doi ?? "", baru.judul, baru.jurnal ?? "", baru.tahun);
+  const putusanFormAktif = putusanForm && putusanForm.kunci === kunciFormKini ? putusanForm : null;
+
+  /**
+   * Periksa bidang satu isian ber-DOI lewat endpoint verifikasi
+   * bersama (POST /api/refs/verifikasi-jurnal). Kegagalan panggilan
+   * dibaca sebagai "belum-terverifikasi" (gagal tertutup): formulir
+   * ber-DOI tidak boleh tersimpan tanpa putusan.
+   */
+  async function periksaBidangForm(kandidat: {
+    doi: string;
+    judul: string;
+    jurnal?: string;
+    tahun?: string;
+  }): Promise<{ status: string; alasan: string }> {
+    try {
+      const res = await fetch("/api/refs/verifikasi-jurnal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kandidat: [
+            {
+              id: "form-doi",
+              doi: kandidat.doi,
+              judul: kandidat.judul,
+              jurnal: kandidat.jurnal,
+              tahun: kandidat.tahun,
+            },
+          ],
+          bidangId: p.bidangId,
+          judulProyek: p.judulAr ?? "",
+          topikAr: p.judulAr || p.topikAr,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        hasil?: { status: string; alasan: string }[];
+      } | null;
+      const h = data?.hasil?.[0];
+      if (!res.ok || !h) {
+        return {
+          status: "belum-terverifikasi",
+          alasan: "Server verifikasi tidak memberi putusan, jadi referensi ini belum bisa disimpan.",
+        };
+      }
+      return { status: h.status, alasan: h.alasan };
+    } catch {
+      return {
+        status: "belum-terverifikasi",
+        alasan: "Pemeriksaan bidang tidak dapat berjalan (koneksi), jadi referensi ini belum bisa disimpan.",
+      };
+    }
+  }
 
   /** Ambil metadata jurnal dari DOI via Crossref dan OpenAlex, mengisi formulir manual. */
   async function ambilDariDoi() {
@@ -95,6 +159,24 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
         const tambahanCatatan = hasil.catatan.length > 0 ? ` ${hasil.catatan.join(" ")}` : "";
         setPesanDoi(`Metadata DOI ${doi} terisi lengkap ke formulir. Periksa, lalu tambahkan referensinya.${tambahanCatatan}`);
       }
+      // Sesudah metadata terisi, bidangnya diperiksa lewat endpoint
+      // verifikasi bersama: tombol simpan untuk isian dari DOI ini
+      // hanya hidup bila putusannya "terverifikasi" (Aturan Pencarian
+      // Valid, pintu ambil-dari-DOI).
+      const isianBerikut = {
+        doi: d.doi || doi,
+        judul: d.judul || baru.judul,
+        jurnal: d.jurnal || baru.jurnal || "",
+        tahun: d.tahun || baru.tahun,
+      };
+      setMemeriksaForm(true);
+      const putusan = await periksaBidangForm(isianBerikut);
+      setPutusanForm({
+        kunci: kunciIsian(isianBerikut.doi, isianBerikut.judul, isianBerikut.jurnal, isianBerikut.tahun),
+        status: putusan.status,
+        alasan: putusan.alasan,
+      });
+      setMemeriksaForm(false);
     } catch {
       setPesanDoi("DOI tidak ditemukan di Crossref maupun OpenAlex atau koneksi gagal. Periksa penulisannya, atau isi manual.");
     } finally {
@@ -152,7 +234,6 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
       }
     }
     setPeringatanDuplikat("");
-    // Cek DOI cocok-judul: DOI tertukar/asal tempel tidak boleh lolos diam-diam.
     // Judul dibersihkan dari tag jenis di titik simpan ini (Tahap 6):
     // tag seperti [مجلة] tidak boleh masuk data tersimpan lagi.
     let entri: Sumber = {
@@ -161,16 +242,50 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
       id: baru.id || `src-${Date.now().toString(36)}`,
     };
     if (baru.doi?.trim()) {
-      const h = await verifikasiDoi(baru.doi, baru.judul);
-      if (h.status === "tidak-cocok" || h.status === "tidak-ditemukan") {
-        entri = { ...entri, perluVerifikasi: true };
-        setPesanVerif(`Peringatan DOI: ${h.pesan} Referensi tetap disimpan dan ditandai perlu verifikasi.`);
-      } else if (h.status === "cocok") {
-        setPesanVerif(`DOI referensi terakhir terverifikasi cocok dengan judulnya di Crossref.`);
+      // GERBANG SIMPAN ber-DOI (Aturan Pencarian Valid, putusan
+      // pemilik 5 Nov 2026 15:57): DOI yang diketik pada formulir
+      // manual WAJIB (1) cocok dengan judulnya di Crossref lewat
+      // verifikasiDoi dan (2) lolos bidang lewat endpoint verifikasi
+      // bersama. Gagal salah satu = referensi TIDAK disimpan. Ini
+      // menggantikan perilaku lama yang tetap menyimpan dengan tanda
+      // perlu verifikasi, karena tanda itu terbukti menjadi celah
+      // rujukan palsu masuk daftar.
+      const h = await verifikasiDoi(baru.doi, entri.judul);
+      if (h.status !== "cocok") {
+        setPesanVerif(`Simpan ditolak: ${h.pesan} Betulkan DOI atau judulnya; referensi tidak disimpan.`);
+        return;
       }
+      setMemeriksaForm(true);
+      const putusan = await periksaBidangForm({
+        doi: baru.doi,
+        judul: entri.judul,
+        jurnal: baru.jurnal,
+        tahun: baru.tahun,
+      });
+      setMemeriksaForm(false);
+      setPutusanForm({
+        kunci: kunciIsian(baru.doi, baru.judul, baru.jurnal ?? "", baru.tahun),
+        status: putusan.status,
+        alasan: putusan.alasan,
+      });
+      if (putusan.status !== "terverifikasi") {
+        setPesanVerif(`Simpan ditolak: ${putusan.alasan}`);
+        return;
+      }
+      entri = { ...entri, perluVerifikasi: undefined };
+      setPesanVerif(`DOI referensi terakhir terverifikasi: cocok dengan judulnya di Crossref dan sesuai bidang proyek.`);
+    } else {
+      // Tanpa DOI: batas yang dinyatakan pemilik. Sitasi yang ditulis
+      // sendiri dari sumber cetak (mis. kitab yang dibaca langsung)
+      // adalah karya tulis pengguna, bukan hasil pencarian aplikasi,
+      // jadi tetap tersimpan — tetapi selalu bertanda perlu
+      // verifikasi karena tidak ada rekod hidup yang memeriksanya.
+      entri = { ...entri, perluVerifikasi: true };
     }
     ubah({ sumber: [...p.sumber, entri] });
     setBaru({ ...KOSONG, id: "" });
+    setAsalDoi(null);
+    setPutusanForm(null);
   }
 
   /** Periksa DOI di kotak DOI terhadap JUDUL formulir: DOI harus milik judul itu. */
@@ -367,6 +482,36 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
             </button>
             {pesanDoi && <span className="text-[11px] text-ink-600">{pesanDoi}</span>}
           </div>
+          {(memeriksaForm || putusanFormAktif) && (
+            <p className="mt-2 text-[11px] leading-relaxed">
+              {memeriksaForm ? (
+                <span className="rounded-full bg-ink-900/10 px-2 py-0.5 font-semibold text-ink-600">
+                  Memeriksa bidang…
+                </span>
+              ) : putusanFormAktif ? (
+                <>
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-semibold ${
+                      putusanFormAktif.status === "terverifikasi"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : putusanFormAktif.status === "belum-terverifikasi"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {putusanFormAktif.status === "terverifikasi"
+                      ? "Terverifikasi"
+                      : putusanFormAktif.status === "gagal-metadata"
+                        ? "Gagal periksa metadata"
+                        : putusanFormAktif.status === "gagal-bidang"
+                          ? "Tidak sesuai bidang"
+                          : "Belum terverifikasi"}
+                  </span>{" "}
+                  <span className="text-ink-600">{putusanFormAktif.alasan}</span>
+                </>
+              ) : null}
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-ink-900/5 pt-2">
             <button type="button" className="btn-quiet" disabled={sibukDoi || doiAmbil.trim().length < 6 || !baru.judul.trim()} onClick={() => void periksaDoiForm()}>
               Periksa kecocokan DOI
@@ -533,8 +678,19 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
         <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-[11px] text-ink-500">
             Wajib: penulis dan judul. Selebihnya mengikuti gaya sitasi yang Anda pakai.
+            {baru.doi?.trim()
+              ? " Isian ber-DOI hanya tersimpan bila DOI cocok dengan judulnya di Crossref dan bidangnya terverifikasi."
+              : ""}
           </p>
-          <button type="button" onClick={() => simpan()} className="btn-primary !py-2.5">
+          <button
+            type="button"
+            onClick={() => simpan()}
+            disabled={
+              memeriksaForm ||
+              (Boolean(baru.doi?.trim()) && putusanFormAktif !== null && putusanFormAktif.status !== "terverifikasi")
+            }
+            className="btn-primary !py-2.5 disabled:opacity-40"
+          >
             <IconPlus className="h-4 w-4" /> Simpan rujukan
           </button>
         </div>

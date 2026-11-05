@@ -36,6 +36,28 @@ const LABEL_MODE: Record<string, string> = {
   deeplink: "tautan manual",
 };
 
+/** Status putusan verifikasi kandidat jurnal di panel ini (cermin
+ *  StatusVerifikasi server, ditambah "memeriksa"). */
+type StatusPutusan =
+  | "terverifikasi"
+  | "gagal-metadata"
+  | "gagal-bidang"
+  | "belum-terverifikasi"
+  | "memeriksa";
+
+interface PutusanHit {
+  status: StatusPutusan;
+  alasan: string;
+}
+
+const LENCANA_PUTUSAN_HIT: Record<StatusPutusan, { label: string; kelas: string }> = {
+  terverifikasi: { label: "Terverifikasi", kelas: "bg-emerald-100 text-emerald-800" },
+  "gagal-metadata": { label: "Gagal periksa metadata", kelas: "bg-red-100 text-red-800" },
+  "gagal-bidang": { label: "Tidak sesuai bidang", kelas: "bg-red-100 text-red-800" },
+  "belum-terverifikasi": { label: "Belum terverifikasi", kelas: "bg-amber-100 text-amber-800" },
+  memeriksa: { label: "Memeriksa", kelas: "bg-ink-900/10 text-ink-600" },
+};
+
 export function RefFinder({
   p,
   onSisip,
@@ -45,13 +67,10 @@ export function RefFinder({
   p: Project;
   onSisip: (blok: string, sumber: Sumber[]) => void;
   /** Pasang footnote terarah (pilih paragraf & kalimat) — disediakan tab Tulis.
-   *  Argumen ketiga: putusan gerbang bidang bila kandidat ini tertahan
-   *  (Tahap 4); dialog wajib meminta konfirmasi sadar penulis. */
-  onPasang?: (
-    sumber: Sumber,
-    kutipan: string,
-    gerbangTertahan?: { bidangSumber: string; alasan: string },
-  ) => void;
+   *  Hanya kandidat yang lolos standar Aturan Pencarian Valid yang
+   *  tombolnya hidup (lihat bisaDipakai); kandidat tertahan tidak
+   *  pernah diteruskan ke dialog, tanpa jalur konfirmasi. */
+  onPasang?: (sumber: Sumber, kutipan: string) => void;
   tutup: () => void;
 }) {
   const pedoman: PedomanRules = p.pedoman ?? pedomanDefault();
@@ -79,16 +98,115 @@ export function RefFinder({
   const kalimat = useMemo(() => pecahKalimat(paragraf), [paragraf]);
   const bolehPilih = pilih.length < pedoman.maksFootnotePerParagraf;
 
-  /** Hit terpilih yang tertahan gerbang bidang (Tahap 4, temuan R1
-   *  telaah silang): jalur Sisip wajib meminta konfirmasi sadar yang
-   *  sama kelasnya dengan dialog Pasang Footnote, bukan hanya lencana
-   *  pasif pada kartu. */
-  const pilihTertahan = useMemo(
-    () => pilih.filter((h) => h.gerbang && !h.gerbang.lolos),
-    [pilih],
-  );
-  const [konfirmasiSisipTertahan, setKonfirmasiSisipTertahan] = useState(false);
-  const blokirSisipTertahan = pilihTertahan.length > 0 && !konfirmasiSisipTertahan;
+  /** Putusan verifikasi per kandidat JURNAL dari endpoint bersama
+   *  (POST /api/refs/verifikasi-jurnal), dikunci id hit. Kandidat
+   *  kitab masadir tidak lewat peta ini: standarnya tautan rekod
+   *  sumber + putusan gerbang pencarian (lihat bisaDipakai). */
+  const [putusanJurnal, setPutusanJurnal] = useState<Record<string, PutusanHit>>({});
+
+  /** Kandidat jurnal: membawa DOI atau berjenis artikel. */
+  function adalahJurnal(h: RefHit): boolean {
+    return Boolean(h.doi) || h.jenis === "artikel";
+  }
+
+  /** Tertahan gerbang bidang pada pencarian itu sendiri. */
+  function tertahanGerbang(h: RefHit): boolean {
+    return Boolean(h.gerbang && !h.gerbang.lolos);
+  }
+
+  /**
+   * Boleh dipakai (dipilih untuk Sisip atau diteruskan ke dialog
+   * Pasang) — Aturan Pencarian Valid, putusan pemilik 5 Nov 2026
+   * 15:57, blokir keras tanpa jalur konfirmasi:
+   *  - tertahan gerbang pencarian: TIDAK, apa pun jalur lainnya;
+   *  - kandidat jurnal: hanya putusan endpoint "terverifikasi";
+   *  - kandidat kitab masadir: wajib punya tautan rekod sumber
+   *    (url_sumber dari indeksnya) dan tidak tertahan gerbang;
+   *  - kandidat manual: isian pengguna sendiri dari kitab cetak,
+   *    bertanda perlu verifikasi — pintu manual yang sama dengan
+   *    formulir rujukan manual tanpa DOI.
+   * Penegakan di sini adalah gerbang KLIEN di atas putusan server:
+   * data proyek hidup di localStorage peramban, jadi tidak ada
+   * endpoint pasang server untuk jalur ini (sama seperti panel
+   * jurnal pencarian topik).
+   */
+  function bisaDipakai(h: RefHit): boolean {
+    if (h.source === "manual") return true;
+    if (tertahanGerbang(h)) return false;
+    if (adalahJurnal(h)) return putusanJurnal[h.id]?.status === "terverifikasi";
+    return Boolean(h.url_sumber);
+  }
+
+  /**
+   * Periksa semua kandidat jurnal satu hasil pencarian ke endpoint
+   * verifikasi bersama (maks 15 per panggilan). Status awal
+   * "memeriksa"; panggilan gagal membuat kandidatnya
+   * "belum-terverifikasi" (tertahan), bukan lolos diam-diam.
+   */
+  async function periksaHitJurnal(hasil: RefHit[]) {
+    const jurnal = hasil.filter((h) => adalahJurnal(h));
+    if (jurnal.length === 0) return;
+    setPutusanJurnal((m) => {
+      const n = { ...m };
+      for (const h of jurnal) {
+        n[h.id] = { status: "memeriksa", alasan: "Sedang diperiksa ke Crossref dan gerbang bidang." };
+      }
+      return n;
+    });
+    for (let i = 0; i < jurnal.length; i += 15) {
+      const potong = jurnal.slice(i, i + 15);
+      try {
+        const res = await fetch("/api/refs/verifikasi-jurnal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kandidat: potong.map((h) => ({
+              id: h.id,
+              doi: h.doi,
+              judul: h.kitab,
+              jurnal: h.jurnal,
+              tahun: h.tahun ? String(h.tahun) : undefined,
+            })),
+            bidangId: p.bidangId,
+            judulProyek: p.judulAr ?? "",
+            topikAr: p.judulAr || p.topikAr,
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          hasil?: { id: string; status: StatusPutusan; alasan: string }[];
+          error?: string;
+        } | null;
+        if (!res.ok || !data || !Array.isArray(data.hasil)) {
+          throw new Error(data?.error ?? "verifikasi gagal");
+        }
+        const hasilServer = data.hasil;
+        setPutusanJurnal((m) => {
+          const n = { ...m };
+          for (const x of hasilServer) n[x.id] = { status: x.status, alasan: x.alasan };
+          for (const h of potong) {
+            if (!n[h.id] || n[h.id]!.status === "memeriksa") {
+              n[h.id] = {
+                status: "belum-terverifikasi",
+                alasan: "Kandidat ini tidak mendapat putusan dari server verifikasi.",
+              };
+            }
+          }
+          return n;
+        });
+      } catch {
+        setPutusanJurnal((m) => {
+          const n = { ...m };
+          for (const h of potong) {
+            n[h.id] = {
+              status: "belum-terverifikasi",
+              alasan: "Pemeriksaan tidak dapat berjalan; cari lagi untuk memeriksanya ulang.",
+            };
+          }
+          return n;
+        });
+      }
+    }
+  }
 
   /** Kelompokkan hasil per kalimat — sesuai spesifikasi: cocok per kalimat. */
   const perKalimat = useMemo(() => {
@@ -106,7 +224,7 @@ export function RefFinder({
     setGalat("");
     setRes(null);
     setPilih([]);
-    setKonfirmasiSisipTertahan(false);
+    setPutusanJurnal({});
     setBatas(null);
     if (kalimat.length === 0) {
       setGalat("Tuliskan dulu satu paragraf Arab (minimal satu kalimat).");
@@ -141,6 +259,9 @@ export function RefFinder({
       if (data.konsep) {
         setKonsepTerpilih(data.konsep);
       }
+      // Kandidat jurnal pada hasil ini diperiksa endpoint verifikasi
+      // bersama sebelum tombol Pilih/Pasangnya boleh hidup.
+      void periksaHitJurnal(data.hasil);
     } catch {
       setGalat("Tidak dapat menghubungi pencari rujukan. Periksa koneksi server.");
     } finally {
@@ -149,9 +270,12 @@ export function RefFinder({
   }
 
   function toggle(h: RefHit) {
-    // Pilihan berubah: pengakuan untuk hit tertahan harus diberikan
-    // ulang terhadap susunan terpilih yang baru.
-    setKonfirmasiSisipTertahan(false);
+    // Penjaga di luar keadaan tombol: hit yang tidak lolos standar
+    // (tertahan gerbang, jurnal belum terverifikasi, kitab tanpa
+    // rekod sumber) tidak pernah masuk daftar terpilih. Melepas hit
+    // yang sudah terpilih selalu boleh.
+    const sudahDipilih = pilih.some((x) => x.id === h.id);
+    if (!sudahDipilih && !bisaDipakai(h)) return;
     setPilih((kini) => {
       const ada = kini.find((x) => x.id === h.id);
       if (ada) return kini.filter((x) => x.id !== h.id);
@@ -164,7 +288,6 @@ export function RefFinder({
   function tambahManual() {
     if (!manual.trim()) return;
     const kandidat = kandidatManual(manual, kalimat[0] ?? "");
-    setKonfirmasiSisipTertahan(false);
     setPilih((kini) => {
       if (kini.length >= pedoman.maksFootnotePerParagraf) return kini;
       if (kini.some((x) => x.id === kandidat.id)) return kini;
@@ -176,9 +299,10 @@ export function RefFinder({
 
   function sisip() {
     if (pilih.length === 0) return;
-    // Penjaga kedua di luar keadaan tombol: hit tertahan tidak pernah
-    // tersisip tanpa pengakuan sadar pada panel terpilih.
-    if (blokirSisipTertahan) return;
+    // Daftar terpilih hanya bisa berisi hit yang lolos standar:
+    // toggle menjaga pintu masuknya, jadi di sini tidak ada lagi
+    // jalur konfirmasi untuk hit tertahan.
+    if (pilih.some((h) => !bisaDipakai(h))) return;
     const urut = [...pilih].sort((a, b) => {
       const pa = paragraf.indexOf(a.kalimat);
       const pb = paragraf.indexOf(b.kalimat);
@@ -634,6 +758,29 @@ export function RefFinder({
                           </p>
                         )}
 
+                        {adalahJurnal(h) &&
+                          (() => {
+                            const put = putusanJurnal[h.id];
+                            const status: StatusPutusan = put?.status ?? "memeriksa";
+                            const lencana = LENCANA_PUTUSAN_HIT[status];
+                            return (
+                              <p className="mt-1.5 text-[10.5px] leading-relaxed">
+                                <span className={`rounded-full px-2 py-0.5 font-semibold ${lencana.kelas}`}>
+                                  {lencana.label}
+                                </span>{" "}
+                                <span className="text-ink-600">
+                                  {put?.alasan ?? "Sedang diperiksa ke Crossref dan gerbang bidang."}
+                                </span>
+                              </p>
+                            );
+                          })()}
+
+                        {!adalahJurnal(h) && h.source !== "manual" && !h.url_sumber && (
+                          <p className="mt-1.5 text-[10.5px] leading-relaxed text-amber-800">
+                            ! Kandidat ini tidak membawa tautan rekod sumbernya, jadi tidak bisa dipilih atau dipasang.
+                          </p>
+                        )}
+
                         {h.perluVerifikasi && h.catatanVerifikasi && (
                           <p className="mt-1.5 text-[10.5px] leading-relaxed text-amber-800">! {h.catatanVerifikasi}</p>
                         )}
@@ -642,7 +789,7 @@ export function RefFinder({
                           <button
                             type="button"
                             onClick={() => toggle(h)}
-                            disabled={!dipilih && !bolehPilih}
+                            disabled={!dipilih && (!bolehPilih || !bisaDipakai(h))}
                             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
                               dipilih
                                 ? "bg-ink-900 text-parchment-100"
@@ -656,16 +803,9 @@ export function RefFinder({
                           {onPasang && (
                             <button
                               type="button"
-                              onClick={() =>
-                                onPasang(
-                                  kandidatKeSumber(h),
-                                  h.teks_kutipan,
-                                  h.gerbang && !h.gerbang.lolos
-                                    ? { bidangSumber: h.gerbang.bidangSumber, alasan: h.gerbang.alasan }
-                                    : undefined,
-                                )
-                              }
-                              className="btn-quiet !px-2 !py-1 !text-[11px]"
+                              onClick={() => onPasang(kandidatKeSumber(h), h.teks_kutipan)}
+                              disabled={!bisaDipakai(h)}
+                              className="btn-quiet !px-2 !py-1 !text-[11px] disabled:opacity-40"
                             >
                               Pasang footnote
                             </button>
@@ -778,32 +918,10 @@ export function RefFinder({
                       </p>
                     </div>
                   ))}
-                  {pilihTertahan.length > 0 && (
-                    <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2.5">
-                      <p role="alert" className="text-[12px] font-semibold leading-relaxed text-red-700">
-                        Peringatan gerbang relevansi bidang: {pilihTertahan.length} dari sumber terpilih
-                        tertahan untuk proyek bidang Anda
-                        {pilihTertahan.some((h) => h.gerbang?.bidangSumber)
-                          ? ` (bidang sumber: ${[...new Set(pilihTertahan.map((h) => h.gerbang?.bidangSumber).filter(Boolean))].join(", ")})`
-                          : ""}
-                        . Menyisipkannya berarti memasangnya juga.
-                      </p>
-                      <label className="mt-2 flex items-start gap-2 text-[12px] leading-relaxed text-red-700">
-                        <input
-                          type="checkbox"
-                          checked={konfirmasiSisipTertahan}
-                          onChange={(e) => setKonfirmasiSisipTertahan(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 shrink-0"
-                        />
-                        <span>Saya sudah memeriksa isi sumber yang tertahan ini dan tetap menyisipkannya dengan tanggung jawab saya.</span>
-                      </label>
-                    </div>
-                  )}
                   <button
                     type="button"
                     onClick={sisip}
-                    disabled={blokirSisipTertahan}
-                    className="btn-primary w-full disabled:opacity-40"
+                    className="btn-primary w-full"
                   >
                     <IconSparkle className="h-4 w-4" /> Sisipkan ke naskah
                   </button>

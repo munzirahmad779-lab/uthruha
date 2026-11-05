@@ -694,12 +694,18 @@ async function main() {
   cek("H4 tab Tulis punya alur seleksi, panel kandidat, dan pasang lewat sidik",
     tulisTab.includes("generateSeleksi") && tulisTab.includes("panelKandidat") && tulisTab.includes("pasangLewatSidik"));
   const dialogPasang = baca("components/workspace/pasang-footnote.tsx");
-  cek("H5 dialog pasang meminta konfirmasi sadar untuk sumber tertahan gerbang",
-    dialogPasang.includes("gerbangTertahan") && dialogPasang.includes("konfirmasiGerbang"));
+  // H5 DIBALIK oleh putusan pemilik 5 Nov 2026 15:57 (blokir keras
+  // penuh): jalur konfirmasi sadar untuk sumber tertahan di dialog
+  // pasang DICABUT, sama seperti H10/H11 membalik perilaku Generate.
+  cek("H5 dialog pasang tidak lagi memuat jalur konfirmasi untuk sumber tertahan gerbang (dicabut, Aturan Pencarian Valid)",
+    !dialogPasang.includes("konfirmasiGerbang") && !dialogPasang.includes("blokirGerbang"));
   cek("H6 rute Cari Rujukan melaporkan gagal total penilaian secara jujur, bukan nol (R3)",
     ruteCari.includes("jumlahUnik") && ruteCari.includes("penilaianGagalTotal") && !ruteCari.includes("belumDinilai: 0"));
-  cek("H7 RefFinder meminta konfirmasi sadar sebelum Sisip hit tertahan (R1)",
-    refFinder.includes("konfirmasiSisipTertahan") && refFinder.includes("blokirSisipTertahan"));
+  // H7 DIBALIK oleh putusan yang sama: hit tertahan kini tidak bisa
+  // masuk daftar terpilih sama sekali (penjaga bisaDipakai), jadi
+  // tidak ada lagi konfirmasi Sisip untuk hit tertahan.
+  cek("H7 RefFinder memblokir hit tertahan tanpa jalur konfirmasi Sisip (dicabut, Aturan Pencarian Valid)",
+    !refFinder.includes("konfirmasiSisipTertahan") && !refFinder.includes("blokirSisipTertahan") && refFinder.includes("bisaDipakai"));
   const footnoteRefs = baca("lib/refs/footnote.ts");
   cek("H8 kandidatKeSumber memakai id stabil deterministik, bukan acak (S2)",
     footnoteRefs.includes("idStabilKandidat") && !footnoteRefs.includes("Math.random"));
