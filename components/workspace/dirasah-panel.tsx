@@ -29,7 +29,55 @@ import { idStabilDariIdentitas } from "@/lib/refs/footnote";
  * kelengkapan yang jujur; kekurangannya tidak pernah ditambal
  * karangan, jalan keluarnya adalah tambahan manual dari kajian yang
  * benar-benar dibaca mahasiswa.
+ *
+ * Aturan Pencarian Valid (putusan pemilik 5 Nov 2026 15:57, blokir
+ * keras penuh): MEMILIH kajian kini syaratnya putusan "terverifikasi"
+ * dari endpoint verifikasi yang sama dengan tambah jurnal (metadata
+ * Crossref hidup + bidang, POST /api/refs/verifikasi-jurnal). Jalur
+ * konfirmasi sadar untuk kandidat tertahan yang dulu ada di panel ini
+ * DICABUT: kandidat gagal atau belum terverifikasi tampil berlabel
+ * putusannya dan tombol pilihnya mati, tanpa kecuali. Entri manual pun
+ * dicatat dulu lalu diperiksa dengan endpoint yang sama; yang tidak
+ * lulus tetap tampil sebagai catatan berlabel, tidak bisa dipilih.
  */
+
+/** Status putusan verifikasi satu kandidat (cermin StatusVerifikasi
+ *  server di lib/server/verifikasi-rujukan.ts, ditambah "memeriksa"
+ *  untuk keadaan sebelum putusan tiba). */
+type StatusPutusan =
+  | "terverifikasi"
+  | "gagal-metadata"
+  | "gagal-bidang"
+  | "belum-terverifikasi"
+  | "memeriksa";
+
+interface PutusanKandidat {
+  status: StatusPutusan;
+  alasan: string;
+}
+
+const LENCANA_PUTUSAN: Record<StatusPutusan, { label: string; kelas: string }> = {
+  terverifikasi: { label: "Terverifikasi", kelas: "bg-emerald-100 text-emerald-800" },
+  "gagal-metadata": { label: "Gagal periksa metadata", kelas: "bg-red-100 text-red-800" },
+  "gagal-bidang": { label: "Tidak sesuai bidang", kelas: "bg-red-100 text-red-800" },
+  "belum-terverifikasi": { label: "Belum terverifikasi", kelas: "bg-amber-100 text-amber-800" },
+  memeriksa: { label: "Memeriksa", kelas: "bg-ink-900/10 text-ink-600" },
+};
+
+/** Lencana putusan verifikasi + alasannya, satu bentuk untuk kartu
+ *  hasil pencarian dan catatan manual. */
+function LencanaPutusan({ put }: { put?: PutusanKandidat }) {
+  const status: StatusPutusan = put?.status ?? "memeriksa";
+  const lencana = LENCANA_PUTUSAN[status];
+  return (
+    <p className="text-[11.5px] leading-relaxed">
+      <span className={`rounded-full px-2 py-0.5 font-semibold ${lencana.kelas}`}>{lencana.label}</span>{" "}
+      <span className="text-ink-600">
+        {put?.alasan ?? "Sedang diperiksa ke Crossref dan gerbang bidang."}
+      </span>
+    </p>
+  );
+}
 export function DirasahPanel({
   p,
   ubah,
@@ -41,7 +89,14 @@ export function DirasahPanel({
   const [hasil, setHasil] = useState<HasilCariDirasah | null>(null);
   const [galat, setGalat] = useState("");
   const [pesan, setPesan] = useState("");
-  const [konfirmasi, setKonfirmasi] = useState<Record<string, boolean>>({});
+  /** Putusan verifikasi per kandidat (hasil pencarian dan catatan
+   *  manual), dikunci id sumber. Hanya "terverifikasi" yang boleh
+   *  dipilih; keadaan awal tiap kandidat adalah "memeriksa". */
+  const [putusan, setPutusan] = useState<Record<string, PutusanKandidat>>({});
+  /** Catatan kajian manual yang sudah dicatat dan sedang/sudah
+   *  diperiksa. Entri yang tidak lulus tetap tinggal di sini sebagai
+   *  catatan berlabel; ia BUKAN kajian terpilih. */
+  const [entriManual, setEntriManual] = useState<Sumber[]>([]);
   const [tampilManual, setTampilManual] = useState(false);
   const [manual, setManual] = useState({ penulis: "", judul: "", tahun: "", jurnal: "", penerbit: "", doi: "", tautan: "", abstrak: "" });
 
@@ -69,7 +124,18 @@ export function DirasahPanel({
         return;
       }
       setHasil(data);
-      setKonfirmasi({});
+      // Setiap kandidat WAJIB diperiksa endpoint verifikasi sebelum
+      // bisa dipilih (Aturan Pencarian Valid): metadata Crossref
+      // hidup + bidang proyek, standar yang sama dengan tambah jurnal.
+      void periksaKandidat(
+        data.kajian.map((k) => ({
+          id: k.sumber.id,
+          doi: k.sumber.doi,
+          judul: k.sumber.judul,
+          jurnal: k.sumber.jurnal,
+          tahun: k.sumber.tahun,
+        })),
+      );
     } catch {
       setGalat("Pencarian dirasah gagal tersambung ke server. Periksa koneksi lalu coba lagi.");
     } finally {
@@ -77,14 +143,78 @@ export function DirasahPanel({
     }
   }
 
-  /** Kandidat tertahan aturan keras TIDAK bisa dipilih. Kandidat
-   *  tertahan penilaian (model menilai rendah atau model tidak
-   *  menilai) hanya bisa dipilih sesudah mahasiswa mencentang
-   *  konfirmasi sadar pada kartunya, pola Tahap 4. */
+  /**
+   * Periksa sekumpulan kandidat ke POST /api/refs/verifikasi-jurnal
+   * (maks 15 per panggilan, dipotong di sini). Status awal "memeriksa";
+   * panggilan yang gagal membuat kandidatnya "belum-terverifikasi"
+   * (tertahan), bukan lolos karena pemeriksanya tidak jalan.
+   */
+  async function periksaKandidat(
+    daftar: { id: string; doi?: string; judul: string; jurnal?: string; tahun?: string }[],
+  ) {
+    if (daftar.length === 0) return;
+    setPutusan((m) => {
+      const n = { ...m };
+      for (const d of daftar) {
+        n[d.id] = { status: "memeriksa", alasan: "Sedang diperiksa ke Crossref dan gerbang bidang." };
+      }
+      return n;
+    });
+    for (let i = 0; i < daftar.length; i += 15) {
+      const potong = daftar.slice(i, i + 15);
+      try {
+        const res = await fetch("/api/refs/verifikasi-jurnal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kandidat: potong,
+            bidangId: p.bidangId,
+            judulProyek: p.judulAr ?? "",
+            topikAr: p.judulAr || p.topikAr,
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as {
+          hasil?: { id: string; status: StatusPutusan; alasan: string }[];
+          error?: string;
+        } | null;
+        if (!res.ok || !data || !Array.isArray(data.hasil)) {
+          throw new Error(data?.error ?? "verifikasi gagal");
+        }
+        const hasilServer = data.hasil;
+        setPutusan((m) => {
+          const n = { ...m };
+          for (const h of hasilServer) n[h.id] = { status: h.status, alasan: h.alasan };
+          for (const d of potong) {
+            if (!n[d.id] || n[d.id]!.status === "memeriksa") {
+              n[d.id] = {
+                status: "belum-terverifikasi",
+                alasan: "Kandidat ini tidak mendapat putusan dari server verifikasi.",
+              };
+            }
+          }
+          return n;
+        });
+      } catch {
+        setPutusan((m) => {
+          const n = { ...m };
+          for (const d of potong) {
+            n[d.id] = {
+              status: "belum-terverifikasi",
+              alasan: "Pemeriksaan tidak dapat berjalan; cari atau catat lagi untuk memeriksanya ulang.",
+            };
+          }
+          return n;
+        });
+      }
+    }
+  }
+
+  /** Kandidat hanya bisa dipilih bila putusan verifikasinya
+   *  "terverifikasi". Dulu kandidat tertahan penilaian masih bisa
+   *  dipilih lewat centang konfirmasi sadar; jalur itu dicabut oleh
+   *  putusan pemilik 5 Nov 2026 15:57 (blokir keras, tanpa celah). */
   function bisaPilih(k: KandidatDirasah): boolean {
-    if (!k.gerbang || k.gerbang.lolos) return true;
-    if (k.gerbang.statusPenilaian === "aturan-keras") return false;
-    return Boolean(konfirmasi[k.sumber.id]);
+    return putusan[k.sumber.id]?.status === "terverifikasi";
   }
 
   function sudahDipilih(k: KandidatDirasah): boolean {
@@ -96,6 +226,14 @@ export function DirasahPanel({
   }
 
   function pilih(k: KandidatDirasah) {
+    // Penjaga kedua di luar keadaan tombol: yang putusannya bukan
+    // terverifikasi tidak pernah tertanam, apa pun keadaan tampilannya.
+    if (!bisaPilih(k)) {
+      setPesan(
+        `Kajian "${k.sumber.judul}" belum bisa dipilih: ${putusan[k.sumber.id]?.alasan ?? "pemeriksaannya belum selesai."}`,
+      );
+      return;
+    }
     const { proyek, status: st } = tanamKajian(p, k.sumber);
     if (st === "sudah-ada" && proyek === p) {
       setPesan(`Kajian "${k.sumber.judul}" sudah termasuk kajian terpilih Anda.`);
@@ -124,6 +262,14 @@ export function DirasahPanel({
     );
   }
 
+  /**
+   * Tambah kajian manual: entri DICATAT dulu sebagai catatan panel,
+   * lalu diperiksa endpoint verifikasi yang sama dengan kandidat
+   * pencarian (DOI bila diisi; tanpa DOI judulnya dicari persis ke
+   * Crossref, lalu bidangnya dinilai). Kemampuan mencatat entri manual
+   * TIDAK dihapus; yang dikunci hanya pemilihannya: hanya catatan
+   * berputusan "terverifikasi" yang bisa menjadi kajian terpilih.
+   */
   function tambahManual() {
     const penulis = manual.penulis.trim();
     const judul = manual.judul.trim();
@@ -149,14 +295,47 @@ export function DirasahPanel({
         dariAbstrak: Boolean(manual.abstrak.trim()),
       },
     };
-    const { proyek, status: st } = tanamKajian(p, sumber);
+    const sudahAda =
+      entriManual.some(
+        (e) => e.id === sumber.id || normalisasiJudul(e.judul) === normalisasiJudul(sumber.judul),
+      ) ||
+      p.sumber.some(
+        (s) => s.id === sumber.id || normalisasiJudul(s.judul) === normalisasiJudul(sumber.judul),
+      );
+    if (sudahAda) {
+      setPesan(`Kajian "${judul}" sudah ada di catatan atau proyek Anda.`);
+      return;
+    }
+    setEntriManual((m) => [...m, sumber]);
+    setManual({ penulis: "", judul: "", tahun: "", jurnal: "", penerbit: "", doi: "", tautan: "", abstrak: "" });
+    setPesan(
+      `Kajian manual "${judul}" dicatat dan sedang diperiksa. Hanya yang putusannya terverifikasi yang bisa dipilih menjadi kajian terpilih.`,
+    );
+    void periksaKandidat([
+      { id: sumber.id, doi: sumber.doi, judul: sumber.judul, jurnal: sumber.jurnal, tahun: sumber.tahun },
+    ]);
+  }
+
+  /** Pilih satu catatan manual yang sudah terverifikasi menjadi
+   *  kajian terpilih proyek (penanaman memakai penjaga yang sama). */
+  function pilihManual(s: Sumber) {
+    if (putusan[s.id]?.status !== "terverifikasi") {
+      setPesan(
+        `Kajian manual "${s.judul}" belum bisa dipilih: ${putusan[s.id]?.alasan ?? "pemeriksaannya belum selesai."}`,
+      );
+      return;
+    }
+    const { proyek, status: st } = tanamKajian(p, s);
     if (st === "sudah-ada" && proyek === p) {
-      setPesan(`Kajian "${judul}" sudah ada di proyek Anda.`);
+      setPesan(`Kajian "${s.judul}" sudah termasuk kajian terpilih Anda.`);
       return;
     }
     ubah({ sumber: proyek.sumber });
-    setManual({ penulis: "", judul: "", tahun: "", jurnal: "", penerbit: "", doi: "", tautan: "", abstrak: "" });
-    setPesan(`Kajian manual "${judul}" ditambahkan sebagai kajian terpilih. Tandanya perlu verifikasi karena datanya dari isian Anda sendiri.`);
+    setPesan(
+      st === "penanda-ditempel"
+        ? `Kajian manual "${s.judul}" sudah ada di daftar rujukan Anda; kini ditandai sebagai kajian dirasah terpilih.`
+        : `Kajian manual "${s.judul}" terverifikasi dan ditambahkan sebagai kajian terpilih.`,
+    );
   }
 
   return (
@@ -271,6 +450,9 @@ export function DirasahPanel({
           <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-600">
             Untuk kajian yang Anda baca sendiri di luar indeks (misalnya risalah di perpustakaan kampus).
             Penulis, judul, dan tahun wajib; abstrak bila ada akan menjadi dasar isinya di susunan teks.
+            Entri dicatat dulu lalu diperiksa: judulnya (atau DOI-nya) dicocokkan ke rekod Crossref dan
+            bidangnya dinilai. Hanya entri yang terverifikasi yang bisa dipilih menjadi kajian terpilih;
+            yang tidak lulus tetap tampil di bawah sebagai catatan berlabel putusannya.
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="Peneliti / penulis">
@@ -307,8 +489,60 @@ export function DirasahPanel({
             onClick={tambahManual}
             className="mt-3 rounded-lg bg-ink-900 px-3 py-2 text-[12px] font-semibold text-parchment-100 hover:bg-ink-800"
           >
-            Tambahkan sebagai kajian terpilih
+            Catat &amp; periksa kajian
           </button>
+        </div>
+      )}
+
+      {entriManual.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-[12px] font-bold text-ink-900">Catatan kajian manual ({entriManual.length})</h4>
+          <ul className="mt-2 space-y-2">
+            {entriManual.map((s) => {
+              const dipilihManual = p.sumber.some(
+                (x) =>
+                  x.dirasah &&
+                  (x.id === s.id || normalisasiJudul(x.judul) === normalisasiJudul(s.judul)),
+              );
+              const bolehPilihManual = putusan[s.id]?.status === "terverifikasi";
+              return (
+                <li key={s.id} className="rounded-xl border border-ink-900/10 bg-white/80 px-3 py-2.5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-arabic text-[13px] font-semibold text-ink-900" dir="rtl">
+                        {s.judul}
+                      </p>
+                      <p className="mt-0.5 text-[11.5px] text-ink-600">
+                        {s.penulis}
+                        {s.tahun ? ` · ${s.tahun}` : ""}
+                        {s.jurnal ? ` · ${s.jurnal}` : s.penerbit ? ` · ${s.penerbit}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        disabled={dipilihManual || !bolehPilihManual}
+                        onClick={() => pilihManual(s)}
+                        className="rounded-lg bg-ink-900 px-3 py-2 text-[11.5px] font-semibold text-parchment-100 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {dipilihManual ? "Sudah dipilih" : "Pilih kajian ini"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEntriManual((m) => m.filter((e) => e.id !== s.id))}
+                        className="rounded-lg border border-ink-900/15 px-2 py-1.5 text-[10.5px] font-semibold text-ink-600 hover:border-ink-900/30"
+                      >
+                        Buang catatan
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <LencanaPutusan put={putusan[s.id]} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
@@ -330,7 +564,7 @@ export function DirasahPanel({
             {hasil.kajian.map((k) => {
               const inti = k.sumber.dirasah;
               const dipilih = sudahDipilih(k);
-              const tertahanKeras = k.gerbang?.statusPenilaian === "aturan-keras" && !k.gerbang.lolos;
+              const put = putusan[k.sumber.id];
               return (
                 <li key={k.sumber.id} className="rounded-xl border border-ink-900/10 bg-white/80 px-3 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -362,43 +596,22 @@ export function DirasahPanel({
                       onClick={() => pilih(k)}
                       className="shrink-0 rounded-lg bg-ink-900 px-3 py-2 text-[11.5px] font-semibold text-parchment-100 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-45"
                     >
-                      {dipilih ? "Sudah dipilih" : tertahanKeras ? "Tidak dapat dipilih" : "Pilih kajian ini"}
+                      {dipilih
+                        ? "Sudah dipilih"
+                        : !put || put.status === "memeriksa"
+                          ? "Menunggu pemeriksaan"
+                          : put.status === "terverifikasi"
+                            ? "Pilih kajian ini"
+                            : "Tidak dapat dipilih"}
                     </button>
                   </div>
 
                   <div className="mt-2">
-                    {!k.gerbang && (
-                      <Note>Aturan keras bidang bersih. Penilaian model tidak berjalan untuk akun Anda, jadi kesesuaian isi belum dinilai model; periksa abstraknya sebelum memilih.</Note>
-                    )}
-                    {k.gerbang?.lolos && (
-                      <Note jenis="aman">
-                        Lolos gerbang bidang{k.gerbang.skorModel ? ` (skor model ${k.gerbang.skorModel}/100)` : ""}. {k.gerbang.alasan}
-                      </Note>
-                    )}
-                    {k.gerbang && !k.gerbang.lolos && tertahanKeras && (
-                      <Note jenis="warn">
-                        Tertahan gerbang bidang: {k.gerbang.bidangSumber}. {k.gerbang.alasan} Kajian lintas bidang tidak dapat dipilih.
-                      </Note>
-                    )}
-                    {k.gerbang && !k.gerbang.lolos && !tertahanKeras && (
-                      <div className="space-y-2">
-                        <Note jenis="warn">
-                          {k.gerbang.statusPenilaian === "tidak-dinilai"
-                            ? `Belum dinilai model. ${k.gerbang.alasan}`
-                            : `Tertahan penilaian gerbang${k.gerbang.skorModel ? ` (skor model ${k.gerbang.skorModel}/100)` : ""}. ${k.gerbang.alasan}`}
-                        </Note>
-                        <label className="flex items-start gap-2 text-[12px] leading-relaxed text-ink-700">
-                          <input
-                            type="checkbox"
-                            className="mt-0.5"
-                            checked={Boolean(konfirmasi[k.sumber.id])}
-                            onChange={(e) =>
-                              setKonfirmasi((m) => ({ ...m, [k.sumber.id]: e.target.checked }))
-                            }
-                          />
-                          Saya sudah memeriksa sendiri abstrak dan kesesuaian kajian ini dengan penelitian saya, dan tetap memilihnya dengan tanggung jawab saya.
-                        </label>
-                      </div>
+                    <LencanaPutusan put={put} />
+                    {k.gerbang && !k.gerbang.lolos && k.gerbang.statusPenilaian === "aturan-keras" && (
+                      <p className="mt-1 text-[11.5px] leading-relaxed text-red-700">
+                        Aturan keras bidang pada pencarian juga menahan kajian ini: {k.gerbang.bidangSumber}. {k.gerbang.alasan}
+                      </p>
                     )}
                   </div>
 

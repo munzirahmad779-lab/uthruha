@@ -23,6 +23,10 @@
  * - Tanpa penilaian model: aturan keras tetap bekerja, inti kosong
  *   jujur, tidak ada label lolos karangan.
  * - Penanaman kajian memakai penjaga duplikat jalur sumber yang sah.
+ * - Aturan Pencarian Valid (5 Nov 2026): panel hanya memilih kandidat
+ *   berputusan "terverifikasi" dari endpoint verifikasi bersama;
+ *   konfirmasi sadar untuk kandidat tertahan dicabut dari panel;
+ *   entri manual dicatat lalu diperiksa sebelum bisa dipilih (L5-L8).
  *
  * TANPA jaringan luar: pencarian diberi penyedia fixture, kolam
  * diarahkan ke stub lokal (UTH_MODE_UJI + KOLAM_UJI_BASE), kunci
@@ -575,6 +579,18 @@ async function main() {
   const ruteTs = readFileSync(path.join(process.cwd(), "app/api/dirasah/route.ts"), "utf8");
   cek("L4 rute menjaga sesi, asal, dan kunci BYOK seperti rute generate",
     ruteTs.includes("tolakTanpaSesi") && ruteTs.includes("asalSah") && ruteTs.includes("perluIsiKunci"));
+  // Aturan Pencarian Valid (putusan pemilik 5 Nov 2026 15:57, blokir
+  // keras): panel memilih HANYA berdasar putusan endpoint verifikasi;
+  // centang konfirmasi sadar untuk kandidat tertahan sudah dicabut;
+  // entri manual dicatat lalu diperiksa, bukan langsung ditanam.
+  cek("L5 panel memeriksa kandidat lewat endpoint verifikasi yang sama dengan tambah jurnal",
+    panelTs.includes("/api/refs/verifikasi-jurnal"));
+  cek("L6 panel: bisaPilih hanya untuk putusan terverifikasi",
+    panelTs.includes('putusan[k.sumber.id]?.status === "terverifikasi"'));
+  cek("L7 panel: jalur konfirmasi sadar kandidat tertahan sudah dicabut",
+    !panelTs.includes("Saya sudah memeriksa sendiri abstrak") && !panelTs.includes("konfirmasi["));
+  cek("L8 panel: entri manual dicatat lalu diperiksa sebelum bisa dipilih",
+    panelTs.includes("entriManual") && panelTs.includes("Catat &amp; periksa kajian") && panelTs.includes("pilihManual"));
 
   stub.close();
   console.log(`\nHASIL: ${lulus} PASS, ${gagal} FAIL`);
