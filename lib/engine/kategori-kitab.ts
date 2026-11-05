@@ -872,3 +872,393 @@ export function gerbangKategoriKitab(
     `Tidak ada bukti deterministik kitab ini sebidang dengan topik proyek (${topik.id}): ${cabangTampil} tidak memetakan relasi apa pun, dan tidak ada istilah inti topik pada judul/daftar isinya.`,
   );
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * Tahap G2 (6 Nov 2026): gerbang yang sama untuk kandidat JURNAL.
+ *
+ * Mesin sembilan aturan di atas dipakai ulang apa adanya (DATA_TOPIK,
+ * TABEL_BIDANG_KITAB, leksikon inti/penolak, normalisasi yang sama);
+ * yang berbeda dari kitab hanya SUMBER LABEL dan BENTUK BUKTI:
+ *  - Label cabang jurnal datang dari metadata sumber (OpenAlex
+ *    topics/concepts/primary_topic, subjek DOAJ, nama jurnal) yang
+ *    dipetakan labelCabangDariTeks di bawah — kandidat bisa membawa
+ *    BEBERAPA label sekaligus.
+ *  - Bukti istilah dibaca dari judul + nama jurnal + abstrak
+ *    (artikel tidak punya daftar isi).
+ *  - Varian aturan 5 untuk artikel (bahan resmi): cabang sesuai
+ *    tanpa istilah inti — artikel BERABSTRAK gugur (abstraknya bisa
+ *    dibaca dan tetap tidak membuktikan topik), artikel TANPA
+ *    abstrak tertahan (belum bisa dibuktikan, bukan terbukti salah).
+ *  - Bukti inti tambahan khas artikel: judul/nama jurnal yang
+ *    menyebut nama disiplin cabang yang SESUAI (mis. judul memuat
+ *    "Fiqh"/"Ushul Fiqh"/"تفسير") adalah bukti kuat artikel itu
+ *    memang dari cabang tersebut; ia hanya berlaku untuk cabang
+ *    sesuai, tidak untuk cabang bersebelahan (aturan 6 tetap
+ *    memakai istilah inti topik, sama seperti kitab).
+ *  - Penolak ekonomi (اقتصاد، تجارة، سوق، استثمار، بنك، تمويل)
+ *    TIDAK berlaku bila cabang iqtishad sendiri termasuk cabang
+ *    sesuai proyek: pada proyek ekonomi syariah, kata-kata itu
+ *    kosakata bidangnya sendiri, bukan penolak (kalau tidak, artikel
+ *    ekonomi yang sah pada proyek iqtishad gugur oleh leksikonnya
+ *    sendiri).
+ * Putusan dan pemetaan statusnya sama dengan kitab: lolos /
+ * gagal-bidang / belum-terverifikasi ("Perlu konfirmasi: ", tertahan
+ * tanpa jalan pasang — putusan pemilik 5 Nov 2026 15:57).
+ * ════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Pola tambahan bahasa Inggris untuk memetakan teks metadata jurnal
+ * (display_name topik/konsep OpenAlex, subjek DOAJ, nama jurnal) ke
+ * label cabang. Diperiksa dengan urutan yang sama seperti
+ * ATURAN_LABEL (yang khusus didahulukan). Sengaja TIDAK memetakan
+ * kata generik telanjang: "education" sendirian bukan tarbiyah,
+ * "theology" sendirian bukan akidah, "spirituality" bukan apa pun —
+ * hanya frasa yang menyebut konteks Islam yang dipetakan; frasa
+ * generik semacam "Islamic Studies"/"Islamic Thought" hanya menjadi
+ * penanda domain Islam di pemanggil, bukan label cabang.
+ */
+const ATURAN_LABEL_INGGRIS: { label: LabelKitab; pola: string[] }[] = [
+  {
+    label: "ushul-fiqh",
+    pola: ["usul al fiqh", "usul al-fiqh", "principles of islamic jurisprudence", "islamic legal theory"],
+  },
+  {
+    label: "hadis",
+    pola: ["hadith studies", "prophetic tradition"],
+  },
+  {
+    label: "tafsir",
+    pola: ["quranic", "koranic", "quran", "exegesis"],
+  },
+  {
+    label: "akidah",
+    pola: ["islamic theology"],
+  },
+  {
+    label: "fiqh",
+    pola: ["islamic law", "islamic jurisprudence", "sharia", "shariah", "halal", "muamalah", "fatwa"],
+  },
+  {
+    label: "sirah-tarikh",
+    pola: ["islamic history", "history of islam"],
+  },
+  {
+    label: "akhlak-tasawuf",
+    pola: ["sufism", "islamic ethics", "tasawwuf"],
+  },
+  {
+    label: "lughah-adab",
+    pola: ["linguistics", "arabic language", "arabic literature"],
+  },
+  {
+    label: "tarbiyah",
+    pola: ["islamic education"],
+  },
+  {
+    label: "iqtishad",
+    pola: ["economics", "economic", "islamic finance", "islamic banking", "finance", "banking", "trade"],
+  },
+];
+
+/**
+ * Petakan SATU string teks sumber (nama jurnal, display_name topik
+ * atau konsep OpenAlex, istilah subjek DOAJ) ke label cabang, atau
+ * null bila tidak ada pola yang cocok. MURNI. Pemanggil menjalankan
+ * fungsi ini per string lalu menggabungkan label yang ditemukan.
+ */
+export function labelCabangDariTeks(teks?: string | null): LabelKitab | null {
+  // Tanda kutip dibuang SEBELUM normalisasi: normalisasiJudul
+  // mengubahnya menjadi spasi, yang akan memecah kata seperti
+  // "Qur'anic" menjadi "qur anic" dan lolos dari pola "quranic".
+  const tanpaKutip = (teks ?? "").replace(/['’‘`ʼ]/g, "");
+  const bersih = normalisasiKategori(tanpaKutip)
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\u0600-\u06FF ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!bersih) return null;
+  for (const aturan of ATURAN_LABEL) {
+    for (const pola of aturan.pola) {
+      if (bersih.includes(pola)) return aturan.label;
+    }
+  }
+  for (const aturan of ATURAN_LABEL_INGGRIS) {
+    for (const pola of aturan.pola) {
+      if (bersih.includes(pola)) return aturan.label;
+    }
+  }
+  return null;
+}
+
+/**
+ * Istilah nama disiplin per label cabang: kehadirannya pada JUDUL
+ * artikel atau NAMA JURNAL adalah bukti artikel itu memang dari
+ * cabang tersebut (judul yang menyebut nama ilmunya sendiri).
+ * Daftar dibuat ketat per cabang; kata umum lintas bidang ("studi",
+ * "jurnal", "pendidikan" telanjang) sengaja tidak dimasukkan.
+ */
+export const ISTILAH_CABANG: Record<LabelKitab, string[]> = {
+  fiqh: [
+    "فقه", "fiqh", "fikih", "الشريعة", "syariah", "sharia", "hukum islam",
+    "islamic law", "فتاوى", "المعاملات",
+  ],
+  "ushul-fiqh": [
+    "أصول الفقه", "ushul fiqh", "usul fiqh", "ushul fikih", "استنباط",
+    "الاستنباط", "القواعد الفقهية", "istinbath",
+  ],
+  tafsir: ["تفسير", "tafsir", "القرآن", "quran", "علوم القرآن"],
+  hadis: ["حديث", "hadis", "hadith", "السنة", "sunnah"],
+  akidah: ["عقيدة", "توحيد", "akidah", "aqidah", "tauhid", "علم الكلام"],
+  "sirah-tarikh": ["سيرة", "تاريخ", "sejarah", "sirah", "tarikh", "الحضارة الإسلامية"],
+  "akhlak-tasawuf": ["أخلاق", "الأخلاق", "تصوف", "akhlak", "tasawuf", "sufism"],
+  "lughah-adab": ["لغة", "أدب", "bahasa arab", "arabic language", "النحو", "البلاغة"],
+  tarbiyah: [
+    "التربية", "pendidikan islam", "pendidikan agama islam",
+    "islamic education", "tarbiyah", "التعليم الإسلامي",
+  ],
+  iqtishad: [
+    "اقتصاد", "الاقتصاد", "ekonomi", "economics", "keuangan syariah",
+    "islamic finance", "islamic economics", "perbankan syariah", "الاقتصاد الإسلامي",
+  ],
+};
+
+/** Penolak umum yang merupakan kosakata cabang iqtishad itu
+ *  sendiri; dikeluarkan dari daftar penolak aktif bila iqtishad
+ *  termasuk cabang sesuai proyek (lihat kepala bagian G2). */
+const PENOLAK_EKONOMI: string[] = [
+  "اقتصاد", "الاقتصادي", "تجارة", "سوق", "استثمار", "بنك", "تمويل",
+];
+
+export interface KandidatJurnalGerbang {
+  judul: string;
+  /** Nama jurnal penerbit (bukti istilah + sumber label terakhir). */
+  jurnal?: string;
+  /** Abstrak/cuplikan artikel bila ada (dari rekod OpenAlex atau
+   *  bawaan kandidat). Kehadirannya mengubah aturan 5 versi artikel. */
+  isi?: string;
+  /** Label cabang dari metadata sumber (boleh lebih dari satu). */
+  labelSumber?: LabelKitab[];
+  /** Domain sumber terbukti BUKAN Islam (domain utama OpenAlex di
+   *  sains keras) dan tidak ada bukti domain Islam → aturan 3. */
+  domainAsingKeras?: boolean;
+  /** Judul proyek (penurunan topik + bukti sebutan persis). */
+  judulProyek?: string;
+}
+
+export interface HasilGerbangJurnal {
+  putusan: PutusanGerbang;
+  /** Kode alasan mesin (sama keluarga dengan gerbang kitab). */
+  kode: string;
+  /** Topik proyek yang dipakai menilai, atau "cadangan-<bidangId>". */
+  topik: string;
+  /** Relasi cabang sumber terkuat terhadap topik. */
+  relasi: "sesuai" | "bersebelahan" | "bertentangan" | "tak diketahui";
+  /** Label cabang sumber yang terbaca (bisa kosong). */
+  labelSumber: LabelKitab[];
+  /** Alasan Bahasa Indonesia; tertahan berawalan "Perlu konfirmasi: ". */
+  alasan: string;
+}
+
+/**
+ * Gerbang sembilan aturan untuk kandidat JURNAL. MURNI,
+ * deterministik, tanpa model — lihat kepala bagian G2 untuk varian
+ * artikelnya. Model hanya boleh MEMVETO hasil "lolos" fungsi ini
+ * (di pemanggil, lib/server/verifikasi-rujukan.ts); model tidak
+ * pernah menaikkan putusan fungsi ini.
+ */
+export function gerbangJurnal(
+  kandidat: KandidatJurnalGerbang,
+  bidangId: string,
+): HasilGerbangJurnal {
+  const labelSumber = [...new Set(kandidat.labelSumber ?? [])];
+  const topik = topikProyekDari(bidangId, kandidat.judulProyek);
+  const sesuaiSet = topik ? topik.sesuai : (TABEL_BIDANG_KITAB[bidangId] ?? []);
+  const relasi: HasilGerbangJurnal["relasi"] = !topik
+    ? labelSumber.some((l) => sesuaiSet.includes(l))
+      ? "sesuai"
+      : "tak diketahui"
+    : labelSumber.some((l) => topik.sesuai.includes(l))
+      ? "sesuai"
+      : labelSumber.some((l) => topik.bersebelahan.includes(l))
+        ? "bersebelahan"
+        : labelSumber.some((l) => topik.bertentangan.includes(l))
+          ? "bertentangan"
+          : "tak diketahui";
+
+  // Bukti istilah: judul + nama jurnal + abstrak.
+  const teksBukti = normalisasiKategori(
+    `${kandidat.judul ?? ""} ${kandidat.jurnal ?? ""} ${kandidat.isi ?? ""}`,
+  );
+  const tokenBukti = himpunanToken(teksBukti);
+  const teksJudul = normalisasiKategori(`${kandidat.judul ?? ""} ${kandidat.jurnal ?? ""}`);
+  const tokenJudul = himpunanToken(teksJudul);
+
+  // Penolak aktif: penolak topik + penolak umum, dengan kosakata
+  // ekonomi dikeluarkan bila iqtishad cabang sesuai proyek.
+  const penolakMentah = [...(topik?.penolak ?? []), ...PENOLAK_UMUM];
+  const penolakAktif = sesuaiSet.includes("iqtishad")
+    ? penolakMentah.filter((p) => !PENOLAK_EKONOMI.includes(p))
+    : penolakMentah;
+  const penolakAda = istilahPertama(teksBukti, tokenBukti, penolakAktif);
+
+  // Inti leksikon topik pada seluruh bukti; inti disiplin hanya dari
+  // judul/nama jurnal dan hanya untuk cabang sesuai.
+  const intiLeksikon = topik ? istilahPertama(teksBukti, tokenBukti, topik.inti) : null;
+  let intiDisiplin: string | null = null;
+  for (const label of sesuaiSet) {
+    const istilah = istilahPertama(teksJudul, tokenJudul, ISTILAH_CABANG[label] ?? []);
+    if (istilah) {
+      intiDisiplin = istilah;
+      break;
+    }
+  }
+  // Sebutan persis memakai mesin kitab (judul artikel disebut utuh
+  // pada judul proyek): bukti penulis memang meneliti artikel ini.
+  // Saringan kata topik diperluas ke bentuk nisba (akhiran ه ↔ ي,
+  // mis. معرفة ↔ معرفي): stemmer awalan G1 tidak menyamakan kedua
+  // bentuk itu, dan tanpa varian ini kata sifat topik pada judul
+  // artikel terbaca sebagai "nama khas" oleh bukti sebutan persis.
+  const kataTopikMentah = tokenDariDaftarIstilah(
+    topik ? [...topik.inti, ...topik.penolak, ...PENOLAK_UMUM] : PENOLAK_UMUM,
+  );
+  const kataTopik = new Set<string>(kataTopikMentah);
+  for (const t of kataTopikMentah) {
+    if (t.endsWith("ه")) kataTopik.add(`${t.slice(0, -1)}ي`);
+    if (t.endsWith("ي")) kataTopik.add(`${t.slice(0, -1)}ه`);
+  }
+  const persis = buktiSebutanPersis(
+    { judul: kandidat.judul, judulProyek: kandidat.judulProyek },
+    kataTopik,
+  );
+  const intiAda = intiLeksikon !== null || intiDisiplin !== null || persis !== null;
+  const buktiInti = intiLeksikon
+    ? `istilah inti topik "${intiLeksikon}" ada pada judul/abstrak artikel`
+    : intiDisiplin
+      ? `judul/nama jurnal menyebut disiplin cabang yang sesuai ("${intiDisiplin}")`
+      : persis
+        ? persis.replace("judul kitab", "judul artikel")
+        : "";
+  const labelTampil =
+    labelSumber.length > 0
+      ? `label cabang dari metadata sumber: ${labelSumber.join(", ")}`
+      : "metadata sumber tidak memberi label cabang yang dikenal";
+  const adaIsi = Boolean((kandidat.isi ?? "").trim());
+
+  const selesai = (
+    putusan: PutusanGerbang,
+    kode: string,
+    alasan: string,
+  ): HasilGerbangJurnal => ({
+    putusan,
+    kode,
+    topik: topik ? topik.id : `cadangan-${bidangId || "(kosong)"}`,
+    relasi,
+    labelSumber,
+    alasan,
+  });
+
+  // (3) Domain sumber bukan Islam (sains keras) padahal proyek
+  // studi Islam → GUGUR sebelum aturan lain.
+  if (kandidat.domainAsingKeras) {
+    return selesai(
+      "gagal-bidang",
+      "DOMAIN_ASING",
+      `Domain utama sumber artikel ini pada rekod OpenAlex berada di luar studi Islam (sains keras), sedangkan proyek ini bidang studi Islam (${bidangId}); ${labelTampil}.`,
+    );
+  }
+
+  // (1) Penolak ada dan inti tidak ada → GUGUR.
+  if (penolakAda && !intiAda) {
+    return selesai(
+      "gagal-bidang",
+      "IST_PENOLAK",
+      `Judul/abstrak artikel memuat istilah penolak "${penolakAda}" untuk proyek ini dan tidak memuat bukti inti apa pun; ${labelTampil}. Artikel ini gugur sebelum penilaian lain.`,
+    );
+  }
+
+  // (2) Ada label cabang BERTENTANGAN dan tidak ada label sesuai →
+  // GUGUR; label menggugurkan sebelum istilah menolong (pelajaran
+  // kasus uang panai). Label sesuai yang ikut hadir menang lebih
+  // dulu karena relasi dihitung "sesuai" untuk kasus itu.
+  if (relasi === "bertentangan") {
+    return selesai(
+      "gagal-bidang",
+      "CAB_BERTENTANGAN",
+      `Artikel ini ${labelTampil}, cabang yang BERTENTANGAN dengan topik proyek (${topik?.id ?? bidangId}). Label sumber menggugurkan lebih dulu, sebelum istilah pada judulnya diperiksa, dan tidak ada skor model yang boleh membatalkannya.`,
+    );
+  }
+
+  // (4) Sesuai + inti → LOLOS; pengaman: penolak ikut hadir →
+  // turun menjadi tertahan.
+  if (relasi === "sesuai" && intiAda) {
+    if (penolakAda) {
+      return selesai(
+        "belum-terverifikasi",
+        "KONF_PENOLAK",
+        `Perlu konfirmasi: cabang artikel sesuai proyek dan ${buktiInti}, tetapi judul/abstraknya juga memuat istilah penolak "${penolakAda}", jadi putusan lolosnya diturunkan menjadi tertahan tanpa jalan pasang.`,
+      );
+    }
+    return selesai(
+      "lolos",
+      "SESUAI_INTI",
+      `Artikel ini ${labelTampil}, sesuai dengan proyek (${topik?.id ?? bidangId}), dan ${buktiInti}.`,
+    );
+  }
+
+  // (5) Sesuai tanpa inti → varian artikel: berabstrak GUGUR,
+  // tanpa abstrak tertahan.
+  if (relasi === "sesuai") {
+    if (adaIsi) {
+      return selesai(
+        "gagal-bidang",
+        "GUGUR_SESUAI_TANPA_INTI",
+        `Artikel ini ${labelTampil} yang sesuai proyek, tetapi abstraknya terbaca dan tetap tidak memuat istilah inti topik maupun nama disiplin cabangnya, jadi ia gugur (aturan artikel berabstrak).`,
+      );
+    }
+    return selesai(
+      "belum-terverifikasi",
+      "KONF_SESUAI_TANPA_INTI",
+      `Perlu konfirmasi: artikel ini ${labelTampil} yang sesuai proyek, tetapi tidak ada abstrak yang bisa dibaca dan tidak ada istilah inti pada judulnya, jadi ia tertahan tanpa jalan pasang sampai ada bukti isi.`,
+    );
+  }
+
+  // (6) Bersebelahan + inti → tertahan (pendukung tidak meloloskan).
+  if (relasi === "bersebelahan" && (intiLeksikon !== null || persis !== null)) {
+    return selesai(
+      "belum-terverifikasi",
+      "KONF_SEBELAHAN_INTI",
+      `Perlu konfirmasi: cabang artikel (${labelTampil}) hanya BERSEBELAHAN dengan topik proyek (${topik?.id ?? bidangId}); ${buktiInti} menaikkannya dari gugur menjadi tertahan, tetapi bidang pendukung tidak pernah meloloskan.`,
+    );
+  }
+
+  // (7) Bersebelahan tanpa inti → GUGUR.
+  if (relasi === "bersebelahan") {
+    return selesai(
+      "gagal-bidang",
+      "GUGUR_SEBELAHAN_TANPA_INTI",
+      `Cabang artikel (${labelTampil}) hanya bersebelahan dengan topik proyek (${topik?.id ?? bidangId}) dan tidak ada istilah inti topik pada judul/abstraknya, jadi artikel ini gugur.`,
+    );
+  }
+
+  // (8)/(9) Relasi tak diketahui.
+  if (persis) {
+    return selesai(
+      "lolos",
+      "SEBUT_PERSIS",
+      `Relasi cabang artikel terhadap proyek tidak bisa dibuktikan dari ${labelTampil}, tetapi ${persis.replace("judul kitab", "judul artikel")}, jadi ia adalah sumber yang memang dimaksud penulis.`,
+    );
+  }
+  if (intiAda) {
+    return selesai(
+      "belum-terverifikasi",
+      "KONF_TAKJELAS_INTI",
+      `Perlu konfirmasi: relasi cabang artikel terhadap proyek tidak diketahui dari ${labelTampil}, tetapi ${buktiInti}; bukti istilah saja tidak meloloskan artikel yang label cabangnya tidak terbukti, jadi ia tertahan tanpa jalan pasang.`,
+    );
+  }
+  return selesai(
+    "gagal-bidang",
+    "GUGUR_TAKJELAS_KOSONG",
+    `Tidak ada bukti deterministik artikel ini sebidang dengan proyek (${topik?.id ?? bidangId}): ${labelTampil}, dan tidak ada istilah inti topik pada judul/abstraknya.`,
+  );
+}

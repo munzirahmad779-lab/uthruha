@@ -80,6 +80,7 @@ import {
 } from "./gerbang-relevansi";
 import {
   jangkarBidangUntuk,
+  nilaiBidangJurnal,
   periksaMetadata,
   type StatusVerifikasi,
 } from "./verifikasi-rujukan";
@@ -881,6 +882,20 @@ export async function pasangFootnoteDisetujui(opsi: {
   const kandidat = opsi.kandidat;
   const dariMasadir =
     /turath|shamela/i.test(kandidat.sumberImpor ?? "") || /turath|shamela/i.test(kandidat.url ?? "");
+  // Konteks bidang titik pasang dibangun lebih dulu karena jalur
+  // jurnal kini menilainya di dalam cabangnya sendiri (G2).
+  const bidangPasang = opsi.bidangId ? getBidang(opsi.bidangId) : null;
+  const konteksPasang: KonteksProyek = {
+    bidangId: opsi.bidangId ?? "",
+    bidangLabel: bidangPasang ? `${bidangPasang.labelId} (${bidangPasang.labelAr})` : "",
+    judulProyek: opsi.judulProyek ?? "",
+    topik: opsi.topikAr ?? "",
+  };
+  // Kandidat jurnal dinilai bidangnya oleh fungsi bersama
+  // nilaiBidangJurnal (gerbang deterministik + veto model) di dalam
+  // cabang metadatanya; blok penilaian umum di bawah dilewati untuk
+  // kelas itu agar standarnya persis sama dengan endpoint verifikasi.
+  let bidangSudahDinilai = false;
   if (dariMasadir) {
     // Keberadaan kitab adalah rekod sumbernya sendiri; tanpa tautan
     // rekod itu tidak ada yang bisa dicek ulang.
@@ -928,6 +943,21 @@ export async function pasangFootnoteDisetujui(opsi: {
         "Pemasangan ditolak pada periksa ulang (Belum terverifikasi): artikel jurnal ini tidak membawa nomor halaman, jadi footnote-nya belum bisa dipasang.",
       );
     }
+    // Bidang jurnal dinilai ulang segar dengan fungsi bersama G2
+    // (nilaiBidangJurnal): gerbang deterministik label sumber +
+    // model hanya veto — standar yang sama persis dengan endpoint
+    // verifikasi tambah jurnal. Hanya "terverifikasi" yang lolos.
+    const bidangJurnal = await nilaiBidangJurnal(
+      { doi: kandidat.doi ?? undefined, judul: kandidat.judul, jurnal: kandidat.jurnal },
+      konteksPasang,
+      opsi.kolam,
+    );
+    if (bidangJurnal.status !== "terverifikasi") {
+      return gagal(
+        `Pemasangan ditolak pada periksa ulang bidang (${labelStatusVerifikasi(bidangJurnal.status)}): ${bidangJurnal.alasan}`,
+      );
+    }
+    bidangSudahDinilai = true;
   }
   // Buku web tanpa DOI tidak punya rekod metadata untuk diperiksa
   // ulang; keberadaannya dibuktikan sidik itu sendiri (server hanya
@@ -935,6 +965,9 @@ export async function pasangFootnoteDisetujui(opsi: {
   // Bidang semua kandidat tetap dinilai ulang di bawah ini.
 
   /* ---- Periksa ulang segar: bidang lewat gerbang ----
+   * Jalur ini kini hanya untuk kitab masadir (sesudah gerbang
+   * kategori G1 di atas) dan buku web: kandidat JURNAL sudah dinilai
+   * di cabangnya sendiri dengan fungsi bersama G2 (bidangSudahDinilai).
    * Standar bidang di titik pasang adalah standar tataran bidang
    * yang sama dengan verifikasi tambah jurnal (Tahap A,
    * jangkarBidangUntuk): bidang SESUAI atau BERIRISAN langsung
@@ -948,40 +981,34 @@ export async function pasangFootnoteDisetujui(opsi: {
    * Ihya pada proyek takamul: model mengenalinya sebagai Fiqh &
    * Ushul Fiqh tetapi menolaknya hanya karena tidak membahas frasa
    * judul proyek, skor 45 pada uji hidup Tahap C). */
-  const bidangPasang = opsi.bidangId ? getBidang(opsi.bidangId) : null;
-  const konteksPasang: KonteksProyek = {
-    bidangId: opsi.bidangId ?? "",
-    bidangLabel: bidangPasang ? `${bidangPasang.labelId} (${bidangPasang.labelAr})` : "",
-    judulProyek: opsi.judulProyek ?? "",
-    topik: opsi.topikAr ?? "",
-  };
-  const { putusan: putusanPasang } = await nilaiUntukCariRujukan(
-    [
-      {
-        kunci: "pasang",
-        judul: kandidat.judul,
-        wadah: kandidat.jurnal ?? kandidat.penerbit ?? "",
-        jenis: kandidat.jenis === "artikel" ? "jurnal" : "buku",
-        kalimat: jangkarBidangUntuk(konteksPasang),
-      },
-    ],
-    konteksPasang,
-    opsi.kolam,
-    1,
-  );
-  const nilaiPasang = putusanPasang.get("pasang");
-  if (!nilaiPasang || !(nilaiPasang.lolos && nilaiPasang.statusPenilaian === "dinilai")) {
-    // Pemetaan blokir keras yang sama dengan verifikasiKandidat:
-    // model tidak menilai (atau putusan tidak terbit) berarti
-    // bidangnya belum terbukti; penolakan yang dinilai berarti
-    // bidangnya tidak sesuai.
-    const statusPasang: StatusVerifikasi =
-      !nilaiPasang || nilaiPasang.statusPenilaian === "tidak-dinilai"
-        ? "belum-terverifikasi"
-        : "gagal-bidang";
-    return gagal(
-      `Pemasangan ditolak pada periksa ulang bidang (${labelStatusVerifikasi(statusPasang)}): ${nilaiPasang?.alasan ?? "Kandidat tidak mendapat putusan bidang dari gerbang."}`,
+  if (!bidangSudahDinilai) {
+    const { putusan: putusanPasang } = await nilaiUntukCariRujukan(
+      [
+        {
+          kunci: "pasang",
+          judul: kandidat.judul,
+          wadah: kandidat.jurnal ?? kandidat.penerbit ?? "",
+          jenis: kandidat.jenis === "artikel" ? "jurnal" : "buku",
+          kalimat: jangkarBidangUntuk(konteksPasang),
+        },
+      ],
+      konteksPasang,
+      opsi.kolam,
+      1,
     );
+    const nilaiPasang = putusanPasang.get("pasang");
+    if (!nilaiPasang || !(nilaiPasang.lolos && nilaiPasang.statusPenilaian === "dinilai")) {
+      // Pemetaan blokir keras: model tidak menilai (atau putusan
+      // tidak terbit) berarti bidangnya belum terbukti; penolakan
+      // yang dinilai berarti bidangnya tidak sesuai.
+      const statusPasang: StatusVerifikasi =
+        !nilaiPasang || nilaiPasang.statusPenilaian === "tidak-dinilai"
+          ? "belum-terverifikasi"
+          : "gagal-bidang";
+      return gagal(
+        `Pemasangan ditolak pada periksa ulang bidang (${labelStatusVerifikasi(statusPasang)}): ${nilaiPasang?.alasan ?? "Kandidat tidak mendapat putusan bidang dari gerbang."}`,
+      );
+    }
   }
 
   // SEKALI PAKAI: semua periksa lolos, pemasangan akan terjadi —
@@ -1301,10 +1328,10 @@ export async function generateFootnoteUntukParagraf(opsi: {
      * yang tertahan — keduanya TANPA sidik, tanpa dinilai model,
      * tanpa memakai jatah penilaian. Model sesudah ini hanya boleh
      * menggugurkan, tidak pernah meloloskan yang tertahan/gugur.
-     * Kelas jurnal dan buku web tidak lewat gerbang ini: sumber
-     * mereka tidak punya sistem kategori kitab, dan periksa Tahap C
-     * + gerbang relevansi tetap berlaku untuk mereka seperti
-     * sebelumnya. */
+     * Kelas jurnal tidak lewat gerbang kitab ini (sumbernya tidak
+     * punya sistem kategori kitab); ia dinilai gerbang jurnal G2
+     * tepat di bawah. Buku web tetap pada periksa Tahap C + gerbang
+     * relevansi kalimat seperti sebelumnya. */
     if (kelas === "masadir") {
       const gerbangKitab = gerbangKategoriKitab(
         {
@@ -1329,6 +1356,63 @@ export async function generateFootnoteUntukParagraf(opsi: {
         });
         continue;
       }
+    }
+
+    /* ---- Gerbang jurnal deterministik + veto model (Tahap G2) ----
+     * Kandidat jurnal TIDAK lagi dinilai nilaiRelevansi langsung
+     * terhadap kalimat tujuan seperti kelas lain. Ia dinilai fungsi
+     * bersama nilaiBidangJurnal (label cabang dari metadata sumber
+     * OpenAlex/DOAJ/nama jurnal + sembilan aturan; model hanya
+     * veto) — standar yang sama persis dengan endpoint verifikasi
+     * tambah jurnal dan periksa ulang titik pasang, supaya satu
+     * kandidat tidak lolos di satu jalur dan gugur di jalur lain.
+     * Konsekuensi yang disengaja: kecocokan kalimat per kalimat
+     * untuk jurnal tidak lagi diputuskan skor model di loop ini;
+     * urutan penawaran tetap dipimpin peringkat pencarian
+     * (pilihRujukan) dan kalimat tujuan tetap dipilih pilihKalimat
+     * seperti sebelumnya. Penilaian model di dalam fungsi bersama
+     * memakai jatah penilaian generate ini. */
+    if (kelas === "jurnal") {
+      if (penilaianModel >= maksPenilaian) {
+        jatahHabisAdaSisa = true;
+        break;
+      }
+      const h = await nilaiBidangJurnal(
+        {
+          doi: kandidat.doi ?? undefined,
+          judul: kandidat.judul,
+          jurnal: kandidat.wadah || undefined,
+          isi: kandidat.cuplikan,
+        },
+        konteks,
+        opsi.kolam,
+      );
+      // Model benar-benar dipanggil hanya bila gerbang deterministik
+      // meloloskan (tahap veto); kegagalan deterministik tidak
+      // memakai jatah penilaian model.
+      if (h.status === "terverifikasi" || h.kodeGerbang === "VETO_MODEL") {
+        penilaianModel += 1;
+      }
+      if (h.status === "terverifikasi") {
+        lolosList.push({
+          rujukan: kandidat,
+          kalimatIdx: kalimatIdxKandidat,
+          skorModel: h.skorModel,
+        });
+        if (lolosList.length >= targetLolos) break;
+        continue;
+      }
+      penolakan.push({ judul: kandidat.judul, alasan: h.alasan });
+      ditolakList.push({
+        rujukan: kandidat,
+        kalimatIdx: kalimatIdxKandidat,
+        status: h.status,
+        bidangSumber: h.labelSumber?.length
+          ? `Label sumber: ${h.labelSumber.join(", ")}`
+          : "",
+        alasan: h.alasan,
+      });
+      continue;
     }
 
     // Hemat panggilan model: penolakan aturan keras tidak memakai

@@ -22,9 +22,13 @@
  * (UTH_MODE_UJI + KOLAM_UJI_BASE) yang menjawab penilaian gerbang dan
  * analisis makna dari penanda judul fixture; Crossref dialihkan ke
  * fixture fetch lokal (rekod persis untuk dua judul jurnal fixture,
- * 404 untuk DOI lain); kandidat datang dari bank rujukan bersama yang
- * diisi fixture lewat simpanKeBank. Kunci penyedia asli dikosongkan
- * dari env proses uji agar failover tidak pernah menyentuh internet.
+ * 404 untuk DOI lain); sejak Tahap G2 pengalihan yang sama menutup
+ * api.openalex.org (rekod karya berlabel cabang untuk dua judul yang
+ * sama) dan doaj.org (404), karena gerbang jurnal kini membaca label
+ * cabang dari metadata sumber; kandidat datang dari bank rujukan
+ * bersama yang diisi fixture lewat simpanKeBank. Kunci penyedia asli
+ * dikosongkan dari env proses uji agar failover tidak pernah
+ * menyentuh internet.
  *
  * Perbaikan telaah silang Tahap 4 yang dipertahankan: ambang kecocokan
  * kalimat isi pada semua panjang cuplikan + perlakuan asal masadir
@@ -61,6 +65,54 @@ const REKOD_CROSSREF_UJI: { judul: string; jurnal: string; tahun: number }[] = [
   { judul: "حجية القياس في أصول الفقه المعاصر", jurnal: "مجلة الدراسات الأصولية", tahun: 2020 },
   { judul: "الشورى في الفقه السياسي الإسلامي المعاصر", jurnal: "مجلة الشريعة والدراسات الإسلامية", tahun: 2020 },
 ];
+/* Fixture OpenAlex lokal (Tahap G2): gerbang jurnal kini membaca
+ * label cabang dari metadata OpenAlex (lib/server/label-sumber.ts),
+ * jadi pengalihan fetch suite diperluas ke api.openalex.org dengan
+ * rekod karya untuk dua judul jurnal fixture yang sama — topiknya
+ * mencerminkan isi artikelnya (ushul fiqh dan fikih). DOAJ menjawab
+ * 404: fixture tidak mengklaim subjek jurnal apa pun dari sana.
+ * Tidak ada asersi suite yang berubah; yang bertambah hanya
+ * permukaan fixture sumber label baru, sama seperti pola Crossref
+ * di atas dan pola kategoriKitab fixture pada Tahap G1. */
+const indeksAbstrakUji = (teks: string) => {
+  const inv: Record<string, number[]> = {};
+  teks.split(" ").forEach((kata, i) => {
+    (inv[kata] ??= []).push(i);
+  });
+  return inv;
+};
+const REKOD_OPENALEX_UJI: { judul: string; karya: Record<string, unknown> }[] = [
+  {
+    judul: "حجية القياس في أصول الفقه المعاصر",
+    karya: {
+      title: "حجية القياس في أصول الفقه المعاصر",
+      primary_topic: {
+        display_name: "Islamic legal theory",
+        subfield: { display_name: "Law" },
+        field: { display_name: "Social Sciences" },
+        domain: { display_name: "Social Sciences" },
+      },
+      topics: [{ display_name: "Usul al-Fiqh" }],
+      concepts: [{ display_name: "Islamic law" }],
+      abstract_inverted_index: indeksAbstrakUji("يثبت هذا البحث حجية القياس في أصول الفقه عند الأصوليين"),
+    },
+  },
+  {
+    judul: "الشورى في الفقه السياسي الإسلامي المعاصر",
+    karya: {
+      title: "الشورى في الفقه السياسي الإسلامي المعاصر",
+      primary_topic: {
+        display_name: "Islamic law",
+        subfield: { display_name: "Law" },
+        field: { display_name: "Social Sciences" },
+        domain: { display_name: "Social Sciences" },
+      },
+      topics: [{ display_name: "Islamic law" }],
+      concepts: [{ display_name: "Sharia" }],
+      abstract_inverted_index: indeksAbstrakUji("يقرر هذا البحث أن الشورى مبدأ أصيل في الفقه السياسي الإسلامي"),
+    },
+  },
+];
 const fetchAsli = globalThis.fetch;
 globalThis.fetch = (async (input: unknown, init?: unknown) => {
   const url =
@@ -83,6 +135,20 @@ globalThis.fetch = (async (input: unknown, init?: unknown) => {
         headers: { "Content-Type": "application/json" },
       });
     }
+    return new Response("{}", { status: 404 });
+  }
+  if (url.includes("api.openalex.org")) {
+    if (url.includes("/works?")) {
+      const q = new URL(url).searchParams.get("search") ?? "";
+      const cocok = REKOD_OPENALEX_UJI.find((r) => q.includes(r.judul));
+      return new Response(JSON.stringify({ results: cocok ? [cocok.karya] : [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response("{}", { status: 404 });
+  }
+  if (url.includes("doaj.org")) {
     return new Response("{}", { status: 404 });
   }
   return fetchAsli(input as never, init as never);

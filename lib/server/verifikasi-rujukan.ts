@@ -12,22 +12,32 @@
  *  1. METADATA dari rekod hidup Crossref: DOI (atau judul) harus
  *     menunjuk karya yang judul, nama jurnal, dan tahunnya sama dengan
  *     kartu yang tampil. DOI karangan gugur di sini.
- *  2. BIDANG lewat gerbang relevansi yang sama dengan Generate Footnote
- *     (nilaiUntukCariRujukan), dengan pemetaan BLOKIR KERAS: perluKonfirmasi
- *     dari gerbang di jalur ini berarti TIDAK lolos. Putusan pemilik
- *     5 Nov 2026 15:57 mencabut jalur konfirmasi sadar untuk kandidat
- *     yang gagal atau belum terverifikasi di semua jalur pencarian:
- *     "jangan sampai ada celah rujukan palsu masuk".
+ *  2. BIDANG (Tahap G2, perintah pemilik 6 Nov 2026 05:07): putusan
+ *     bidang kini DITENTUKAN OLEH GERBANG DETERMINISTIK
+ *     (gerbangJurnal: label cabang dari metadata sumber OpenAlex/
+ *     DOAJ/nama jurnal + sembilan aturan + leksikon inti/penolak),
+ *     dan model penilaian (nilaiUntukCariRujukan) turun kedudukan
+ *     menjadi HANYA VETO: ia berjalan hanya atas kandidat yang lolos
+ *     deterministik dan hanya bisa menggugurkan; ia tidak pernah
+ *     menaikkan putusan deterministik, dan bila ia tidak menjawab,
+ *     putusan deterministik berdiri sendiri (kandidat tetap
+ *     terverifikasi, dengan catatan di alasannya). Pemetaan akhir
+ *     tetap BLOKIR KERAS (putusan pemilik 5 Nov 2026 15:57): hanya
+ *     status "terverifikasi" yang bisa ditambahkan; tertahan dan
+ *     gugur sama-sama tidak punya jalan pasang.
  *
- * Yang tidak bisa diperiksa (Crossref tidak menjawab, model penilaian
- * tidak berjalan) berstatus "belum-terverifikasi" dan DIPERLAKUKAN
- * TERTAHAN: tidak ada status abu-abu yang bisa ditambahkan.
+ * Yang tidak bisa diperiksa (Crossref tidak menjawab) berstatus
+ * "belum-terverifikasi" dan DIPERLAKUKAN TERTAHAN: tidak ada status
+ * abu-abu yang bisa ditambahkan.
  */
 import { kemiripanJudul, normalisasiDoi, normalisasiJudul } from "@/lib/engine/referensi";
+import { gerbangJurnal, type LabelKitab } from "@/lib/engine/kategori-kitab";
 import {
   nilaiUntukCariRujukan,
   type KonteksProyek,
+  type OpsiKolamGerbang,
 } from "./gerbang-relevansi";
+import { ambilLabelSumber } from "./label-sumber";
 import { opsiKolamUntuk } from "./kunci-pribadi";
 import type { Pengguna } from "./identitas";
 
@@ -308,6 +318,122 @@ export function jangkarBidangUntuk(konteks: KonteksProyek): string {
   );
 }
 
+/** Hasil penilaian bidang jurnal bersama (G2): dipakai endpoint
+ *  verifikasi, pasang footnote, dan loop generate footnote agar
+ *  standarnya SATU. */
+export interface HasilBidangJurnal {
+  status: StatusVerifikasi;
+  alasan: string;
+  /** Kode gerbang deterministik (mis. "SESUAI_INTI", "IST_PENOLAK"). */
+  kodeGerbang?: string;
+  /** Label cabang dari metadata sumber yang terbaca. */
+  labelSumber?: LabelKitab[];
+  /** Skor model bila model ikut menilai (untuk tampilan panel). */
+  skorModel?: number;
+}
+
+/**
+ * Penilaian bidang SATU kandidat jurnal (Tahap G2): gerbang
+ * deterministik dulu, model hanya veto.
+ *
+ * Alurnya persis perintah pemilik 6 Nov 2026 05:07:
+ *  1. Label cabang diambil dari metadata sumber (ambilLabelSumber:
+ *     OpenAlex/DOAJ/nama jurnal), lalu gerbangJurnal memutuskan
+ *     secara deterministik: gugur → gagal-bidang (model TIDAK
+ *     dipanggil sama sekali); tertahan → belum-terverifikasi.
+ *  2. Hanya kandidat LOLOS deterministik yang diteruskan ke model
+ *     (nilaiUntukCariRujukan, jangkar bidang yang sama seperti
+ *     sebelumnya). Model di sini HANYA VETO: putusannya yang tidak
+ *     lolos (dinilai di bawah ambang, atau aturan keras bidang
+ *     asing) menggugurkan kandidat menjadi gagal-bidang dengan
+ *     alasan modelnya; putusan lolos membiarkan kandidat
+ *     terverifikasi; dan bila model TIDAK menilai (tidak menjawab),
+ *     kandidat TETAP terverifikasi karena putusan deterministik
+ *     berdiri sendiri — model tidak pernah menjadi syarat lolos,
+ *     hanya boleh menjadi sebab gugur. Inilah makna veto murni.
+ */
+export async function nilaiBidangJurnal(
+  kandidat: { doi?: string; judul: string; jurnal?: string; isi?: string },
+  konteks: KonteksProyek,
+  opsiKolam?: OpsiKolamGerbang,
+): Promise<HasilBidangJurnal> {
+  const label = await ambilLabelSumber({
+    doi: kandidat.doi,
+    judul: kandidat.judul,
+    jurnal: kandidat.jurnal,
+  });
+  const isi = (kandidat.isi ?? "").trim() || label.abstrak;
+  const g = gerbangJurnal(
+    {
+      judul: kandidat.judul,
+      jurnal: kandidat.jurnal,
+      isi,
+      labelSumber: label.label,
+      domainAsingKeras: label.domainAsingKeras,
+      judulProyek: konteks.judulProyek,
+    },
+    konteks.bidangId,
+  );
+  const catatanLabel =
+    label.asal.length > 0 ? ` (${label.asal.join("; ")})` : "";
+  if (g.putusan === "gagal-bidang") {
+    return {
+      status: "gagal-bidang",
+      alasan: `${g.alasan}${catatanLabel}`,
+      kodeGerbang: g.kode,
+      labelSumber: g.labelSumber,
+    };
+  }
+  if (g.putusan === "belum-terverifikasi") {
+    return {
+      status: "belum-terverifikasi",
+      alasan: `${g.alasan}${catatanLabel}`,
+      kodeGerbang: g.kode,
+      labelSumber: g.labelSumber,
+    };
+  }
+  // Lolos deterministik → model hanya boleh memveto.
+  const { putusan } = await nilaiUntukCariRujukan(
+    [
+      {
+        kunci: "veto",
+        judul: kandidat.judul,
+        wadah: kandidat.jurnal ?? "",
+        jenis: "jurnal",
+        kalimat: jangkarBidangUntuk(konteks),
+      },
+    ],
+    konteks,
+    opsiKolam,
+    1,
+  );
+  const v = putusan.get("veto");
+  if (!v || v.statusPenilaian === "tidak-dinilai") {
+    return {
+      status: "terverifikasi",
+      alasan: `${g.alasan}${catatanLabel} Model penilai tidak menilai kandidat ini; putusan deterministik berdiri sendiri (model hanya berhak memveto, bukan syarat lolos).`,
+      kodeGerbang: g.kode,
+      labelSumber: g.labelSumber,
+    };
+  }
+  if (v.lolos) {
+    return {
+      status: "terverifikasi",
+      alasan: `${g.alasan}${catatanLabel} Model penilai tidak memveto (skor ${v.skorModel}).`,
+      kodeGerbang: g.kode,
+      labelSumber: g.labelSumber,
+      skorModel: v.skorModel,
+    };
+  }
+  return {
+    status: "gagal-bidang",
+    alasan: `Lolos gerbang deterministik (${g.alasan}) tetapi DIVETO model penilai: ${v.alasan}`,
+    kodeGerbang: "VETO_MODEL",
+    labelSumber: g.labelSumber,
+    skorModel: v.skorModel,
+  };
+}
+
 /** Jalankan fungsi atas daftar dengan jumlah serentak terbatas. */
 async function petaTerbatas<T, R>(daftar: T[], maksSerentak: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const hasil: R[] = new Array(daftar.length);
@@ -327,15 +453,13 @@ async function petaTerbatas<T, R>(daftar: T[], maksSerentak: number, fn: (item: 
 
 /**
  * Verifikasi penuh satu set kandidat untuk satu proyek: metadata dulu
- * (paralel maks 4), lalu SEMUA yang lolos metadata dinilai bidangnya
- * sekaligus lewat gerbang yang sama dengan Generate Footnote.
+ * (paralel maks 4), lalu yang lolos metadata dinilai bidangnya lewat
+ * nilaiBidangJurnal (gerbang deterministik + veto model, G2).
  *
  * Pemetaan putusan bidang di jalur ini BLOKIR KERAS (putusan pemilik
- * 5 Nov 2026 15:57, tanpa jalur konfirmasi):
- *  - model menilai lolos (statusPenilaian "dinilai") → bidang lolos;
- *  - aturan keras mendeteksi bidang asing → gagal-bidang;
- *  - model menilai TIDAK lolos (perluKonfirmasi gerbang) → gagal-bidang;
- *  - model tidak berjalan/gagal total ("tidak-dinilai") → belum-terverifikasi.
+ * 5 Nov 2026 15:57, tanpa jalur konfirmasi): hanya "terverifikasi"
+ * yang bisa ditambahkan; "belum-terverifikasi" tertahan dan
+ * "gagal-bidang" gugur, keduanya tanpa jalan pasang.
  */
 export async function verifikasiKandidat(
   daftar: KandidatVerifikasi[],
@@ -358,9 +482,12 @@ export async function verifikasiKandidat(
   if (lolosMetadata.length > 0) {
     const opsiP = await opsiKolamUntuk(pengguna).catch(() => null);
     if (opsiP?.perluIsiKunci) {
-      // Mahasiswa tanpa kunci pribadi: penilaian model memang tidak
-      // boleh berjalan memakai kolam pemilik, jadi bidangnya belum
-      // terverifikasi dan kandidat tertahan (bukan lolos diam-diam).
+      // Mahasiswa tanpa kunci pribadi: veto model memang tidak boleh
+      // berjalan memakai kolam pemilik, dan gerbang deterministik di
+      // jalur akun ini sengaja TIDAK dijalankan sendirian — putusan
+      // bidang lengkap (deterministik + hak veto sesuai aturan akun)
+      // mensyaratkan kunci pribadi mahasiswa terisi dulu. Kandidat
+      // tertahan (bukan lolos diam-diam).
       for (const { k, m } of lolosMetadata) {
         putusan.set(k.id, {
           id: k.id,
@@ -376,62 +503,22 @@ export async function verifikasiKandidat(
         wajibPribadi: opsiP?.wajibPribadi,
         pinjaman: opsiP?.pinjaman,
       };
-      // Jangkar penilaian dirumuskan pada tataran bidang lewat
-      // jangkarBidangUntuk (lihat komentar fungsinya).
-      const jangkarBidang = jangkarBidangUntuk(konteks);
-      const bentuk = lolosMetadata.map(({ k }) => ({
-        kunci: k.id,
-        judul: k.judul,
-        wadah: k.jurnal ?? "",
-        jenis: "jurnal",
-        kalimat: jangkarBidang,
-      }));
-      // maksDinilai disetel sejumlah kandidat: di jalur verifikasi ini
-      // TIDAK ada kandidat yang boleh lolos tanpa putusan hanya karena
-      // jatah penilaian per pencarian habis.
-      const { putusan: putusanGerbang } = await nilaiUntukCariRujukan(
-        bentuk,
-        konteks,
-        opsiKolam,
-        bentuk.length,
+      const hasilBidang = await petaTerbatas(lolosMetadata, 4, ({ k }) =>
+        nilaiBidangJurnal(
+          { doi: k.doi, judul: k.judul, jurnal: k.jurnal },
+          konteks,
+          opsiKolam,
+        ),
       );
-      for (const { k, m } of lolosMetadata) {
-        const g = putusanGerbang.get(k.id);
-        if (!g) {
-          putusan.set(k.id, {
-            id: k.id,
-            status: "belum-terverifikasi",
-            alasan: "Metadata cocok, tetapi kandidat ini tidak mendapat putusan bidang dari gerbang, jadi belum terverifikasi.",
-            rekod: m.rekod,
-          });
-        } else if (g.lolos && g.statusPenilaian === "dinilai") {
-          putusan.set(k.id, {
-            id: k.id,
-            status: "terverifikasi",
-            alasan: `${m.alasan} Bidang sesuai: ${g.alasan}`,
-            rekod: m.rekod,
-          });
-        } else if (g.statusPenilaian === "tidak-dinilai") {
-          putusan.set(k.id, {
-            id: k.id,
-            status: "belum-terverifikasi",
-            alasan:
-              "Metadata cocok, tetapi penilaian bidang tidak dapat berjalan (model tidak menjawab), jadi kandidat ini belum terverifikasi dan belum bisa ditambahkan.",
-            rekod: m.rekod,
-          });
-        } else {
-          // Aturan keras bidang asing ATAU model menilai tidak lolos.
-          // Di jalur lain putusan ini berbentuk perluKonfirmasi; di
-          // jalur verifikasi tambah jurnal ia GAGAL, titik (blokir
-          // keras putusan pemilik 5 Nov 2026 15:57).
-          putusan.set(k.id, {
-            id: k.id,
-            status: "gagal-bidang",
-            alasan: g.alasan,
-            rekod: m.rekod,
-          });
-        }
-      }
+      lolosMetadata.forEach(({ k, m }, i) => {
+        const h = hasilBidang[i]!;
+        putusan.set(k.id, {
+          id: k.id,
+          status: h.status,
+          alasan: `${m.alasan} ${h.alasan}`,
+          rekod: m.rekod,
+        });
+      });
     }
   }
 
