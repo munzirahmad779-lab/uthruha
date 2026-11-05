@@ -3,6 +3,14 @@
 // tahap "kata" (kolam kata kunci) dan tahap "kalimat" (tepat 3 kalimat
 // kunci berperan beserta alasannya). Fallback tanpa AI berupa saringan teks
 // dan templat per peran — titik awal yang wajib diedit mahasiswa.
+//
+// Tahap G2 (6 Nov 2026): tahap "kalimat" kini berjalan di atas SKEMA
+// KETAT lib/engine/skema-pencarian.ts (PROMPT_PENCARIAN di bawah +
+// validasiKeluaranPencarian di route): keluaran model pencarian tidak
+// boleh memuat field bibliografis apa pun, dan keluaran tidak sah
+// berakhir gagal tertutup di route, bukan fallback karangan. Parser
+// lama parseKata/parseKalimat ikut dikeraskan: field bibliografis
+// atau pola DOI pada keluaran membuatnya gugur (null).
 
 export const PROMPT_KATA = `Anda adalah pengekstrak KATA KUNCI (konsep) untuk literatur akademik Islam.
 Tugas Anda HANYA mengekstrak kata kunci dari judul/rumusan pengguna.
@@ -23,13 +31,67 @@ Aturan:
 - "alasan": 1 kalimat Bahasa Indonesia menjelaskan kenapa kalimatnya disusun begitu (konsep yang diwakili + kenapa istilah Arab itu dipilih).
 - Susun HANYA dari kata kunci terpilih dan judul. Jangan mengarang referensi/DOI/penulis.`;
 
+/**
+ * Prompt skema ketat untuk tahap "kalimat" (Tahap G2): model
+ * mengeluarkan SARAN PENCARIAN dalam bentuk search_output.schema
+ * (lihat lib/engine/skema-pencarian.ts), BUKAN rujukan. Larangan
+ * bibliografis dinyatakan eksplisit karena validator menolak
+ * keluaran yang melanggarnya dan route gagal tertutup sesudah satu
+ * kali coba ulang.
+ */
+export const PROMPT_PENCARIAN = `Anda adalah penyusun KUNCI PENCARIAN literatur akademik Islam. Keluaran Anda adalah SARAN PENCARIAN (istilah dan frasa kueri), BUKAN rujukan.
+
+Keluarkan HANYA JSON valid dengan bentuk PERSIS ini, tanpa field lain:
+{"status":"siap","kata_kunci_inti":[{"istilah":"...","bahasa":"ar","pendamping_konteks":["..."]}],"perluasan_kueri":[{"teks":"...","bahasa":"ar","jenis":"inti","sumber_target":["shamela","turath"]}],"bidang_utama":"fikih_munakahat","bidang_pendukung":[]}
+
+Aturan bentuk:
+- "status" satu dari: "siap", "perlu_disambiguasi", "tidak_ditemukan".
+- "kata_kunci_inti": 1-12 butir; "istilah" adalah konsep pokok (Arab/Indonesia/Inggris sesuai "bahasa": "ar"|"id"|"en"); "pendamping_konteks" 1-5 frasa pendek (maks 80 aksara) yang MENYERTAI istilah itu agar tidak ambigu.
+- "perluasan_kueri": 1-10 butir frasa pencarian UTUH (5-200 aksara, MINIMAL 2 kata) yang siap diketik ke sumbernya; "jenis" satu dari "inti"|"sinonim"|"lebih_luas"|"lebih_sempit"|"terkait"; "sumber_target" 1-5 dari "crossref"|"doaj"|"openalex"|"shamela"|"turath". Susun perluasan berbahasa Arab lebih dulu (inti, lalu sinonim/terkait), karena tiga perluasan Arab pertama menjadi kalimat kunci utama panel.
+- "bidang_utama"/"bidang_pendukung": HANYA dari enum ini: fikih_munakahat, ushul_fikih, akidah_tauhid, tafsir_ulum_quran, hadis_ulum_hadis, maqashid_syarie, pemikiran_islam, integrasi_keilmuan, lainnya_studi_islam, di_luar_studi_islam, tidak_jelas.
+
+LARANGAN KERAS (melanggar = keluaran dibuang):
+- DILARANG mengeluarkan field bibliografis dalam bentuk apa pun: tidak ada judul artikel/kitab, DOI, nama penulis, nama jurnal, tahun, penerbit, atau daftar kandidat rujukan. Anda menyusun KUNCI PENCARIAN, bukan daftar pustaka.
+- DILARANG menulis pola DOI (mis. 10.xxxx/...) di teks mana pun.
+- DILARANG membuat kueri satu kata: setiap perluasan adalah frasa utuh bermakna lengkap. Kata umum yang ambigu (mis. التكامل sendirian) WAJIB disertai pendamping konteksnya di dalam frasa.
+
+Status khusus:
+- Bila istilah pokoknya AMBIGU (satu istilah, beberapa makna yang bidangnya berbeda jauh, mis. التكامل bisa berarti integrasi keilmuan, integrasi ekonomi, kalkulus, atau integrasi sosial): keluarkan {"status":"perlu_disambiguasi","ambiguitas":{"istilah_ambigu":"...","kemungkinan_makna":[{"makna":"...","bidang":"<enum>"}]}} TANPA kata_kunci_inti/perluasan_kueri.
+- Bila topiknya di luar studi Islam, terlalu umum, atau informasinya tidak cukup: keluarkan {"status":"tidak_ditemukan","alasan_tidak_ditemukan":"di_luar_studi_islam"|"topik_tidak_spesifik"|"tidak_cukup_informasi"} TANPA kata kunci/kueri apa pun. Jawaban tidak_ditemukan yang jujur lebih baik daripada kunci karangan.`;
+
 export interface KataPasangan { ar: string; id: string }
 export interface KalimatHasil { teks: string; arti: string; alasan: string; peran: string }
+
+/**
+ * Penjaga bibliografis untuk parser lama (Tahap G2): objek keluaran
+ * model yang membawa field bibliografis di tingkat atas, atau nilai
+ * teks yang memuat pola DOI, BUKAN keluaran pencarian yang sah.
+ */
+function mengandungBibliografis(json: unknown): boolean {
+  if (typeof json !== "object" || json === null) return false;
+  const FIELD = ["judul", "doi", "penulis", "pengarang", "kandidat", "referensi", "tahun", "jurnal", "penerbit", "isbn", "issn", "title", "author", "authors", "year", "journal", "publisher"];
+  for (const k of Object.keys(json as Record<string, unknown>)) {
+    if (FIELD.includes(k)) return true;
+  }
+  const tumpukan: unknown[] = [json];
+  while (tumpukan.length > 0) {
+    const x = tumpukan.pop();
+    if (typeof x === "string") {
+      if (/10\.\d{4,9}\/\S+|doi\.org\//i.test(x)) return true;
+    } else if (Array.isArray(x)) {
+      tumpukan.push(...x);
+    } else if (typeof x === "object" && x !== null) {
+      tumpukan.push(...Object.values(x as Record<string, unknown>));
+    }
+  }
+  return false;
+}
 
 export function parseKata(raw: string): KataPasangan[] | null {
   try {
     const bersih = raw.replace(/```json|```/g, "").trim();
     const json = JSON.parse(bersih.slice(bersih.indexOf("{"), bersih.lastIndexOf("}") + 1));
+    if (mengandungBibliografis(json)) return null;
     const kata: KataPasangan[] = Array.isArray(json.kata)
       ? json.kata
           .filter((k: unknown) => typeof k === "object" && k !== null && typeof (k as KataPasangan).ar === "string")
@@ -47,6 +109,7 @@ export function parseKalimat(raw: string): KalimatHasil[] | null {
   try {
     const bersih = raw.replace(/```json|```/g, "").trim();
     const json = JSON.parse(bersih.slice(bersih.indexOf("{"), bersih.lastIndexOf("}") + 1));
+    if (mengandungBibliografis(json)) return null;
     const peranSah = ["taswir", "aqwal", "tarjih"];
     const items: KalimatHasil[] = Array.isArray(json.kalimat)
       ? json.kalimat

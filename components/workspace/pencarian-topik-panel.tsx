@@ -17,6 +17,10 @@ import {
   type KataKunci,
 } from "@/lib/engine/pencarian-topik";
 import { CopyButton, Field, Note } from "@/components/ui";
+import {
+  penjelasanTidakDitemukan,
+  type AlasanTidakDitemukan,
+} from "@/lib/engine/skema-pencarian";
 import { TAUTAN_BOT_TELEGRAM } from "@/lib/engine/lugawi";
 import { PetunjukCtrlF, TombolSalinCtrlF } from "@/components/workspace/ctrl-f";
 import { PasangFootnote } from "@/components/workspace/pasang-footnote";
@@ -24,6 +28,19 @@ import { LugawiPanel } from "@/components/workspace/lugawi-panel";
 
 type Mode = "jurnal" | "kitab" | "lokal" | "lugawi";
 type HitKitab = HitKitabMentah;
+
+/** Pilihan makna pada status perlu_disambiguasi skema pencarian
+ *  (Tahap G2): memilih satu makna menjalankan ulang penyusunan
+ *  kalimat kunci dengan pendamping konteks makna itu dipaksakan. */
+interface MaknaPilihan {
+  makna: string;
+  bidang: string;
+  konteks: string[];
+}
+interface AmbiguitasPilihan {
+  istilah_ambigu: string;
+  kemungkinan_makna: MaknaPilihan[];
+}
 
 /** Status verifikasi satu kartu hasil pencarian jurnal (Aturan
  *  Pencarian Valid): hanya "terverifikasi" yang boleh dipindah ke
@@ -105,6 +122,11 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
   const [kataArti, setKataArti] = useState<Record<string, string>>({});
   const [kataBaru, setKataBaru] = useState("");
   const [pasangTarget, setPasangTarget] = useState<{ sumber: Sumber; kutipan?: string } | null>(null);
+  // Disambiguasi skema pencarian (G2): pilihan makna yang sedang
+  // menunggu keputusan mahasiswa + konteks wajib makna terpilih
+  // (dipaksakan ke kunci pencarian jurnal selama sesi panel ini).
+  const [pilihanMakna, setPilihanMakna] = useState<AmbiguitasPilihan | null>(null);
+  const [konteksWajib, setKonteksWajib] = useState<string[]>([]);
 
   const babPilihan = useMemo(() => {
     const st = strukturProyek(p);
@@ -283,8 +305,13 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
     }
   }
 
-  /* ── Tahap 2: susun tepat 3 kalimat kunci ─────────────────────────────── */
-  async function susunKalimat() {
+  /* ── Tahap 2: susun tepat 3 kalimat kunci ───────────────────────────────
+   * Sejak Tahap G2 route menjawab dengan status skema pencarian:
+   * "perlu_disambiguasi" menampilkan pilihan makna (memilih satu
+   * menjalankan ulang susun dengan konteks makna itu dipaksakan),
+   * dan "tidak_ditemukan" menampilkan alasan jujurnya — tidak ada
+   * kalimat cadangan karangan. */
+  async function susunKalimat(maknaDipilih?: MaknaPilihan) {
     const kataDipakai = setKunci.kataDipakai.length > 0 ? setKunci.kataDipakai : setKunci.kata;
     // Prasyarat dijelaskan, bukan tombol mati tanpa suara (audit Joseph
     // 30 Okt 2026: tombol yang nonaktif diam-diam terbaca sebagai macet).
@@ -300,11 +327,36 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
       const res = await fetch("/api/kata-kunci", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tahap: "kalimat", teks: judul.trim() || teks.trim(), judul: judul.trim(), kata: kataDipakai }),
+        body: JSON.stringify({
+          tahap: "kalimat",
+          teks: judul.trim() || teks.trim(),
+          judul: judul.trim(),
+          kata: kataDipakai,
+          ...(maknaDipilih ? { makna: maknaDipilih } : {}),
+        }),
       });
       const data = await res.json();
+      if (data.status === "perlu_disambiguasi" && data.ambiguitas) {
+        setPilihanMakna(data.ambiguitas as AmbiguitasPilihan);
+        setPesan(
+          `Istilah "${(data.ambiguitas as AmbiguitasPilihan).istilah_ambigu}" punya beberapa makna yang bidangnya berbeda. Pilih maksud Anda di bawah Langkah 2, lalu kalimat kunci disusun ulang dengan konteks makna itu.`,
+        );
+        return;
+      }
+      if (data.status === "tidak_ditemukan") {
+        setPilihanMakna(null);
+        const alasan = (data.alasan_tidak_ditemukan ?? "tidak_cukup_informasi") as AlasanTidakDitemukan;
+        setPesan(
+          [penjelasanTidakDitemukan(alasan), typeof data.catatan === "string" ? data.catatan : ""]
+            .filter(Boolean)
+            .join(" "),
+        );
+        return;
+      }
       const hasil: Array<{ teks: string; arti: string; alasan: string; peran: string }> = Array.isArray(data.kalimat) ? data.kalimat : [];
       if (hasil.length === 0) throw new Error("kosong");
+      setPilihanMakna(null);
+      setKonteksWajib(Array.isArray(data.konteksWajib) ? (data.konteksWajib as string[]) : []);
       const kalimat: KalimatKunci[] = URUT_PERAN.map((peran, i) => {
         const terkunci = setKunci.kalimat.find((k) => k.peran === peran && k.dikunci);
         if (terkunci) return terkunci;
@@ -319,8 +371,8 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
       });
       simpanSet({ ...setKunci, kalimat });
       setPesan(
-        data.sumber === "tanpa-ai"
-          ? "Kalimat berupa templat per peran (AI tidak tersedia) — edit setiap kalimat agar khas sebelum mencari."
+        maknaDipilih
+          ? "3 kalimat kunci tersusun untuk makna yang Anda pilih; konteks maknanya ikut dipaksakan pada pencarian jurnal. Baca, edit bila perlu, kunci yang sudah pas."
           : "3 kalimat kunci tersusun dengan alasannya. Baca, edit bila perlu, kunci yang sudah pas.",
       );
     } catch {
@@ -353,7 +405,9 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
       let pesanAwal = "";
       if (setKunci.kalimat.length > 0) {
         kunci = {
-          arab: setKunci.kalimat.map((k) => k.teks),
+          // Konteks wajib dari makna terpilih (disambiguasi G2)
+          // dipaksakan ikut sebagai kunci Arab pendamping.
+          arab: [...setKunci.kalimat.map((k) => k.teks), ...konteksWajib],
           indonesia: setKunci.kalimat.map((k) => k.arti).filter(Boolean),
           inggris: [],
           sumber: "kurasi Anda",
@@ -609,7 +663,7 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[12px] font-semibold text-ink-800">Langkah 2 · Kalimat kunci (tepat 3, berperan)</span>
-            <button type="button" className="btn-quiet !py-1 !text-[11.5px]" disabled={!online || sibuk !== ""} onClick={susunKalimat}>
+            <button type="button" className="btn-quiet !py-1 !text-[11.5px]" disabled={!online || sibuk !== ""} onClick={() => void susunKalimat()}>
               {sibuk === "kalimat" ? "Menyusun…" : "Susun 3 kalimat kunci"}
             </button>
             {setKunci.kalimat.length < 3 && (
@@ -630,6 +684,31 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
               Tombol Susun menyusun dari kata kunci Langkah 1 atau dari judul/teks topik. Bila
               keduanya masih kosong, klik tombolnya untuk melihat penjelasannya.
             </p>
+          )}
+          {pilihanMakna && (
+            <div className="mt-2 rounded-xl border border-amber-300/60 bg-amber-50 p-2.5">
+              <p className="text-[11.5px] leading-relaxed text-amber-900">
+                Istilah <span className="font-naskh font-semibold" dir="rtl">{pilihanMakna.istilah_ambigu}</span>{" "}
+                punya beberapa makna. Maksud Anda yang mana? Kalimat kunci akan disusun ulang
+                dengan konteks makna pilihan Anda.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {pilihanMakna.kemungkinan_makna.map((m, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="btn-quiet !py-1 !text-[11px]"
+                    disabled={!online || sibuk !== ""}
+                    onClick={() => {
+                      setPilihanMakna(null);
+                      void susunKalimat(m);
+                    }}
+                  >
+                    {m.makna}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           {setKunci.kalimat.length > 0 && (
             <div className="mt-2 space-y-2">

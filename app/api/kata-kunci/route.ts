@@ -17,13 +17,17 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  PROMPT_KALIMAT,
   PROMPT_KATA,
-  kalimatTanpaAI,
+  PROMPT_PENCARIAN,
   kataTanpaAI,
-  parseKalimat,
   parseKata,
 } from "@/lib/engine/kata-kunci-server";
+import {
+  kamusAmbiguitasUntuk,
+  validasiKeluaranPencarian,
+  type KeluaranPencarian,
+  type PerluasanKueriSkema,
+} from "@/lib/engine/skema-pencarian";
 import { tolakTanpaSesi } from "@/lib/security/akses";
 import { penggunaDariRequest, tierEfektif } from "@/lib/server/identitas";
 import { bolehLajuServer } from "@/lib/server/laju-server";
@@ -49,13 +53,71 @@ function parseKataKunci(raw: string): KataKunci | null {
   try {
     const bersih = raw.replace(/```json|```/g, "").trim();
     const json = JSON.parse(bersih.slice(bersih.indexOf("{"), bersih.lastIndexOf("}") + 1));
+    // Pengerasan G2: keluaran yang membawa field bibliografis atau
+    // pola DOI bukan ekstraksi kata kunci yang sah.
+    const FIELD = ["judul", "doi", "penulis", "kandidat", "referensi", "tahun", "jurnal", "penerbit"];
+    if (Object.keys(json as Record<string, unknown>).some((k) => FIELD.includes(k))) return null;
     const arr = (v: unknown) =>
-      Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 5) : [];
+      Array.isArray(v)
+        ? v.filter((x) => typeof x === "string" && !/10\.\d{4,9}\/\S+|doi\.org\//i.test(x)).slice(0, 5)
+        : [];
     const hasil = { arab: arr(json.arab), indonesia: arr(json.indonesia), inggris: arr(json.inggris) };
     return hasil.arab.length || hasil.indonesia.length || hasil.inggris.length ? hasil : null;
   } catch {
     return null;
   }
+}
+
+/** Parse JSON longgar dari teks model (buang pagar kode, ambil objek
+ *  terluar). null bila tidak terbaca — validator skema yang menolak. */
+function parseJsonLonggar(raw: string): unknown {
+  try {
+    const bersih = raw.replace(/```json|```/g, "").trim();
+    return JSON.parse(bersih.slice(bersih.indexOf("{"), bersih.lastIndexOf("}") + 1));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Petakan keluaran skema "siap" menjadi 3 kalimat kunci panel
+ * (Tahap G2): perluasan berbahasa Arab (inti lebih dulu) menjadi
+ * teks kalimat; perluasan Bahasa Indonesia seurutan menjadi
+ * padanannya; alasan ditulis dari struktur skemanya sendiri
+ * (jenis perluasan + sumber target + kata kunci inti), bukan
+ * karangan. Peran taswir/aqwal/tarjih diberikan berurutan seperti
+ * perilaku panel selama ini.
+ */
+function petakanKalimatDariSkema(n: KeluaranPencarian) {
+  const URUT_JENIS: Record<PerluasanKueriSkema["jenis"], number> = {
+    inti: 0,
+    sinonim: 1,
+    terkait: 2,
+    lebih_sempit: 3,
+    lebih_luas: 4,
+  };
+  const LABEL_JENIS: Record<PerluasanKueriSkema["jenis"], string> = {
+    inti: "inti",
+    sinonim: "sinonim",
+    lebih_luas: "lebih luas",
+    lebih_sempit: "lebih sempit",
+    terkait: "terkait",
+  };
+  const peranUrut = ["taswir", "aqwal", "tarjih"];
+  const arab = n.perluasan_kueri
+    .filter((q) => q.bahasa === "ar")
+    .sort((a, b) => URUT_JENIS[a.jenis] - URUT_JENIS[b.jenis]);
+  const indo = n.perluasan_kueri
+    .filter((q) => q.bahasa === "id")
+    .sort((a, b) => URUT_JENIS[a.jenis] - URUT_JENIS[b.jenis]);
+  const lain = n.perluasan_kueri.filter((q) => q.bahasa !== "ar" && q.bahasa !== "id");
+  const intiTampil = n.kata_kunci_inti.slice(0, 3).map((k) => k.istilah).join("، ");
+  return [...arab, ...lain].slice(0, 3).map((q, i) => ({
+    teks: q.teks,
+    arti: indo[i]?.teks ?? "",
+    alasan: `Perluasan kueri ${LABEL_JENIS[q.jenis]} dari skema pencarian (sumber target: ${q.sumber_target.join(", ")}). Kata kunci inti: ${intiTampil}.`,
+    peran: peranUrut[i] ?? "taswir",
+  }));
 }
 
 async function panggilOpenAICompatible(opts: {
@@ -225,8 +287,12 @@ export async function POST(req: NextRequest) {
     tahapKunci === "kalimat" && Array.isArray(body?.kata)
       ? body.kata.filter((x: unknown) => typeof x === "string").slice(0, 12)
       : [];
+  // Makna pilihan sesudah disambiguasi ikut kunci tembolok: jawaban
+  // untuk makna yang berbeda tidak boleh tertukar dari cache.
+  const maknaKunci =
+    tahapKunci === "kalimat" && typeof body?.makna?.makna === "string" ? body.makna.makna.slice(0, 200) : "";
   const idCache = `kk:${createHash("sha256")
-    .update([tahapKunci || "utama", premium ? "premium" : "gratis", teks, judulKunci, kataKunciKunci.join("، ")].join("|"))
+    .update([tahapKunci || "utama", premium ? "premium" : "gratis", teks, judulKunci, kataKunciKunci.join("، "), maknaKunci].join("|"))
     .digest("hex")
     .slice(0, 32)}`;
   const cache = (await ambil("tembolok", idCache).catch(() => null)) as { hasil?: Record<string, unknown> } | null;
@@ -266,21 +332,148 @@ export async function POST(req: NextRequest) {
     };
   }
   if (tahap === "kalimat") {
+    // Tahap G2: tahap kalimat berjalan di atas SKEMA KETAT
+    // (lib/engine/skema-pencarian.ts). Keluaran model divalidasi di
+    // kode; tidak sah → SATU kali coba ulang dengan prompt yang
+    // sama; tetap tidak sah (atau model tidak menjawab) → GAGAL
+    // TERTUTUP berstatus tidak_ditemukan. Tidak ada lagi templat
+    // kalimat cadangan: panel menerima alasan jujurnya.
     const judul = typeof body?.judul === "string" ? body.judul.trim().slice(0, 300) : teks;
     const kataPilihan: string[] = Array.isArray(body?.kata)
       ? body.kata.filter((x: unknown) => typeof x === "string").slice(0, 12)
       : [];
-    const user = `JUDUL: ${judul}\nKATA KUNCI TERPILIH: ${kataPilihan.join("، ") || "(belum ada — ambil dari judul)"}`;
-    const mentah = await panggilLLMMentah(PROMPT_KALIMAT, user, 800, premium, kolamPribadi);
-    const kalimat = mentah ? parseKalimat(mentah.isi) : null;
-    if (kalimat) return { json: { sumber: mentah!.sumber, kalimat }, ai: true };
+    const maknaMentah = body?.makna as
+      | { makna?: unknown; bidang?: unknown; konteks?: unknown }
+      | undefined;
+    const maknaDipilih =
+      maknaMentah && typeof maknaMentah.makna === "string" && maknaMentah.makna.trim()
+        ? {
+            makna: maknaMentah.makna.trim().slice(0, 200),
+            bidang: typeof maknaMentah.bidang === "string" ? maknaMentah.bidang.slice(0, 60) : "",
+            konteks: Array.isArray(maknaMentah.konteks)
+              ? maknaMentah.konteks
+                  .filter((x: unknown) => typeof x === "string")
+                  .map((x) => (x as string).trim())
+                  .filter(Boolean)
+                  .slice(0, 5)
+              : [],
+          }
+        : null;
+
+    // Kamus ambiguitas deterministik didahulukan: istilah yang
+    // memang tercatat ambigu dijawab dari kamus (dengan konteks
+    // wajib tiap maknanya) tanpa memanggil model sama sekali.
+    if (!maknaDipilih) {
+      const kamus = kamusAmbiguitasUntuk(`${judul} ${kataPilihan.join(" ")}`);
+      if (kamus) {
+        return {
+          json: {
+            sumber: "kamus-ambiguitas",
+            status: "perlu_disambiguasi",
+            ambiguitas: {
+              istilah_ambigu: kamus.istilah[0],
+              kemungkinan_makna: kamus.makna.map((m) => ({
+                makna: m.makna,
+                bidang: m.bidang,
+                konteks: m.konteks,
+              })),
+            },
+          },
+          ai: false,
+        };
+      }
+    }
+
+    let user = `JUDUL: ${judul}\nKATA KUNCI TERPILIH: ${kataPilihan.join("، ") || "(belum ada — ambil dari judul)"}`;
+    if (maknaDipilih) {
+      user +=
+        `\nMAKNA YANG DIPILIH PENGGUNA: ${maknaDipilih.makna} (bidang ${maknaDipilih.bidang || "-"}).` +
+        (maknaDipilih.konteks.length > 0
+          ? ` Pendamping konteks wajib makna ini: ${maknaDipilih.konteks.join("، ")} — perluasan_kueri berbahasa Arab WAJIB memakai konteks ini.`
+          : "") +
+        ` Susun status "siap" untuk makna ini; jangan kembalikan perlu_disambiguasi untuk istilah yang sama.`;
+    }
+
+    let nilai: KeluaranPencarian | null = null;
+    let sumberModel = "";
+    let alasanTolak = "";
+    for (let percobaan = 0; percobaan < 2 && !nilai; percobaan++) {
+      const mentah = await panggilLLMMentah(PROMPT_PENCARIAN, user, 1100, premium, kolamPribadi);
+      if (!mentah) break;
+      sumberModel = mentah.sumber;
+      const v = validasiKeluaranPencarian(parseJsonLonggar(mentah.isi));
+      if (v.sah) nilai = v.nilai;
+      else alasanTolak = v.alasan;
+    }
+    if (!nilai) {
+      return {
+        json: {
+          sumber: sumberModel || "tanpa-ai",
+          status: "tidak_ditemukan",
+          alasan_tidak_ditemukan: "tidak_cukup_informasi",
+          kalimat: [],
+          catatan: alasanTolak
+            ? `Keluaran model tidak memenuhi skema pencarian (${alasanTolak}) dan tidak diteruskan; tidak ada kalimat kunci yang dikarang sebagai cadangan.`
+            : "Model tidak menjawab; tidak ada kalimat kunci yang dikarang sebagai cadangan.",
+        },
+        ai: false,
+      };
+    }
+    if (nilai.status === "perlu_disambiguasi" && nilai.ambiguitas) {
+      // Makna dari kamus (yang membawa konteks wajib) didahulukan
+      // bila istilahnya tercatat di kamus; makna model dipakai apa
+      // adanya selain itu.
+      const kamus = kamusAmbiguitasUntuk(nilai.ambiguitas.istilah_ambigu) ??
+        kamusAmbiguitasUntuk(judul);
+      return {
+        json: {
+          sumber: sumberModel,
+          status: "perlu_disambiguasi",
+          ambiguitas: {
+            istilah_ambigu: nilai.ambiguitas.istilah_ambigu,
+            kemungkinan_makna: kamus
+              ? kamus.makna.map((m) => ({ makna: m.makna, bidang: m.bidang, konteks: m.konteks }))
+              : nilai.ambiguitas.kemungkinan_makna.map((m) => ({ makna: m.makna, bidang: m.bidang, konteks: [] as string[] })),
+          },
+        },
+        ai: true,
+      };
+    }
+    if (nilai.status === "tidak_ditemukan") {
+      return {
+        json: {
+          sumber: sumberModel,
+          status: "tidak_ditemukan",
+          alasan_tidak_ditemukan: nilai.alasan_tidak_ditemukan ?? "tidak_cukup_informasi",
+          kalimat: [],
+        },
+        ai: true,
+      };
+    }
+    const kalimat = petakanKalimatDariSkema(nilai);
+    if (kalimat.length === 0) {
+      return {
+        json: {
+          sumber: sumberModel,
+          status: "tidak_ditemukan",
+          alasan_tidak_ditemukan: "tidak_cukup_informasi",
+          kalimat: [],
+          catatan: "Keluaran skema sah tetapi tidak memuat perluasan kueri yang bisa dipetakan menjadi kalimat kunci.",
+        },
+        ai: false,
+      };
+    }
     return {
       json: {
-        sumber: "tanpa-ai",
-        kalimat: kalimatTanpaAI(judul, kataPilihan),
-        catatan: "Provider AI tidak tersedia — kalimat berupa templat per peran; edit sebelum mencari.",
+        sumber: sumberModel,
+        status: "siap",
+        kalimat,
+        kataKunciInti: nilai.kata_kunci_inti,
+        bidangUtama: nilai.bidang_utama,
+        bidangPendukung: nilai.bidang_pendukung ?? [],
+        ...(maknaDipilih ? { konteksWajib: maknaDipilih.konteks } : {}),
       },
-      ai: false,
+      ai: true,
     };
   }
 
