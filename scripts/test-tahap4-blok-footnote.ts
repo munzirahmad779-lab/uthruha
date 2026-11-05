@@ -1,22 +1,37 @@
 /**
- * Uji penerimaan Pembangunan Ulang Tahap 4: footnote dari teks yang
- * diblok, panel kandidat dengan kalimat isi, dan penutupan tiga lubang
- * gerbang relevansi (gagal tertutup, pasang persis lewat sidik, Cari
- * Rujukan dan masadir melewati gerbang yang sama).
+ * Uji penerimaan Pembangunan Ulang Tahap 4 + penanaman Tahap C
+ * (Aturan Pencarian Valid): footnote dari teks yang diblok, panel
+ * kandidat dengan kalimat isi, dan penutupan lubang gerbang.
+ *
+ * Perubahan Tahap C (putusan pemilik 5 Nov 2026 15:57, blokir keras
+ * penuh) yang dicerminkan suite ini:
+ *  - Kandidat jurnal wajib lolos periksaMetadata (Crossref) di dalam
+ *    generate; kandidat kitab dibuktikan penanda rekod sumbernya;
+ *    buku web dibuktikan flag terverifikasi jalur pencariannya.
+ *  - Jalur konfirmasi sadar untuk kandidat tertahan DICABUT: hasil
+ *    generate tidak lagi memuat perluKonfirmasi/tertahan; yang tidak
+ *    lolos tampil sebagai daftar `ditolak` berlabel putusan, TANPA
+ *    sidik dan tanpa jalan pasang (A9, A10, A15, B2, B3, D1).
+ *  - Sidik kini diterbitkan HANYA untuk kandidat lolos (A14), dan
+ *    pasangFootnoteDisetujui MEMERIKSA ULANG kelulusannya secara
+ *    segar: metadata Crossref + bidang gerbang (E4, E10, E11).
+ *  - Sidik tetap sekali pakai (E6) dan rekam tanpa tanggal sah tetap
+ *    kedaluwarsa (E7, E8, E9).
  *
  * TANPA jaringan luar: kolam diarahkan ke stub lokal OpenAI-compatible
  * (UTH_MODE_UJI + KOLAM_UJI_BASE) yang menjawab penilaian gerbang dan
- * analisis makna dari penanda judul fixture; kandidat datang dari bank
- * rujukan bersama yang diisi fixture lewat simpanKeBank (jalur fungsi
- * yang sama dengan produksi). Kunci penyedia asli dikosongkan dari env
- * proses uji agar failover tidak pernah menyentuh internet.
+ * analisis makna dari penanda judul fixture; Crossref dialihkan ke
+ * fixture fetch lokal (rekod persis untuk dua judul jurnal fixture,
+ * 404 untuk DOI lain); kandidat datang dari bank rujukan bersama yang
+ * diisi fixture lewat simpanKeBank. Kunci penyedia asli dikosongkan
+ * dari env proses uji agar failover tidak pernah menyentuh internet.
  *
- * Perbaikan telaah silang Tahap 4 menambah: ambang kecocokan kalimat
- * isi pada semua panjang cuplikan + perlakuan asal masadir (S1),
- * identitas sumber stabil untuk penjaga duplikat dialog (S2),
- * sidik sekali pakai dan rekam tanpa tanggal kedaluwarsa (R2),
- * isi kandidat ikut dinilai di Cari Rujukan (R5), lencana halaman
- * jujur untuk buku tanpa halaman (R4), serta penjaga statis R1/R3.
+ * Perbaikan telaah silang Tahap 4 yang dipertahankan: ambang kecocokan
+ * kalimat isi pada semua panjang cuplikan + perlakuan asal masadir
+ * (S1), identitas sumber stabil untuk penjaga duplikat dialog (S2),
+ * sidik sekali pakai dan rekam tanpa tanggal kedaluwarsa (R2), isi
+ * kandidat ikut dinilai di Cari Rujukan (R5), lencana halaman jujur
+ * untuk buku tanpa halaman (R4), serta penjaga statis R1/R3.
  *
  * Jalankan: npx tsx scripts/test-tahap4-blok-footnote.ts
  */
@@ -36,6 +51,42 @@ for (const k of [
 const dirUji = mkdtempSync(path.join(tmpdir(), "uth-tahap4-"));
 process.env.UTH_DATA_FILE = path.join(dirUji, "db.json");
 process.env.UTH_MODE_UJI = "1";
+
+/* ---------- Fixture Crossref lokal (Tahap C) ---------- */
+/* periksaMetadata memanggil api.crossref.org lewat fetch global; uji
+ * ini mengalihkannya ke rekod fixture: pencarian bibliografik untuk
+ * dua judul jurnal fixture menjawab rekod yang cocok persis, semua
+ * pengambilan per-DOI menjawab 404 (DOI fixture tidak terdaftar). */
+const REKOD_CROSSREF_UJI: { judul: string; jurnal: string; tahun: number }[] = [
+  { judul: "حجية القياس في أصول الفقه المعاصر", jurnal: "مجلة الدراسات الأصولية", tahun: 2020 },
+  { judul: "الشورى في الفقه السياسي الإسلامي المعاصر", jurnal: "مجلة الشريعة والدراسات الإسلامية", tahun: 2020 },
+];
+const fetchAsli = globalThis.fetch;
+globalThis.fetch = (async (input: unknown, init?: unknown) => {
+  const url =
+    typeof input === "string" ? input : ((input as { url?: string })?.url ?? "");
+  if (url.includes("api.crossref.org")) {
+    if (url.includes("/works?")) {
+      const q = new URL(url).searchParams.get("query.bibliographic") ?? "";
+      const cocok = REKOD_CROSSREF_UJI.find((r) => q.includes(r.judul));
+      const items = cocok
+        ? [
+            {
+              title: [cocok.judul],
+              "container-title": [cocok.jurnal],
+              issued: { "date-parts": [[cocok.tahun]] },
+            },
+          ]
+        : [];
+      return new Response(JSON.stringify({ message: { items } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response("{}", { status: 404 });
+  }
+  return fetchAsli(input as never, init as never);
+}) as typeof fetch;
 
 /* ---------- Stub kolam: penilai gerbang + pemaham makna ---------- */
 const MAKNA_FIXTURE = {
@@ -119,6 +170,7 @@ async function main() {
   type RefCandidate = import("../lib/refs/types").RefCandidate;
 
   const JUDUL_PROYEK = "أثر أصول الفقه في الحياة المعاصرة";
+  const KONTEKS_PASANG = { bidangId: "fiqh", judulProyek: JUDUL_PROYEK, topikAr: JUDUL_PROYEK };
   let nomor = 0;
   const ruj = (sebagian: Partial<RujukanTamu> & { judul: string }): RujukanTamu => ({
     id: `uji-t4-${++nomor}`,
@@ -208,16 +260,22 @@ async function main() {
     hasilA.kandidat?.some((k) => k.sumber.judul.includes("المستصفى") && (k.kalimatIsi ?? "").includes("الغزالي")) === true);
   cek("A8 kandidat tanpa cuplikan ditandai tanpa kalimat isi, tidak diisi karangan",
     hasilA.kandidat?.some((k) => k.sumber.judul.includes("مصادر التشريع") && k.tanpaKalimatIsi === true && !k.kalimatIsi) === true);
-  cek("A9 jurnal tanpa halaman tertahan dengan tanda halaman kosong",
-    hasilA.tertahan?.some((t) => t.sumber.judul.includes("أثر القياس") && t.halamanKosong === true) === true);
-  cek("A10 kandidat yang ditolak model tertahan dengan sidik, tidak ikut terpasang",
-    hasilA.tertahan?.some((t) => t.sumber.judul.includes("TERTAHAN-UJI") && t.sidik.length === 32) === true &&
+  cek("A9 jurnal tanpa halaman masuk daftar ditolak sebagai belum terverifikasi dengan tanda halaman kosong (Tahap C)",
+    hasilA.ditolak?.some((t) => t.sumber.judul.includes("أثر القياس") && t.halamanKosong === true && t.status === "belum-terverifikasi") === true);
+  cek("A10 kandidat yang ditolak model masuk daftar ditolak gagal-bidang TANPA sidik, tidak ikut terpasang (Tahap C)",
+    hasilA.ditolak?.some((t) => t.sumber.judul.includes("TERTAHAN-UJI") && t.status === "gagal-bidang" && !("sidik" in t)) === true &&
     hasilA.kandidat?.some((k) => k.sumber.judul.includes("TERTAHAN-UJI")) !== true);
   cek("A11 ketemu karena ada kandidat yang bisa dipilih", hasilA.ketemu === true);
   cek("A12 kandidat buku tanpa halaman membawa tanda halaman kosong (R4)",
     hasilA.kandidat?.some((k) => k.sumber.judul.includes("دراسة تأصيلية مقارنة") && k.halamanKosong === true) === true);
   cek("A13 kandidat jurnal berhalaman tidak membawa tanda halaman kosong (R4)",
     hasilA.kandidat?.some((k) => k.sumber.judul.includes("حجية القياس") && !k.halamanKosong) === true);
+  cek("A14 semua kandidat lolos membawa sidik terbitan server untuk pasang lewat endpoint (Tahap C)",
+    (hasilA.kandidat?.length ?? 0) > 0 &&
+    (hasilA.kandidat ?? []).every((k) => typeof k.sidik === "string" && k.sidik.length === 32));
+  cek("A15 hasil generate tidak lagi memuat jalur konfirmasi: perluKonfirmasi dan tertahan dihapus (Tahap C)",
+    (hasilA as unknown as { perluKonfirmasi?: unknown }).perluKonfirmasi === undefined &&
+    (hasilA as unknown as { tertahan?: unknown }).tertahan === undefined);
 
   /* ============ Skenario B: gerbang gagal tertutup (alur kursor) ============ */
   const paragrafB =
@@ -237,53 +295,63 @@ async function main() {
     pemilik: "uji-pemilik",
   });
   cek("B1 penilai mati: tidak ada kandidat yang terpasang senyap", hasilB.ketemu === false);
-  cek("B2 penilai mati: kandidat ditahan sebagai belum dinilai, bukan diloloskan",
-    Boolean(hasilB.perluKonfirmasi) && /BELUM dinilai/.test(hasilB.perluKonfirmasi?.alasan ?? ""),
-    (hasilB.perluKonfirmasi?.alasan ?? "").slice(0, 60));
-  cek("B3 penilai mati: kandidat tertahan membawa sidik persetujuan",
-    (hasilB.perluKonfirmasi?.sidik ?? "").length === 32);
+  cek("B2 penilai mati: kandidat masuk daftar ditolak sebagai belum terverifikasi, tanpa tawaran konfirmasi (Tahap C)",
+    (hasilB as unknown as { perluKonfirmasi?: unknown }).perluKonfirmasi === undefined &&
+    hasilB.ditolak?.some((t) => t.status === "belum-terverifikasi" && /BELUM dinilai/.test(t.alasan)) === true,
+    (hasilB.ditolak?.[0]?.alasan ?? "").slice(0, 60));
+  cek("B3 penilai mati: kandidat yang belum dinilai tidak membawa sidik apa pun (Tahap C)",
+    (hasilB.ditolak?.length ?? 0) > 0 && (hasilB.ditolak ?? []).every((t) => !("sidik" in t)));
 
-  /* ============ Skenario E: pasang persis lewat sidik ============ */
-  const sumberB = hasilB.perluKonfirmasi?.sumber;
-  const sidikB = hasilB.perluKonfirmasi?.sidik ?? "";
-  cek("E0 prasyarat skenario sidik tersedia", Boolean(sumberB) && sidikB.length === 32);
-  if (sumberB) {
+  /* ============ Skenario E: pasang lewat sidik + periksa ulang ============ */
+  const kandidatE = hasilA.kandidat?.find((k) => k.sumber.judul.includes("حجية القياس"));
+  const sumberE = kandidatE?.sumber;
+  const sidikE = kandidatE?.sidik ?? "";
+  cek("E0 prasyarat kandidat lolos membawa sidik tersedia", Boolean(sumberE) && sidikE.length === 32);
+  if (sumberE) {
     const salahIsi = await pasangFootnoteDisetujui({
-      sidik: sidikB,
-      kandidat: { ...sumberB, judul: `${sumberB.judul} (diubah)` },
-      paragraf: paragrafB,
+      sidik: sidikE,
+      kandidat: { ...sumberE, judul: `${sumberE.judul} (diubah)` },
+      paragraf: paragrafA,
       pemilik: "uji-pemilik",
+      ...KONTEKS_PASANG,
     });
     cek("E1 sidik menolak data kandidat yang diubah dari yang ditampilkan", salahIsi.ketemu === false);
     const salahPemilik = await pasangFootnoteDisetujui({
-      sidik: sidikB,
-      kandidat: sumberB,
-      paragraf: paragrafB,
+      sidik: sidikE,
+      kandidat: sumberE,
+      paragraf: paragrafA,
       pemilik: "orang-lain",
+      ...KONTEKS_PASANG,
     });
     cek("E2 sidik tidak berlaku untuk pemilik lain", salahPemilik.ketemu === false);
     const sidikAsing = await pasangFootnoteDisetujui({
       sidik: "f".repeat(32),
-      kandidat: sumberB,
-      paragraf: paragrafB,
+      kandidat: sumberE,
+      paragraf: paragrafA,
       pemilik: "uji-pemilik",
+      ...KONTEKS_PASANG,
     });
     cek("E3 sidik yang tidak pernah diterbitkan ditolak", sidikAsing.ketemu === false);
     const pasangPas = await pasangFootnoteDisetujui({
-      sidik: sidikB,
-      kandidat: sumberB,
-      paragraf: paragrafB,
+      sidik: sidikE,
+      kandidat: sumberE,
+      paragraf: paragrafA,
+      kalimatIdx: hasilA.kalimatIdx,
       pemilik: "uji-pemilik",
+      ...KONTEKS_PASANG,
     });
-    cek("E4 sidik memasang PERSIS kandidat yang disetujui",
-      pasangPas.ketemu === true && pasangPas.sumber?.judul === sumberB.judul,
-      pasangPas.sumber?.judul ?? "");
-    cek("E5 kandidat lewat sidik ditandai perlu verifikasi", pasangPas.sumber?.perluVerifikasi === true);
+    cek("E4 sidik memasang kandidat lolos sesudah periksa ulang segar (metadata + bidang) lulus",
+      pasangPas.ketemu === true && pasangPas.sumber?.judul === sumberE.judul,
+      pasangPas.sumber?.judul ?? pasangPas.catatan ?? "");
+    cek("E5 kandidat jurnal lolos periksa penuh terpasang TANPA tanda perlu verifikasi (Tahap C)",
+      pasangPas.sumber?.perluVerifikasi !== true);
     const pasangUlang = await pasangFootnoteDisetujui({
-      sidik: sidikB,
-      kandidat: sumberB,
-      paragraf: paragrafB,
+      sidik: sidikE,
+      kandidat: sumberE,
+      paragraf: paragrafA,
+      kalimatIdx: hasilA.kalimatIdx,
       pemilik: "uji-pemilik",
+      ...KONTEKS_PASANG,
     });
     cek("E6 sidik sekali pakai: pemasangan kedua dengan sidik yang sama ditolak (R2)",
       pasangUlang.ketemu === false);
@@ -305,6 +373,7 @@ async function main() {
     kandidat: kandidatR2,
     paragraf: paragrafB,
     pemilik: "uji-pemilik",
+    ...KONTEKS_PASANG,
   });
   cek("E7 rekam sidik tanpa tanggal pembuatan dianggap kedaluwarsa, bukan lolos (R2)",
     pasangR2.ketemu === false);
@@ -321,6 +390,7 @@ async function main() {
     kandidat: kandidatR3,
     paragraf: paragrafB,
     pemilik: "uji-pemilik",
+    ...KONTEKS_PASANG,
   });
   cek("E8 rekam sidik berumur 25 jam ditolak kedaluwarsa (R2)", pasangR3.ketemu === false);
   const kandidatR4: Sumber = { ...kandidatR2, judul: "كتاب الأصول في الفقه المقارن (طبعة حديثة)" };
@@ -336,9 +406,69 @@ async function main() {
     kandidat: kandidatR4,
     paragraf: paragrafB,
     pemilik: "uji-pemilik",
+    ...KONTEKS_PASANG,
   });
-  cek("E9 kontrol: rekam sidik segar bertanggal sah tetap memasang persis (R2)",
-    pasangR4.ketemu === true && pasangR4.sumber?.judul === kandidatR4.judul);
+  cek("E9 kontrol: rekam sidik segar bertanggal sah tetap memasang sesudah periksa ulang bidang lulus (R2)",
+    pasangR4.ketemu === true && pasangR4.sumber?.judul === kandidatR4.judul,
+    pasangR4.catatan ?? "");
+
+  /* ===== Skenario E lanjutan: periksa ulang TIDAK percaya sidik ===== */
+  // Sidik yang sah secara rekam tetap tidak cukup: kandidat yang
+  // bidangnya gagal pada periksa ulang segar ditolak di titik pasang.
+  const kandidatE10: Sumber = {
+    id: "src-uji-e10",
+    jenis: "kitab",
+    penulis: "أحمد الباحث",
+    tahun: "2020",
+    judul: "دراسة TERTAHAN-UJI في مناهج التأصيل الأصولي",
+    penerbit: "دار النشر العلمية",
+  };
+  const sidikE10 = sidikKandidatDariSumber(kandidatE10);
+  await simpanStore("tembolok", {
+    id: `konf:${sidikE10}`,
+    tipe: "konf",
+    pemilik: "uji-pemilik",
+    dibuat: new Date().toISOString(),
+  });
+  const pasangE10 = await pasangFootnoteDisetujui({
+    sidik: sidikE10,
+    kandidat: kandidatE10,
+    paragraf: paragrafA,
+    pemilik: "uji-pemilik",
+    ...KONTEKS_PASANG,
+  });
+  cek("E10 periksa ulang bidang di titik pasang menolak kandidat walau sidiknya sah (Tahap C)",
+    pasangE10.ketemu === false && /bidang/i.test(pasangE10.alasanTolak ?? ""),
+    (pasangE10.alasanTolak ?? "").slice(0, 60));
+  // Kandidat jurnal ber-DOI karangan: metadata periksa ulang gugur di
+  // Crossref (404 pada fixture fetch), sebelum bidang dinilai.
+  const kandidatE11: Sumber = {
+    id: "src-uji-e11",
+    jenis: "artikel",
+    penulis: "باحث وهمي",
+    tahun: "2020",
+    judul: "دراسة فقهية في أحكام المعاملات المعاصرة",
+    jurnal: "مجلة الدراسات الأصولية",
+    halaman: "10",
+    doi: "10.9999/fiktif.123",
+  };
+  const sidikE11 = sidikKandidatDariSumber(kandidatE11);
+  await simpanStore("tembolok", {
+    id: `konf:${sidikE11}`,
+    tipe: "konf",
+    pemilik: "uji-pemilik",
+    dibuat: new Date().toISOString(),
+  });
+  const pasangE11 = await pasangFootnoteDisetujui({
+    sidik: sidikE11,
+    kandidat: kandidatE11,
+    paragraf: paragrafA,
+    pemilik: "uji-pemilik",
+    ...KONTEKS_PASANG,
+  });
+  cek("E11 periksa ulang metadata di titik pasang menolak DOI yang tidak terdaftar di Crossref (Tahap C)",
+    pasangE11.ketemu === false && /Crossref/.test(pasangE11.alasanTolak ?? ""),
+    (pasangE11.alasanTolak ?? "").slice(0, 60));
 
   /* ============ Skenario C: regresi alur kursor lama ============ */
   const paragrafC =
@@ -390,9 +520,11 @@ async function main() {
     topikAr: JUDUL_PROYEK,
     pemilik: "uji-pemilik",
   });
-  cek("D1 masadir yang ditolak gerbang TIDAK terpasang senyap seperti dulu",
-    hasilD.ketemu === false && (hasilD.perluKonfirmasi?.sumber.judul ?? "").includes("الرسالة"),
-    hasilD.perluKonfirmasi?.sumber.judul ?? "(tanpa perluKonfirmasi)");
+  cek("D1 masadir yang ditolak gerbang TIDAK terpasang dan TIDAK ditawarkan lewat konfirmasi (Tahap C)",
+    hasilD.ketemu === false &&
+    (hasilD as unknown as { perluKonfirmasi?: unknown }).perluKonfirmasi === undefined &&
+    hasilD.ditolak?.some((t) => t.sumber.judul.includes("الرسالة") && t.status === "gagal-bidang") === true,
+    hasilD.ditolak?.[0]?.sumber.judul ?? "(tanpa daftar ditolak)");
 
   const paragrafE =
     "قال الغزالي في المستصفى: القياس حمل معلوم على معلوم في إثبات حكم لهما أو نفيه عنهما بأمر جامع بينهما. " +
@@ -574,6 +706,12 @@ async function main() {
   const gerbangTs = baca("lib/server/gerbang-relevansi.ts");
   cek("H9 gerbang Cari Rujukan meneruskan isi kandidat ke penilaian model (R5)",
     gerbangTs.includes("isi: k.isi") && ruteCari.includes("isi: h.teks_kutipan"));
+  cek("H10 tab Tulis tidak lagi memuat jalur konfirmasi pasang untuk kandidat Generate yang tidak lolos (Tahap C)",
+    !tulisTab.includes("perluKonfirmasi") && !tulisTab.includes("Tetap pasang kandidat ini"));
+  const genFootnoteTs = baca("lib/server/generate-footnote.ts");
+  cek("H11 mesin generate memeriksa metadata Crossref untuk kandidat jurnal dan sidik hanya untuk yang lolos (Tahap C)",
+    genFootnoteTs.includes("periksaMetadata") && genFootnoteTs.includes("verifikasi-rujukan") &&
+    genFootnoteTs.includes("keDitolakHasil") && !genFootnoteTs.includes("keTertahanHasil"));
 
   stub.close();
   console.log(`\nHASIL: ${lulus} PASS, ${gagal} FAIL`);
