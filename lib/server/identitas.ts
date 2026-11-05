@@ -65,13 +65,15 @@ export interface Pengguna {
    *  super admin atau otomatis dari daftar email mahasiswa saat login
    *  Google pertama. */
   mahasiswa?: boolean;
-  /** Persona uji jalur /masuk-persona (perintah pemilik 5 Nov 2026):
-   *  akun tunggal ber-id tetap "persona-uji" yang dipakai agen AI lain
-   *  milik pemilik untuk menguji web dari luar. Bukan hasil login
-   *  Google, bukan pemilik, dan tidak pernah mahasiswa (mahasiswa wajib
-   *  menyetor kunci API pribadi; persona tidak punya kunci pribadi dan
-   *  tidak boleh masuk lewat jalur gerbang mahasiswa). Diterbitkan dan
-   *  dinonaktifkan hanya lewat env UTH_PERSONA_AKTIF di server. */
+  /** Akun uji coba berbasis email (perintah pemilik 6 Nov 2026,
+   *  pengembangan jalur persona tunggal 5 Nov 2026): satu dari
+   *  sepuluh akun @uji.kitabah.web.id pada daftar putih
+   *  lib/server/persona.ts, dipakai agen AI lain milik pemilik untuk
+   *  menguji web dari luar. Bukan hasil login Google, bukan pemilik,
+   *  dan tidak pernah mahasiswa (mahasiswa wajib menyetor kunci API
+   *  pribadi; akun uji tidak punya kunci pribadi). Diterbitkan hanya
+   *  lewat env UTH_PERSONA_AKTIF di server; dinonaktifkan per akun
+   *  dari panel Super Admin (penggunaDariCookie menolak nonaktif). */
   personaUji?: boolean;
 }
 

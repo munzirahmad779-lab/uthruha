@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { MasukForm } from "@/components/masuk-form";
+import { MasukUjiForm } from "@/components/masuk-uji-form";
 import { loginGoogleAktif } from "@/lib/security/akses";
+import { personaAktif } from "@/lib/server/persona";
 import { EMAIL_KONTAK, tautanWa } from "@/lib/legal";
 
 /** Teks pesan WA yang sudah terisi untuk permintaan kunci (pemilik, 3 Nov 2026). */
@@ -19,6 +21,10 @@ export default function MasukPage() {
   // UTH_LOGIN_GOOGLE_AKTIF belum "1", halaman ini adalah gerbang satu
   // kolom kunci akses seperti semula, tanpa bagian Google sama sekali.
   const googleAktif = loginGoogleAktif();
+  // Formulir email akun uji hanya dirender saat jalurnya menyala
+  // (UTH_PERSONA_AKTIF=1). Saat mati, halaman persis seperti biasa
+  // dan formulirnya tidak ada di DOM sama sekali.
+  const ujiAktif = personaAktif();
   return (
     <div className="wrap flex min-h-[70vh] items-center justify-center py-16">
       <div className="w-full max-w-md">
@@ -43,6 +49,7 @@ export default function MasukPage() {
             )}
           </p>
           <MasukForm googleAktif={googleAktif} />
+          {ujiAktif && <MasukUjiForm />}
           {googleAktif && (
             <div className="mt-5 rounded-xl border border-gold-300/70 bg-parchment-50 p-4">
               <p className="text-[13px] font-semibold text-ink-900">

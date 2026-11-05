@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { penggunaDariCookie, tierEfektif } from "@/lib/server/identitas";
+import { cariAkunUji } from "@/lib/server/persona";
 import {
   gerbangGratisAktif,
   loginGoogleAktif,
@@ -41,6 +42,13 @@ export async function GET(req: Request) {
   );
   const tier = tierEfektif(pengguna);
 
+  // Proyek tetap akun uji (6 Nov 2026): HANYA untuk akun berlabel
+  // personaUji, status ikut membawa judul dan bidang proyek tetapnya
+  // dari daftar putih, agar bootstrap peramban di halaman daftar
+  // proyek bisa mewujudkannya satu kali. Akun biasa tidak menerima
+  // kedua field ini sama sekali.
+  const defUji = pengguna.personaUji ? cariAkunUji(pengguna.email) : null;
+
   return NextResponse.json(
     {
       pengguna: {
@@ -54,6 +62,9 @@ export async function GET(req: Request) {
       kunciGratisTerverifikasi,
       bisaMasukTanpaKunci: googleAktif && (tier === "premium" || kunciGratisTerverifikasi),
       loginGoogleAktif: googleAktif,
+      ...(defUji
+        ? { judulProyekUji: defUji.judulProyek, bidangProyekUji: defUji.bidangId }
+        : {}),
     },
     { headers: { "Cache-Control": "no-store" } },
   );
