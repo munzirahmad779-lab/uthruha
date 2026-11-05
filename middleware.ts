@@ -184,6 +184,16 @@ const JALUR_BEBAS = new Set([
   // panggilan server-ke-server tanpa cookie, tanpa data pengguna, tanpa
   // LLM. Bila CRON_SECRET terisi, handler mewajibkan header-nya persis.
   "/api/kron/bank-rujukan",
+  // Jalur persona uji untuk agen AI lain milik pemilik (perintah
+  // pemilik, 5 Nov 2026): agen luar harus bisa mencapai halaman masuk
+  // dan endpoint-nya SEBELUM punya cookie apa pun. Keamanan jalur ini
+  // BUKAN gerbang ini, melainkan env UTH_PERSONA_AKTIF +
+  // UTH_PERSONA_KUNCI yang diperiksa handler dan halaman: tanpa kunci
+  // yang benar keduanya menjawab 404 persis seperti jalur yang tidak
+  // ada. Halaman ini TIDAK ditautkan dari halaman mana pun di situs;
+  // alamatnya hanya diketahui pemilik dan agen yang diberi kunci.
+  "/masuk-persona",
+  "/api/persona",
 ]);
 
 /** Tujuan setelah berhasil masuk; hanya jalur internal (anti open redirect). */

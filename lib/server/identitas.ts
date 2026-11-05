@@ -65,6 +65,14 @@ export interface Pengguna {
    *  super admin atau otomatis dari daftar email mahasiswa saat login
    *  Google pertama. */
   mahasiswa?: boolean;
+  /** Persona uji jalur /masuk-persona (perintah pemilik 5 Nov 2026):
+   *  akun tunggal ber-id tetap "persona-uji" yang dipakai agen AI lain
+   *  milik pemilik untuk menguji web dari luar. Bukan hasil login
+   *  Google, bukan pemilik, dan tidak pernah mahasiswa (mahasiswa wajib
+   *  menyetor kunci API pribadi; persona tidak punya kunci pribadi dan
+   *  tidak boleh masuk lewat jalur gerbang mahasiswa). Diterbitkan dan
+   *  dinonaktifkan hanya lewat env UTH_PERSONA_AKTIF di server. */
+  personaUji?: boolean;
 }
 
 let sudahPeringatkanRahasia = false;
