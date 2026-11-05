@@ -51,6 +51,9 @@ export function dariItemJson(
   const halaman = angka(ambil(item, ["page", "halaman", "print_page", "page_number"]));
   const digital = angka(ambil(item, ["page_id", "digital_page", "pdf_page"]));
   const penerbit = teks(ambil(item, ["publisher", "penerbit", "dar"]));
+  // Kategori kitab hanya diambil bila penyedia benar-benar
+  // mengirimnya (Tahap G1); tidak ada tebakan dari judul.
+  const kategoriKitab = teks(ambil(item, ["category", "kategori", "cat_name", "تصنيف"]));
   const kota = teks(ambil(item, ["city", "kota", "place"]));
   const tahun = angka(ambil(item, ["year", "tahun", "date"]));
   const urlItem = teks(ambil(item, ["url", "link", "url_sumber", "permalink"]));
@@ -70,6 +73,7 @@ export function dariItemJson(
     // juga (Tahap 6): judul tercemar tidak boleh mengalir ke simpan.
     kitab: judul ? bersihkanJudul(judul) : "[ ! verifikasi ]",
     penulis,
+    kategoriKitab,
     jilid,
     halaman_cetak: halaman,
     halaman_digital: digital,

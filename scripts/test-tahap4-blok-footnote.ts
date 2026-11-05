@@ -215,6 +215,12 @@ async function main() {
       judul: "المستصفى في أصول الفقه",
       penulis: ["أبو حامد الغزالي"],
       tahun: "505هـ",
+      // Tahap G1: fixture kini membawa kategori rekod sumbernya,
+      // sama seperti kandidat masadir nyata dari adapter (kategori
+      // المستصفى pada Shamela memang أصول الفقه, buku 7372 kategori
+      // 11). Tanpa field ini gerbang kategori kitab yang baru akan
+      // menahannya sebagai kategori tidak dikenal.
+      kategoriKitab: "أصول الفقه",
       skor: 0.9,
       cuplikan: "قال الغزالي: القياس إلحاق فرع بأصل في حكمه لعلة جامعة بينهما عند القائس.",
     }),
@@ -508,6 +514,11 @@ async function main() {
       asal: "turath",
       judul: "الرسالة في أصول الفقه TERTAHAN-UJI",
       penulis: ["محمد بن إدريس الشافعي"],
+      // Tahap G1: kategori sebidang (أصول الفقه) agar kandidat ini
+      // lulus gerbang kategori dan penolakannya tetap datang dari
+      // penilaian model (penanda TERTAHAN-UJI), seperti maksud
+      // skenario D semula.
+      kategoriKitab: "أصول الفقه",
       skor: 0.9,
       konsepCocok: 3,
       cuplikan: "قال الشافعي: القياس ما طلب الدليل عليه من إجماع أو خبر.",
@@ -536,6 +547,9 @@ async function main() {
       asal: "turath",
       judul: "المستصفى من علم الأصول",
       penulis: ["أبو حامد الغزالي"],
+      // Tahap G1: kategori rekod sumber (أصول الفقه) seperti
+      // kandidat nyata; tanpa ini gerbang kategori menahannya.
+      kategoriKitab: "أصول الفقه",
       skor: 0.9,
       konsepCocok: 3,
       cuplikan: "القياس حمل معلوم على معلوم في إثبات حكم لهما أو نفيه عنهما.",

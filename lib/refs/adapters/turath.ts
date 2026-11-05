@@ -8,6 +8,7 @@ import type { RefCandidate } from "@/lib/refs/types";
 import { bersihkanKutipan, skorMirip } from "@/lib/refs/score";
 import { skorKonsep } from "@/lib/refs/konsep";
 import { ambilJson, type OpsiAdapter } from "@/lib/refs/adapters/http";
+import { namaKategoriSumber } from "@/lib/engine/kategori-kitab";
 
 export const info = {
   id: "turath" as const,
@@ -28,6 +29,13 @@ interface MetaTurath {
 
 interface ItemTurath {
   book_id: number;
+  /** Id kategori kitab pada korpus (penomoran sama dengan kategori
+   *  Shamela — terverifikasi hidup: kitab 604 membawa cat_id 1 dan
+   *  breadcrumb Shamela-nya category/1 = العقيدة). Dulu field ini
+   *  dibuang adapter, sehingga kandidat kitab tiba di gerbang bidang
+   *  tanpa kategori sumbernya (akar bocor Tahap G1). */
+  cat_id?: number;
+  author_id?: number;
   meta: string;
   snip?: string;
   text?: string;
@@ -171,6 +179,9 @@ export async function cari(kalimat: string, opsi: OpsiAdapter = {}): Promise<Ref
       source: "turath",
       kitab: judul || "[ ! verifikasi ]",
       penulis: meta.author_name?.trim() || undefined,
+      // Kategori kitab dari cat_id rekodnya sendiri (Tahap G1):
+      // nama persis klasifikasi sumber, bukan terkaan adapter.
+      kategoriKitab: namaKategoriSumber(item.cat_id),
       jilid: Number.isFinite(jilid) ? jilid : undefined,
       halaman_cetak: halaman,
       penerbit,
@@ -316,6 +327,7 @@ export async function cariKonsep(
       source: "turath",
       kitab: judul || "[ ! verifikasi ]",
       penulis: meta.author_name?.trim() || undefined,
+      kategoriKitab: namaKategoriSumber(item.cat_id),
       jilid: Number.isFinite(jilid) ? jilid : undefined,
       halaman_cetak: halaman,
       penerbit,

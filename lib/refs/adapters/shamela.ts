@@ -25,7 +25,7 @@
  * `[ ! verifikasi ]` secara jujur, bukan dikarang.
  */
 import type { RefCandidate } from "@/lib/refs/types";
-import { ambilHtmlPost, type OpsiAdapter } from "@/lib/refs/adapters/http";
+import { ambilHtmlPost, ambilTeks, type OpsiAdapter } from "@/lib/refs/adapters/http";
 import { bersihkanKutipan, skorMirip } from "@/lib/refs/score";
 
 const SITUS = "https://shamela.ws";
@@ -171,6 +171,46 @@ export async function cari(kalimat: string, opsi: OpsiAdapter = {}): Promise<Ref
   }
 
   return uraiHasil(html, kalimat, maks).filter((c) => c.skor >= 0.08);
+}
+
+/** Id buku dari tautan rekod Shamela (shamela.ws/book/{id}/…). */
+export function idBukuDariTautan(url?: string): number | undefined {
+  const m = (url ?? "").match(/shamela\.ws\/book\/(\d+)/i);
+  if (!m) return undefined;
+  const n = Number.parseInt(m[1]!, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+const tembolokKategori = new Map<number, string | undefined>();
+
+/**
+ * Kategori kitab dari HALAMAN BUKU Shamela (Tahap G1).
+ *
+ * Hasil pencarian Shamela (/ajax/search) tidak membawa kategori,
+ * tetapi halaman buku memuatnya pada breadcrumb:
+ *   <li><a href="https://shamela.ws/category/1">العقيدة</a></li>
+ * (terverifikasi hidup pada shamela.ws/book/604 dan /book/7372).
+ * Fungsi ini mengambil nama kategori persis dari tautan breadcrumb
+ * itu — bukan dari daftar <select> penyaring di halaman yang sama.
+ * Kegagalan jaringan menjawab undefined (kategori tidak dikenal),
+ * dan hasilnya ditembolok per proses agar satu buku tidak diambil
+ * berulang kali.
+ */
+export async function kategoriBuku(
+  idBuku: number,
+  opsi: OpsiAdapter = {},
+): Promise<string | undefined> {
+  if (tembolokKategori.has(idBuku)) return tembolokKategori.get(idBuku);
+  let nama: string | undefined;
+  try {
+    const html = await ambilTeks(`${SITUS}/book/${idBuku}`, { ...opsi, batasMs: opsi.batasMs ?? 9000 });
+    const m = html.match(/href="https:\/\/shamela\.ws\/category\/\d+"[^>]*>([^<]+)<\/a>/i);
+    nama = m ? teksDari(m[1]) || undefined : undefined;
+  } catch {
+    nama = undefined;
+  }
+  tembolokKategori.set(idBuku, nama);
+  return nama;
 }
 
 export function deeplink(kalimat: string): RefCandidate {

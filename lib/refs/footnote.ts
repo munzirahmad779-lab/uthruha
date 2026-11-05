@@ -83,6 +83,9 @@ export function kandidatKeSumber(c: RefCandidate): Sumber {
     jilid: c.jilid ? String(c.jilid) : "",
     halaman: c.halaman_cetak ? String(c.halaman_cetak) : "",
     url: c.url_sumber || undefined,
+    // Kategori kitab rekod sumber ikut dibawa (Tahap G1).
+    kategoriKitab: c.kategoriKitab || undefined,
+    daftarIsi: c.judul_bab || undefined,
   };
 }
 

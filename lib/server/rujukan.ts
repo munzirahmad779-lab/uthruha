@@ -49,6 +49,16 @@ export interface RujukanTamu {
   konsepCocok?: number;
   /** Asal pencarian: "turath" | "shamela" untuk jalur masadir. */
   asal?: string;
+  /** Kategori kitab mentah dari rekod sumber (jalur masadir:
+   *  klasifikasi Shamela/Turath, mis. "العقيدة"). Dipakai gerbang
+   *  kategori kitab (Tahap G1) untuk blokir keras subbidang.
+   *  Kandidat bank lama tidak membawanya: diperlakukan "kategori
+   *  tidak dikenal" oleh gerbang, bukan dianggap lolos. */
+  kategoriKitab?: string;
+  /** Daftar isi/bab dari hit sumber (Turath meta.headings): tempat
+   *  gerbang kategori memeriksa istilah inti/penolak di samping
+   *  judul (Tahap G1, aturan gerbang resmi). */
+  daftarIsi?: string;
 }
 
 const UA = "Uthruha/1.0 (uji coba tamu; +https://uthruha.vercel.app)";

@@ -6,6 +6,7 @@ import type { Sumber } from "@/lib/engine/cite";
 import { pedomanDefault, type PedomanRules } from "@/lib/refs/pedoman";
 import { footnoteDari, entriPustakaDari, hitungBatas, kandidatKeSumber } from "@/lib/refs/footnote";
 import { kandidatManual } from "@/lib/refs/adapters/manual";
+import { gerbangKategoriKitab } from "@/lib/engine/kategori-kitab";
 import {
   SOURCE_INFO,
   VERIF_INFO,
@@ -134,6 +135,28 @@ export function RefFinder({
     if (h.source === "manual") return true;
     if (tertahanGerbang(h)) return false;
     if (adalahJurnal(h)) return putusanJurnal[h.id]?.status === "terverifikasi";
+    // Gerbang kategori kitab (Tahap G1): hit kitab yang kategori
+    // rekod sumbernya TIDAK beririsan dengan bidang proyek gugur
+    // keras di sini juga — helper murni yang sama dengan gerbang
+    // server Generate Footnote, menilai kategoriKitab pada hit +
+    // bidangId proyek. Batasnya dinyatakan apa adanya: yang diblokir
+    // di penjaga klien ini hanya putusan "gagal-bidang"; kategori
+    // yang tidak dikenal ("belum-terverifikasi" pada helper) di
+    // dialog ini tetap diatur aturan lama di bawah (tautan rekod +
+    // gerbang pencarian), karena pencarian RefFinder tidak menjalankan
+    // pengayaan kategori Shamela seperti jalur masadir server.
+    // Penegakannya gerbang klien di atas data hit dari server, sama
+    // seperti putusan jurnal di atas.
+    const gerbangKitab = gerbangKategoriKitab(
+      {
+        judul: h.kitab,
+        kategoriKitab: h.kategoriKitab,
+        daftarIsi: h.judul_bab,
+        judulProyek: p.judulAr ?? "",
+      },
+      p.bidangId ?? "",
+    );
+    if (gerbangKitab.putusan === "gagal-bidang") return false;
     return Boolean(h.url_sumber);
   }
 

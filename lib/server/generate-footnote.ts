@@ -20,6 +20,15 @@
  * gerbang relevansi yang sama, dan gerbang itu gagal tertutup: model
  * yang tidak bisa menilai menahan kandidat, bukan meloloskannya.
  *
+ * Tahap G1 (menutup bocor uji judul uang panai, 6 Nov 2026):
+ * kandidat kitab masadir kini juga melewati GERBANG KATEGORI
+ * deterministik (lib/engine/kategori-kitab.ts) sebelum penilaian
+ * model — kategori rekod sumber (Shamela/Turath) yang tidak
+ * beririsan dengan bidang proyek gugur keras, dan pasang memeriksa
+ * ulang gerbang yang sama. Bocornya: kitab tauhid berkategori
+ * akidah terpasang dan tersimpan pada proyek fikih uang panai
+ * karena bidang kitab hanya dinilai skor model.
+ *
  * Tahap C (Aturan Pencarian Valid, putusan pemilik 5 Nov 2026 15:57 —
  * blokir keras penuh): di atas gerbang bidang, kandidat wajib lolos
  * PERIKSA KEBERADAAN sesuai sumbernya sebelum boleh dipasang:
@@ -77,7 +86,12 @@ import {
 import { bersihkanJudul, type Sumber } from "@/lib/engine/cite";
 import { idStabilDariIdentitas } from "@/lib/refs/footnote";
 import { cari as cariTurath, cariKonsep as cariKonsepTurath } from "@/lib/refs/adapters/turath";
-import { cari as cariShamela } from "@/lib/refs/adapters/shamela";
+import {
+  cari as cariShamela,
+  idBukuDariTautan as idBukuShamela,
+  kategoriBuku as kategoriBukuShamela,
+} from "@/lib/refs/adapters/shamela";
+import { gerbangKategoriKitab } from "@/lib/engine/kategori-kitab";
 import { ekstrakKonsep } from "@/lib/refs/konsep";
 import { bersihkanKutipan } from "@/lib/refs/score";
 import type { RefCandidate } from "@/lib/refs/types";
@@ -361,6 +375,10 @@ export function rujukanKeSumber(r: RujukanTamu): Sumber {
     doi: r.doi ?? undefined,
     isbn: r.isbn ?? undefined,
     url: r.tautan || undefined,
+    // Kategori kitab rekod sumber ikut dibawa (Tahap G1) agar
+    // periksa ulang di titik pasang menilai kategori yang sama.
+    kategoriKitab: r.kategoriKitab || undefined,
+    daftarIsi: r.daftarIsi || undefined,
     sumberImpor: r.asal ? `web-${r.asal}` : "web-generate",
     perluVerifikasi: r.terverifikasi ? undefined : true,
   };
@@ -432,6 +450,13 @@ async function cariMasadir(
       halaman: c.halaman_cetak ? String(c.halaman_cetak) : undefined,
       konsepCocok: c.konsep_cocok?.length ?? 0,
       asal: c.source,
+      // Kategori kitab dari rekod sumber (Tahap G1): Turath
+      // mengirimnya sebagai cat_id yang sudah dipetakan adapter ke
+      // nama klasifikasi; Shamela diisi pengayaan di bawah.
+      kategoriKitab: c.kategoriKitab,
+      // Judul bab/daftar isi dari meta rekod (gerbang memeriksa
+      // istilah inti/penolak di sini juga).
+      daftarIsi: c.judul_bab,
     };
   };
 
@@ -466,10 +491,44 @@ async function cariMasadir(
         const lama = hasil[ada]!;
         lama.konsepCocok = Math.max(lama.konsepCocok ?? 0, r.konsepCocok ?? 0);
         lama.skor = Math.max(lama.skor, r.skor);
+        // Kategori dari kembaran jalur lain (mis. hit Turath yang
+        // membawa cat_id) mengisi yang kosong (Tahap G1).
+        if (!lama.kategoriKitab && r.kategoriKitab) lama.kategoriKitab = r.kategoriKitab;
         continue;
       }
       indeks.set(kunci, hasil.length);
       hasil.push(r);
+    }
+  }
+  // Pengayaan kategori Shamela (Tahap G1): hasil pencarian Shamela
+  // tidak membawa kategori, tetapi halaman bukunya memuatnya pada
+  // breadcrumb. Ambil untuk kandidat Shamela yang belum berkategori
+  // (kegagalan jaringan membiarkannya kosong = kategori tidak
+  // dikenal bagi gerbang, bukan lolos diam-diam). Kandidat yang sama
+  // dari Turath biasanya sudah berkategori lewat cat_id.
+  const perluKategori = hasil.filter((r) => r.asal === "shamela" && !r.kategoriKitab);
+  if (perluKategori.length > 0) {
+    await Promise.all(
+      perluKategori.map(async (r) => {
+        const id = idBukuShamela(r.tautan);
+        if (!id) return;
+        const nama = await kategoriBukuShamela(id).catch(() => undefined);
+        if (nama) r.kategoriKitab = nama;
+      }),
+    );
+  }
+  // Kandidat hasil dedupe lintas sumber dengan judul sama (pencarian
+  // Turath dan Shamela kerap mengembalikan kitab yang sama pada
+  // halaman berbeda): kategori yang sudah diketahui satu salinan
+  // mengisi salinan judul yang sama.
+  const kategoriPerJudul = new Map<string, string>();
+  for (const r of hasil) {
+    if (r.kategoriKitab) kategoriPerJudul.set(r.judul.toLowerCase(), r.kategoriKitab);
+  }
+  for (const r of hasil) {
+    if (!r.kategoriKitab) {
+      const isi = kategoriPerJudul.get(r.judul.toLowerCase());
+      if (isi) r.kategoriKitab = isi;
     }
   }
   // Kandidat yang judul kitabnya memuat frasa judul dari judul proyek
@@ -686,6 +745,11 @@ function tupelDariRujukan(r: RujukanTamu): string {
     r.halaman ?? "",
     r.jilid ?? "",
     r.jenis,
+    // Kategori kitab terikat pada sidik (Tahap G1): klien tidak bisa
+    // mengganti atau membuang kategori yang menggagalkan kandidat
+    // tanpa membatalkan sidiknya.
+    r.kategoriKitab ?? "",
+    r.daftarIsi ?? "",
   ].join("\n");
 }
 
@@ -702,6 +766,8 @@ function tupelDariSumber(s: Sumber): string {
     s.halaman ?? "",
     s.jilid ?? "",
     s.jenis === "artikel" ? "jurnal" : "buku",
+    s.kategoriKitab ?? "",
+    s.daftarIsi ?? "",
   ].join("\n");
 }
 
@@ -821,6 +887,27 @@ export async function pasangFootnoteDisetujui(opsi: {
     if (!(kandidat.url ?? "").trim()) {
       return gagal(
         "Pemasangan ditolak pada periksa ulang (Belum terverifikasi): kitab ini tidak membawa tautan rekod sumber Turath/Shamela yang bisa dicek.",
+      );
+    }
+    // Gerbang kategori kitab dinilai ulang segar di titik pasang
+    // (Tahap G1): kategori yang tidak beririsan dengan bidang proyek
+    // gugur keras di sini sebelum penilaian model bidang di bawah,
+    // dan kategori yang tidak dikenal tanpa sebutan persis tertahan.
+    // Inilah titik yang pada uji uang panai memasang kitab tauhid ke
+    // proyek fikih tanpa peringatan.
+    const gerbangKitabPasang = gerbangKategoriKitab(
+      {
+        judul: kandidat.judul,
+        kategoriKitab: kandidat.kategoriKitab,
+        daftarIsi: kandidat.daftarIsi,
+        teksParagraf: paragraf,
+        judulProyek: opsi.judulProyek,
+      },
+      opsi.bidangId ?? "",
+    );
+    if (gerbangKitabPasang.putusan !== "lolos") {
+      return gagal(
+        `Pemasangan ditolak pada periksa ulang kategori kitab (${labelStatusVerifikasi(gerbangKitabPasang.putusan)}): ${gerbangKitabPasang.alasan}`,
       );
     }
   } else if (kandidat.jenis === "artikel" || (kandidat.doi ?? "").trim()) {
@@ -1199,6 +1286,49 @@ export async function generateFootnoteUntukParagraf(opsi: {
         alasan: alasanBuku,
       });
       continue;
+    }
+
+    /* ---- Gerbang kategori kitab (Tahap G1) ----
+     * Kandidat kitab masadir dinilai mesin gerbang deterministik
+     * (lib/engine/kategori-kitab.ts: relasi cabang kategori sumber
+     * terhadap topik proyek + istilah inti/penolak pada judul dan
+     * daftar isi) TERLEBIH DULU, sebelum penilaian model apa pun.
+     * Putusan selain "lolos" berhenti di sini: gagal-bidang untuk
+     * yang gugur keras (kasus uang panai: kitab tauhid berkategori
+     * akidah, cabang bertentangan dengan topik munakahat, sempat
+     * lolos lewat skor model 90 dan tersimpan), dan
+     * belum-terverifikasi berlabel "Perlu konfirmasi: ..." untuk
+     * yang tertahan — keduanya TANPA sidik, tanpa dinilai model,
+     * tanpa memakai jatah penilaian. Model sesudah ini hanya boleh
+     * menggugurkan, tidak pernah meloloskan yang tertahan/gugur.
+     * Kelas jurnal dan buku web tidak lewat gerbang ini: sumber
+     * mereka tidak punya sistem kategori kitab, dan periksa Tahap C
+     * + gerbang relevansi tetap berlaku untuk mereka seperti
+     * sebelumnya. */
+    if (kelas === "masadir") {
+      const gerbangKitab = gerbangKategoriKitab(
+        {
+          judul: kandidat.judul,
+          kategoriKitab: kandidat.kategoriKitab,
+          daftarIsi: kandidat.daftarIsi,
+          teksParagraf: paragraf,
+          judulProyek: opsi.judulProyek,
+        },
+        opsi.bidangId ?? "",
+      );
+      if (gerbangKitab.putusan !== "lolos") {
+        penolakan.push({ judul: kandidat.judul, alasan: gerbangKitab.alasan });
+        ditolakList.push({
+          rujukan: kandidat,
+          kalimatIdx: kalimatIdxKandidat,
+          status: gerbangKitab.putusan,
+          bidangSumber: gerbangKitab.labelKitab
+            ? `Kategori kitab: ${kandidat.kategoriKitab ?? gerbangKitab.labelKitab}`
+            : "",
+          alasan: gerbangKitab.alasan,
+        });
+        continue;
+      }
     }
 
     // Hemat panggilan model: penolakan aturan keras tidak memakai

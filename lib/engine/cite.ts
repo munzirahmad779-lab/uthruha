@@ -83,6 +83,16 @@ export interface Sumber {
   sumberImpor?: string;
   /** Schema v2: true bila metadata belum diperiksa user (hasil pencarian mentah). */
   perluVerifikasi?: boolean;
+  /** Kategori kitab mentah dari rekod sumber (klasifikasi
+   *  Shamela/Turath), dibawa dari kandidat pencarian agar periksa
+   *  ulang gerbang kategori kitab di titik pasang Generate Footnote
+   *  (Tahap G1) menilai data yang sama dengan yang dinilai server
+   *  saat generate. Ikut terikat pada sidik kandidat: mengubahnya
+   *  membatalkan sidik. */
+  kategoriKitab?: string;
+  /** Daftar isi/bab dari hit sumber, pasangan kategoriKitab untuk
+   *  periksa ulang gerbang di titik pasang; juga terikat sidik. */
+  daftarIsi?: string;
   /**
    * Inti kajian dirasah sabiqoh (Pembangunan Ulang Tahap 7). Hanya
    * terisi pada sumber yang dipilih mahasiswa sebagai kajian terdahulu

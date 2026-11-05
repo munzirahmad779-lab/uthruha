@@ -50,6 +50,12 @@ export interface RefCandidate {
   /** Nama jurnal untuk kandidat artikel (bukan lagi disisipkan ke
    *  penerbit atau judul). */
   jurnal?: string;
+  /** Kategori kitab MENTAH dari rekod sumber (mis. "العقيدة" dari
+   *  klasifikasi Shamela/Turath), apa adanya dari sumber — pemetaan
+   *  ke taksonomi bidang adalah pekerjaan gerbang kategori kitab
+   *  (lib/engine/kategori-kitab.ts, Tahap G1). Kosong berarti rekod
+   *  sumber memang tidak membawa kategori; bukan karangan adapter. */
+  kategoriKitab?: string;
   /** DOI bersih (tanpa awalan https://doi.org/) bila diketahui. */
   doi?: string;
   /** Volume dan nomor terbitan jurnal. */
