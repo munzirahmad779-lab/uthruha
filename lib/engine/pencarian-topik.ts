@@ -34,6 +34,77 @@ export async function ekstrakKataKunci(teks: string): Promise<KataKunci> {
   };
 }
 
+/** Jumlah token satu frasa (pisah spasi), untuk menilai apakah sebuah
+ *  komponen kunci adalah frasa penuh atau kata lepas. */
+function jumlahToken(frasa: string): number {
+  return frasa.split(/\s+/).filter(Boolean).length;
+}
+
+/** Frasa terpanjang (>= 3 token) dari satu daftar bahasa, atau null. */
+function frasaTerpanjang(daftar: string[]): string | null {
+  let terbaik: string | null = null;
+  for (const f of daftar) {
+    const bersih = (f ?? "").trim();
+    if (jumlahToken(bersih) >= 3 && (!terbaik || jumlahToken(bersih) > jumlahToken(terbaik))) {
+      terbaik = bersih;
+    }
+  }
+  return terbaik;
+}
+
+/**
+ * Ketatkan kunci pencarian jurnal ke frasa topik penuh (Aturan
+ * Pencarian Valid 1, perintah pemilik 5 Nov 2026): komponen yang dipakai
+ * cariJurnalTopik (arab[0], indonesia[0], inggris[0]) TIDAK boleh berupa
+ * kata ambigu telanjang, karena satu kata umum mendominasi kueri dan
+ * menarik literatur bidang lain (kasus nyata: kata التكامل sendirian
+ * menarik jurnal integrasi EKONOMI untuk proyek takamul المعرفي).
+ *
+ * Komponen bertoken < 3 diganti frasa penuh terpanjang yang tersedia
+ * pada bahasa yang sama, atau frasa cadangan (judul proyek) bila ia
+ * frasa penuh. Tiap penggantian dicatat agar panel bisa menampilkannya;
+ * bila tidak ada pengganti, komponen dipertahankan dengan peringatan
+ * (panel yang memutuskan, fungsi ini tidak membuang apa pun diam-diam).
+ *
+ * MURNI: tidak mengubah objek masukan. Panel Lugawi SENGAJA tidak
+ * memanggil fungsi ini karena ia memang mencari per istilah tunggal.
+ */
+export function ketatkanKunciJurnal(
+  kk: KataKunci,
+  frasaCadangan?: string,
+): { kk: KataKunci; catatan: string[] } {
+  const catatan: string[] = [];
+  const cadangan =
+    frasaCadangan && jumlahToken(frasaCadangan.trim()) >= 3 ? frasaCadangan.trim() : null;
+
+  const proses = (daftar: string[]): string[] => {
+    if (daftar.length === 0) return daftar;
+    const pertama = (daftar[0] ?? "").trim();
+    if (!pertama || jumlahToken(pertama) >= 3) return daftar;
+    const pengganti = frasaTerpanjang(daftar) ?? cadangan;
+    if (!pengganti) {
+      catatan.push(
+        `Komponen kunci "${pertama}" terlalu umum dan tidak ada frasa penuh pengganti; periksa kalimat kunci Anda sebelum mencari.`,
+      );
+      return daftar;
+    }
+    catatan.push(
+      `Komponen kunci "${pertama}" tidak dipakai sendirian karena terlalu umum; diganti frasa penuh "${pengganti}".`,
+    );
+    return [pengganti, ...daftar.slice(1)];
+  };
+
+  return {
+    kk: {
+      arab: proses(kk.arab),
+      indonesia: proses(kk.indonesia),
+      inggris: proses(kk.inggris),
+      sumber: kk.sumber,
+    },
+    catatan,
+  };
+}
+
 function dariCrossref(it: Record<string, unknown>): Sumber {
   const author = (it.author as { given?: string; family?: string }[]) ?? [];
   const penulisDaftar = author.map((a) => [a.given, a.family].filter(Boolean).join(" ")).filter(Boolean);
