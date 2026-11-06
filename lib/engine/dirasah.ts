@@ -112,7 +112,20 @@ export function tanamKajian(
   p: Project,
   kajian: Sumber,
 ): { proyek: Project; status: StatusTanamKajian } {
-  const bersih: Sumber = { ...kajian, judul: bersihkanJudul(kajian.judul) };
+  // Kedua pemanggil (panel dirasah: pilih dan pilihManual) hanya
+  // memanggil fungsi ini sesudah putusan endpoint "terverifikasi"
+  // untuk kajian itu, dan keduanya menjaga dua kali (keadaan tombol
+  // + penjaga di badan fungsi). Kajian yang tertanam karena itu
+  // dicap terverifikasi, supaya gerbang pasang footnote
+  // (putusanPasangSumber, perbaikan QA 6 Nov 2026) mengenalinya
+  // sebagai entri yang sudah lolos verifikasi, termasuk entri manual
+  // yang di panel ini diverifikasi lewat endpoint yang sama seperti
+  // tab Rujukan.
+  const bersih: Sumber = {
+    ...kajian,
+    judul: bersihkanJudul(kajian.judul),
+    statusVerifikasi: "terverifikasi",
+  };
   const ada = p.sumber.find(
     (s) =>
       s.id === bersih.id ||
@@ -136,11 +149,30 @@ export function tanamKajian(
             dariAbstrak: intiLama.dariAbstrak || intiBaru.dariAbstrak,
           }
         : intiLama;
-    if (gabung === intiLama) return { proyek: p, status: "sudah-ada" };
+    if (gabung === intiLama) {
+      // Inti tidak berubah. Cap verifikasi ditempelkan hanya bila
+      // belum ada, supaya kontrak lama panel tetap berlaku: proyek
+      // yang sama sekali tidak berubah dikembalikan apa adanya
+      // (panel membedakan "sudah terpilih" dari identitas objek).
+      if (ada.statusVerifikasi === "terverifikasi") return { proyek: p, status: "sudah-ada" };
+      return {
+        proyek: {
+          ...p,
+          sumber: p.sumber.map((s) =>
+            s.id === ada.id ? { ...s, statusVerifikasi: "terverifikasi" as const } : s,
+          ),
+        },
+        status: "sudah-ada",
+      };
+    }
     return {
       proyek: {
         ...p,
-        sumber: p.sumber.map((s) => (s.id === ada.id ? { ...s, dirasah: gabung } : s)),
+        sumber: p.sumber.map((s) =>
+          s.id === ada.id
+            ? { ...s, dirasah: gabung, statusVerifikasi: "terverifikasi" as const }
+            : s,
+        ),
       },
       status: "sudah-ada",
     };
@@ -148,7 +180,11 @@ export function tanamKajian(
   return {
     proyek: {
       ...p,
-      sumber: p.sumber.map((s) => (s.id === ada.id ? { ...s, dirasah: bersih.dirasah } : s)),
+      sumber: p.sumber.map((s) =>
+        s.id === ada.id
+          ? { ...s, dirasah: bersih.dirasah, statusVerifikasi: "terverifikasi" as const }
+          : s,
+      ),
     },
     status: "penanda-ditempel",
   };

@@ -87,6 +87,13 @@ export function kandidatKeSumber(c: RefCandidate): Sumber {
     // Kategori kitab rekod sumber ikut dibawa (Tahap G1).
     kategoriKitab: c.kategoriKitab || undefined,
     daftarIsi: c.judul_bab || undefined,
+    // Konversi ini hanya dipanggil RefFinder untuk kandidat yang
+    // SUDAH lolos gerbangnya (bisaDipakai): hit indeks dengan rekod
+    // yang bisa dibuka, atau jurnal yang lolos periksa bidang.
+    // Sumber hasil konversi dicap terverifikasi agar gerbang pasang
+    // (putusanPasangSumber) mengenalinya; kandidat manual tidak
+    // pernah sampai ke sini sejak perbaikan QA 6 Nov 2026.
+    statusVerifikasi: "terverifikasi",
   };
 }
 

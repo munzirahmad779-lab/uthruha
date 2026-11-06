@@ -53,6 +53,10 @@ import {
   deteksiBidangSumber,
   type KonteksProyek,
 } from "../lib/server/gerbang-relevansi";
+import { putusanPasangSumber, sumberBaru, type Sumber } from "../lib/engine/cite";
+import { parseImpor } from "../lib/engine/referensi";
+import { kandidatKeSumber } from "../lib/refs/footnote";
+import type { RefCandidate } from "../lib/refs/types";
 
 let lulus = 0;
 let gagal = 0;
@@ -665,6 +669,127 @@ cek("parser lama dikeraskan: parseKalimat bersih tetap lolos",
   parseKalimat(JSON.stringify({ kalimat: [{ teks: "حكم الخلع في الفقه الإسلامي", arti: "hukum khulu", alasan: "uji", peran: "taswir" }] })) !== null);
 cek("parser lama dikeraskan: parseKata menolak keluaran berfield judul",
   parseKata(JSON.stringify({ kata: [{ ar: "الخلع", id: "khulu" }], judul: "Karangan" })) === null);
+
+/* ── Gerbang pasang sumber tersimpan (perbaikan laporan QA agen
+ * penguji 6 Nov 2026): rujukan manual dan impor yang belum
+ * terverifikasi TIDAK boleh dipasang sebagai footnote, dari pintu
+ * mana pun; dialog Pasang Footnote menilai setiap sumber efektif
+ * dengan putusanPasangSumber yang diuji di sini. ─────────────────── */
+{
+  // Kasus agen persis: rujukan karangan disimpan manual tanpa DOI
+  // (bertanda perluVerifikasi, tanpa tautan rekod, tanpa cap).
+  const manualKarangan: Sumber = {
+    ...sumberBaru("artikel"),
+    penulis: "Penulis Karangan",
+    judul: "Jurnal Fiktif tentang Uang Panai",
+    jurnal: "Jurnal Tidak Terdaftar",
+    tahun: "2024",
+    perluVerifikasi: true,
+  };
+  const putManual = putusanPasangSumber(manualKarangan);
+  cek("gerbang pasang: manual karangan tanpa DOI tertolak", putManual.boleh === false, putManual.alasan.slice(0, 60));
+  cek(
+    "gerbang pasang: alasan manual menyebut jalan verifikasinya",
+    putManual.alasan.includes("tab Rujukan") && putManual.alasan.includes("DOI yang terverifikasi"),
+  );
+
+  // Cap eksplisit "belum" (bentuk simpan manual tanpa DOI sekarang).
+  cek(
+    "gerbang pasang: cap belum eksplisit tertolak",
+    putusanPasangSumber({ ...manualKarangan, statusVerifikasi: "belum" }).boleh === false,
+  );
+
+  // Impor BibTeX karangan: masuk berlabel belum terverifikasi, lalu
+  // tertolak saat pasang.
+  const bibtexKarangan = `@article{karangan2024,
+  author = {Penulis Karangan},
+  title = {Jurnal Fiktif tentang Uang Panai},
+  journal = {Jurnal Tidak Terdaftar},
+  year = {2024}
+}`;
+  const imporBib = parseImpor(bibtexKarangan);
+  cek("gerbang pasang: BibTeX karangan terbaca 1 entri", imporBib?.entri.length === 1);
+  cek(
+    "gerbang pasang: entri BibTeX masuk berlabel belum terverifikasi",
+    imporBib?.entri[0]?.statusVerifikasi === "belum" && imporBib?.entri[0]?.perluVerifikasi === true,
+  );
+  cek(
+    "gerbang pasang: entri BibTeX karangan tertolak saat pasang",
+    imporBib ? putusanPasangSumber(imporBib.entri[0]!).boleh === false : false,
+  );
+
+  // Impor RIS karangan: perlakuan yang sama.
+  const risKarangan = `TY  - JOUR
+AU  - Penulis Karangan
+TI  - Jurnal Fiktif tentang Uang Panai
+JO  - Jurnal Tidak Terdaftar
+Y1  - 2024
+ER  - `;
+  const imporRis = parseImpor(risKarangan);
+  cek(
+    "gerbang pasang: entri RIS karangan berlabel belum dan tertolak",
+    imporRis?.entri[0]?.statusVerifikasi === "belum" &&
+      (imporRis ? putusanPasangSumber(imporRis.entri[0]!).boleh === false : false),
+  );
+
+  // Kontrol positif 1: entri manual yang SUDAH terverifikasi (cap
+  // terverifikasi, mis. sesudah gerbang DOI di tab Rujukan) tetap
+  // bisa dipasang.
+  cek(
+    "gerbang pasang: manual terverifikasi tetap bisa dipasang",
+    putusanPasangSumber({ ...manualKarangan, statusVerifikasi: "terverifikasi" }).boleh === true,
+  );
+
+  // Kontrol positif 2: rujukan hasil pencarian terverifikasi tetap
+  // bisa dipasang; konversinya (kandidatKeSumber) membawa cap
+  // terverifikasi. Fixture meniru hit kitab indeks yang lolos
+  // gerbang RefFinder (rekod Shamela المستصفى, kategori أصول الفقه).
+  const hitSah: RefCandidate = {
+    source: "shamela",
+    kitab: "المستصفى",
+    penulis: "أبو حامد الغزالي",
+    jenis: "kitab",
+    kategoriKitab: "أصول الفقه",
+    tahun: 1993,
+    teks_kutipan: "نص من المستصفى",
+    url_sumber: "https://shamela.ws/book/5459",
+    skor: 0.9,
+    mode: "api",
+    perluVerifikasi: false,
+  };
+  const sumberHit = kandidatKeSumber(hitSah);
+  cek(
+    "gerbang pasang: hasil pencarian terverifikasi bercap dan bisa dipasang",
+    sumberHit.statusVerifikasi === "terverifikasi" && putusanPasangSumber(sumberHit).boleh === true,
+  );
+
+  // Bukti rekod indeks: kitab hasil indeks bertanda perluVerifikasi
+  // (nomor halaman perlu dicocokkan) TETAP bisa dipasang karena
+  // membawa tautan rekod sumbernya.
+  cek(
+    "gerbang pasang: kitab indeks bertautan rekod tetap bisa dipasang",
+    putusanPasangSumber({
+      ...sumberBaru("kitab"),
+      judul: "المجموع شرح المهذب",
+      perluVerifikasi: true,
+      url: "https://turath.io/book/123",
+      sumberImpor: "turath",
+    }).boleh === true,
+  );
+
+  // Wawancara: sumber primer pengguna sendiri, selalu boleh.
+  cek(
+    "gerbang pasang: wawancara sumber primer tetap bisa dipasang",
+    putusanPasangSumber({ ...sumberBaru("wawancara"), perluVerifikasi: true }).boleh === true,
+  );
+
+  // Sumber lama sebelum cap ini ada (tanpa tanda apa pun) tidak
+  // dihukum mundur: tetap bisa dipasang.
+  cek(
+    "gerbang pasang: sumber lama tanpa cap tetap bisa dipasang",
+    putusanPasangSumber({ ...sumberBaru("kitab"), judul: "الأذكار" }).boleh === true,
+  );
+}
 
 console.log(`\nHASIL: ${lulus} PASS, ${gagal} GAGAL`);
 if (gagal > 0) process.exit(1);

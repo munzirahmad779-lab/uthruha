@@ -123,16 +123,20 @@ export function RefFinder({
    *  - kandidat jurnal: hanya putusan endpoint "terverifikasi";
    *  - kandidat kitab masadir: wajib punya tautan rekod sumber
    *    (url_sumber dari indeksnya) dan tidak tertahan gerbang;
-   *  - kandidat manual: isian pengguna sendiri dari kitab cetak,
-   *    bertanda perlu verifikasi — pintu manual yang sama dengan
-   *    formulir rujukan manual tanpa DOI.
+   *  - kandidat manual: TIDAK bisa dipakai dari panel ini (diubah
+   *    pada perbaikan laporan QA 6 Nov 2026; sebelumnya diizinkan
+   *    sebagai isian pengguna sendiri). Kandidat manual hanya
+   *    diurai dan ditampilkan; jalan sahnya adalah simpan lewat
+   *    tab Rujukan lalu verifikasi di sana (gerbang DOI, endpoint
+   *    verifikasi jurnal, atau gerbang kategori kitab), persis
+   *    seperti entri manual lain.
    * Penegakan di sini adalah gerbang KLIEN di atas putusan server:
    * data proyek hidup di localStorage peramban, jadi tidak ada
    * endpoint pasang server untuk jalur ini (sama seperti panel
    * jurnal pencarian topik).
    */
   function bisaDipakai(h: RefHit): boolean {
-    if (h.source === "manual") return true;
+    if (h.source === "manual") return false;
     if (tertahanGerbang(h)) return false;
     if (adalahJurnal(h)) return putusanJurnal[h.id]?.status === "terverifikasi";
     // Gerbang kategori kitab (Tahap G1): hit kitab yang kategori
@@ -307,15 +311,20 @@ export function RefFinder({
     });
   }
 
-  /** Tambah kandidat manual ke daftar terpilih. */
+  /**
+   * Urai kandidat manual untuk DITAMPILKAN saja (perubahan perbaikan
+   * laporan QA 6 Nov 2026). Dulu fungsi ini memasukkan kandidat
+   * manual langsung ke daftar terpilih, melewati toggle() dan
+   * penjaga bisaDipakai — itulah pintu yang memasang rujukan
+   * karangan tanpa verifikasi apa pun. Kini kandidat manual tidak
+   * pernah masuk daftar terpilih dari panel ini; jalan sahnya:
+   * simpan lewat tab Rujukan, verifikasi di sana (gerbang DOI,
+   * endpoint verifikasi jurnal, atau gerbang kategori kitab), lalu
+   * pasang dari dialog Pasang Footnote.
+   */
   function tambahManual() {
     if (!manual.trim()) return;
     const kandidat = kandidatManual(manual, kalimat[0] ?? "");
-    setPilih((kini) => {
-      if (kini.length >= pedoman.maksFootnotePerParagraf) return kini;
-      if (kini.some((x) => x.id === kandidat.id)) return kini;
-      return [...kini, kandidat];
-    });
     setManualDipilih(kandidat);
     setManual("");
   }
@@ -890,7 +899,8 @@ export function RefFinder({
                 <p className="mt-1 text-[10.5px] leading-relaxed text-ink-500">
                   Bila kalimat Anda tidak ada di korpus mana pun, tempel baris sitasi dari kitab cetak. Aplikasi
                   hanya mengurai yang Anda tulis — kolom yang tidak terbaca ditandai{" "}
-                  <span className="font-semibold">[ ! verifikasi ]</span>, tidak pernah dikarang.
+                  <span className="font-semibold">[ ! verifikasi ]</span>, tidak pernah dikarang. Kandidat manual
+                  tidak bisa langsung dipasang dari panel ini: simpan lewat tab Rujukan dan verifikasi di sana dulu.
                 </p>
                 <textarea
                   value={manual}
@@ -907,7 +917,7 @@ export function RefFinder({
                   data-testid="tambah-manual"
                   className="btn-quiet mt-1.5 !px-2.5 !py-1 !text-[11px] disabled:opacity-40"
                 >
-                  <IconPen className="h-3 w-3" /> Tambahkan sebagai kandidat
+                  <IconPen className="h-3 w-3" /> Urai kandidat
                 </button>
                 {manualDipilih && (
                   <div className="mt-2 rounded-lg bg-gold-500/5 p-2">
@@ -918,6 +928,11 @@ export function RefFinder({
                     {manualDipilih.catatanVerifikasi && (
                       <p className="mt-0.5 text-[10.5px] text-amber-800">! {manualDipilih.catatanVerifikasi}</p>
                     )}
+                    <p className="mt-1 text-[10.5px] leading-relaxed text-ink-600">
+                      Kandidat manual belum terverifikasi dan tidak bisa dipasang dari panel ini. Simpan rujukan
+                      ini lewat tab Rujukan, lalu jalankan Verifikasi pada entrinya; sesudah terverifikasi, ia bisa
+                      dipasang dari dialog Pasang Footnote.
+                    </p>
                   </div>
                 )}
               </div>

@@ -83,6 +83,19 @@ export interface Sumber {
   sumberImpor?: string;
   /** Schema v2: true bila metadata belum diperiksa user (hasil pencarian mentah). */
   perluVerifikasi?: boolean;
+  /**
+   * Cap keadaan verifikasi untuk gerbang pasang footnote (perbaikan
+   * laporan QA 6 Nov 2026): "terverifikasi" berarti entri ini sudah
+   * lolos salah satu mesin verifikasi yang ada (gerbang DOI, endpoint
+   * verifikasi jurnal, gerbang kategori kitab, atau putusan panel
+   * pencarian/dirasah); "belum" berarti entri tersimpan tanpa rekod
+   * yang lolos periksa (simpan manual tanpa DOI yang terverifikasi,
+   * atau entri impor berkas) dan TIDAK boleh dipasang sebagai
+   * footnote baru sampai diverifikasi di tab Rujukan. Tidak terisi
+   * berarti entri lama atau entri berbukti rekod; penilaiannya
+   * mengikuti putusanPasangSumber di bawah.
+   */
+  statusVerifikasi?: "terverifikasi" | "belum";
   /** Kategori kitab mentah dari rekod sumber (klasifikasi
    *  Shamela/Turath), dibawa dari kandidat pencarian agar periksa
    *  ulang gerbang kategori kitab di titik pasang Generate Footnote
@@ -259,4 +272,69 @@ export function sumberBaru(jenis: JenisSumber = "kitab"): Sumber {
     kota: "",
     penerbit: "",
   };
+}
+
+export interface PutusanPasangSumber {
+  boleh: boolean;
+  /** Alasan penolakan yang tampil ke pengguna; kosong bila boleh. */
+  alasan: string;
+}
+
+/**
+ * Gerbang pasang footnote untuk sumber tersimpan (perbaikan laporan
+ * QA 6 Nov 2026). Garis keras anti rujukan fiktif berlaku di SEMUA
+ * pintu pasang, apa pun asal masuknya sumber; dulu rujukan karangan
+ * yang disimpan manual berlabel perluVerifikasi dan entri impor
+ * BibTeX karangan tetap bisa dipilih lalu dipasang. Aturannya:
+ * 1. Wawancara adalah sumber primer hasil lapangan pengguna sendiri;
+ *    tidak ada registri yang bisa memverifikasinya dan ia bukan
+ *    rujukan terbitan, jadi selalu boleh.
+ * 2. Cap "terverifikasi" boleh; cap "belum" tertahan.
+ * 3. Entri impor berkas (bibtex/ris) tanpa cap terverifikasi
+ *    tertahan: impor hanya memindahkan teks, bukan memverifikasi.
+ * 4. Entri bertanda perluVerifikasi TANPA tautan rekod tertahan:
+ *    itulah bentuk entri manual karangan yang dilaporkan agen QA.
+ *    Entri bertanda itu DENGAN tautan rekod (hasil indeks Turath/
+ *    Shamela atau temuan web Generate) lolos lewat bukti rekodnya;
+ *    pada entri semacam itu tanda perluVerifikasi berarti nomor
+ *    halamannya perlu dicocokkan pengguna, bukan keberadaannya yang
+ *    diragukan.
+ * 5. Sisanya boleh: sumber lama sebelum cap ini ada, dan hasil
+ *    pencarian yang sudah melewati gerbang panelnya masing-masing.
+ * Footnote yang SUDAH terpasang sebelum gerbang ini tidak dicabut
+ * (tidak ada penghapusan data); gerbang hanya menilai pemasangan
+ * baru, dan setiap titik pasang memanggil fungsi ini sebelum menanam.
+ */
+export function putusanPasangSumber(s: Sumber): PutusanPasangSumber {
+  if (s.jenis === "wawancara") return { boleh: true, alasan: "" };
+  if (s.statusVerifikasi === "terverifikasi") return { boleh: true, alasan: "" };
+  if (s.statusVerifikasi === "belum") {
+    return {
+      boleh: false,
+      alasan:
+        "Rujukan ini tersimpan sebagai belum terverifikasi, jadi belum bisa dipasang sebagai footnote. " +
+        "Verifikasi dulu entri ini di tab Rujukan (tombol Verifikasi pada entrinya): entri ber-DOI diperiksa ke Crossref dan gerbang bidang, " +
+        "entri jurnal tanpa DOI dicocokkan rekodnya lewat endpoint verifikasi jurnal, dan entri kitab dinilai gerbang kategori serta rekod sumbernya. " +
+        "Yang bisa membuatnya bisa dipasang adalah DOI yang terverifikasi atau rujukan hasil pencarian yang terverifikasi.",
+    };
+  }
+  if (s.sumberImpor === "bibtex" || s.sumberImpor === "ris") {
+    return {
+      boleh: false,
+      alasan:
+        "Entri impor berkas ini belum terverifikasi, jadi belum bisa dipasang sebagai footnote. " +
+        "Jalankan Verifikasi pada entri ini di tab Rujukan; entri yang tidak ditemukan rekodnya tetap belum terverifikasi. " +
+        "Yang bisa membuatnya bisa dipasang adalah DOI yang terverifikasi atau rujukan hasil pencarian yang terverifikasi.",
+    };
+  }
+  if (s.perluVerifikasi && !s.url) {
+    return {
+      boleh: false,
+      alasan:
+        "Rujukan ini bertanda perlu verifikasi dan tidak membawa tautan rekod, jadi belum bisa dipasang sebagai footnote. " +
+        "Verifikasi dulu entri ini di tab Rujukan (tombol Verifikasi pada entrinya). " +
+        "Yang bisa membuatnya bisa dipasang adalah DOI yang terverifikasi atau rujukan hasil pencarian yang terverifikasi.",
+    };
+  }
+  return { boleh: true, alasan: "" };
 }

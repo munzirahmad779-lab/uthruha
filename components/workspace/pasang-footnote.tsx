@@ -6,7 +6,7 @@ import type { Sumber } from "@/lib/engine/cite";
 import { strukturProyek } from "@/lib/content/struktur";
 import { composeSection } from "@/lib/engine/compose";
 import { cariMarker } from "@/lib/engine/marker";
-import { bersihkanJudul } from "@/lib/engine/cite";
+import { bersihkanJudul, putusanPasangSumber } from "@/lib/engine/cite";
 import { normalisasiDoi, normalisasiJudul } from "@/lib/engine/referensi";
 import { footnoteKampus, kampusProyek } from "@/lib/engine/hawamisy";
 import { kompilasiDokumen } from "@/components/workspace/footnote-bagian";
@@ -139,9 +139,12 @@ export function PasangFootnote({
   // CATATAN Aturan Pencarian Valid (putusan pemilik 5 Nov 2026 15:57):
   // dialog ini dulu menerima prop gerbangTertahan dari Cari Rujukan
   // dan memasang sumber tertahan lewat centang konfirmasi sadar.
-  // Jalur itu DICABUT: sumber yang gagal atau belum terverifikasi
-  // diblokir di sisi pemanggil (RefFinder dan panel pencarian) dan
-  // tidak pernah sampai ke dialog ini.
+  // Jalur itu DICABUT. Sejak perbaikan laporan QA 6 Nov 2026 dialog
+  // ini MENJAGA DIRINYA SENDIRI lewat putusanPasangSumber terhadap
+  // sumber efektif: klaim lama bahwa sumber tertahan "tidak pernah
+  // sampai ke dialog ini" terbukti salah untuk jalur tab Tulis
+  // (dropdown FootnoteBagian meneruskan sumber proyek apa pun,
+  // termasuk manual berlabel perluVerifikasi dan entri impor).
   onTutup: () => void;
   onTerpasang: (pesan: string, drafBaru?: Record<string, string>) => void;
 }) {
@@ -157,6 +160,16 @@ export function PasangFootnote({
         (sumber.doi && s.doi && normalisasiDoi(s.doi) === normalisasiDoi(sumber.doi)) ||
         normalisasiJudul(s.judul) === normalisasiJudul(sumber.judul),
     ) ?? sumber;
+  // Gerbang pasang (perbaikan laporan QA 6 Nov 2026): rujukan yang
+  // keadaan verifikasinya belum lolos TIDAK bisa dipasang dari dialog
+  // ini, apa pun asal masuknya (manual, impor, pencarian). Dialog ini
+  // titik pasang bersama tab Tulis, panel Pencarian Topik, dan
+  // RefFinder, jadi penjagaannya di sini menutup ketiganya sekaligus;
+  // penilaiannya terhadap sumber EFEKTIF (rekaman proyek yang cocok),
+  // bukan salinan panel yang mungkin lebih longgar capnya. Footnote
+  // yang sudah terpasang sebelum gerbang ini tidak dicabut; yang
+  // dinilai hanya pemasangan baru.
+  const putusanSumber = putusanPasangSumber(sumberEfektif);
   const st = useMemo(() => strukturProyek(p), [p]);
   const semuaBagian = useMemo(
     () =>
@@ -191,6 +204,7 @@ export function PasangFootnote({
   const halamanKosong = !halaman.trim();
   const blokirArtikel = sumber.jenis === "artikel" && halamanKosong;
   const blokirDuplikat = jumlahDuplikat > 0 && !konfirmasiDuplikat;
+  const blokirVerifikasi = !putusanSumber.boleh;
 
   const drafLama = p.draf[sectionId] ?? "";
   // Blok mentah = semua blok teks draf, termasuk baris judul markdown.
@@ -303,6 +317,10 @@ export function PasangFootnote({
   const [memasang, setMemasang] = useState(false);
 
   async function pasang() {
+    // Penjaga kedua gerbang pasang di luar keadaan tombol: sumber
+    // yang belum terverifikasi tidak pernah tertanam, apa pun
+    // keadaan tampilannya (alasan tampilnya dirender di badan dialog).
+    if (blokirVerifikasi) return;
     // Fase 3: gerbang lapis di server SEBELUM footnote terpasang —
     // di sinilah batas 3 footnote/paragraf (gratis) dan kunci ruang
     // lingkup (footnote pertama) ditegakkan. 403 = tolak & batalkan;
@@ -439,6 +457,11 @@ export function PasangFootnote({
             <input className="input mt-1 w-full" value={jilid} onChange={(e) => setJilid(e.target.value)} inputMode="numeric" />
           </label>
         </div>
+        {blokirVerifikasi && (
+          <p role="alert" className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[12px] leading-relaxed text-red-700">
+            {putusanSumber.alasan}
+          </p>
+        )}
         {blokirArtikel && (
           <p role="alert" className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-[12px] leading-relaxed text-red-700">
             Footnote artikel jurnal wajib mencantumkan halaman yang dirujuk. Isi dulu halaman di atas, atau footnote tidak bisa dipasang.
@@ -486,7 +509,7 @@ export function PasangFootnote({
           <button
             type="button"
             onClick={pasang}
-            disabled={memasang || (!modeBaru && paragraf.length === 0) || blokirArtikel || blokirDuplikat}
+            disabled={memasang || (!modeBaru && paragraf.length === 0) || blokirArtikel || blokirDuplikat || blokirVerifikasi}
             className="btn-primary disabled:opacity-40"
           >
             {memasang ? "Memeriksa lapis…" : "Pasang footnote"}

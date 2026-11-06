@@ -7,10 +7,12 @@ import {
   catatanKaki,
   entriIndonesia,
   kutipanDalamTeks,
+  putusanPasangSumber,
   sumberBaru,
   type JenisSumber,
   type Sumber,
 } from "@/lib/engine/cite";
+import { gerbangKategoriKitab } from "@/lib/engine/kategori-kitab";
 import type { Project } from "@/lib/engine/project";
 import { cariDuplikat, parseImpor } from "@/lib/engine/referensi";
 import { GAYA_LABEL, gayaSah, type GayaSitasi } from "@/lib/engine/citation";
@@ -272,7 +274,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
         setPesanVerif(`Simpan ditolak: ${putusan.alasan}`);
         return;
       }
-      entri = { ...entri, perluVerifikasi: undefined };
+      entri = { ...entri, perluVerifikasi: undefined, statusVerifikasi: "terverifikasi" };
       setPesanVerif(`DOI referensi terakhir terverifikasi: cocok dengan judulnya di Crossref dan sesuai bidang proyek.`);
     } else {
       // Tanpa DOI: batas yang dinyatakan pemilik. Sitasi yang ditulis
@@ -280,7 +282,18 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
       // adalah karya tulis pengguna, bukan hasil pencarian aplikasi,
       // jadi tetap tersimpan — tetapi selalu bertanda perlu
       // verifikasi karena tidak ada rekod hidup yang memeriksanya.
-      entri = { ...entri, perluVerifikasi: true };
+      // Sejak perbaikan laporan QA 6 Nov 2026 tanda itu kini punya
+      // konsekuensi: entri dicap "belum" dan tertahan dari pemasangan
+      // footnote (gerbang pasang putusanPasangSumber) sampai
+      // diverifikasi lewat tombol Verifikasi pada entrinya di daftar
+      // bawah, memakai mesin yang sama dengan gerbang simpan ini.
+      // Wawancara dikecualikan dari cap: ia sumber primer pengguna
+      // sendiri dan tidak punya registri untuk memeriksanya.
+      entri = {
+        ...entri,
+        perluVerifikasi: true,
+        ...(baru.jenis === "wawancara" ? {} : { statusVerifikasi: "belum" as const }),
+      };
     }
     ubah({ sumber: [...p.sumber, entri] });
     setBaru({ ...KOSONG, id: "" });
@@ -331,7 +344,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     }
   }
 
-  function impor() {
+  async function impor() {
     const hasil = parseImpor(imporTeks);
     if (!hasil || hasil.entri.length === 0) {
       setPesanImpor("Tidak ada entri yang terbaca. Pastikan teksnya BibTeX (diawali @article/@book) atau RIS (diawali TY - ).");
@@ -339,16 +352,134 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
     }
     const diterima: Sumber[] = [];
     let ditolak = 0;
+    let terverifikasiDoi = 0;
     for (const e of hasil.entri) {
-      const bersih: Sumber = { ...e, judul: bersihkanJudul(e.judul) };
+      let bersih: Sumber = { ...e, judul: bersihkanJudul(e.judul) };
+      if (bersih.doi?.trim()) {
+        // Entri impor ber-DOI melewati pemeriksaan yang SAMA seperti
+        // entri manual ber-DOI pada gerbang simpan (perbaikan laporan
+        // QA 6 Nov 2026, memakai ulang gerbang yang ada, bukan jalur
+        // baru): verifikasiDoi ke Crossref lalu endpoint verifikasi
+        // jurnal. Lolos keduanya berarti cap terverifikasi dan boleh
+        // dipasang; gagal berarti entri tetap masuk sebagai "belum"
+        // (impor tidak membuang data pengguna) dan tertahan dari
+        // pemasangan sampai diverifikasi dari daftar rujukan.
+        try {
+          const cocok = await verifikasiDoi(bersih.doi, bersih.judul);
+          if (cocok.status === "cocok") {
+            const putusan = await periksaBidangForm({
+              doi: bersih.doi,
+              judul: bersih.judul,
+              jurnal: bersih.jurnal,
+              tahun: bersih.tahun,
+            });
+            if (putusan.status === "terverifikasi") {
+              bersih = { ...bersih, statusVerifikasi: "terverifikasi", perluVerifikasi: false };
+              terverifikasiDoi++;
+            }
+          }
+        } catch {
+          /* pemeriksaan gagal dijalankan: entri tetap "belum" */
+        }
+      }
       if (cariDuplikat(bersih, [...p.sumber, ...diterima])) ditolak++;
       else diterima.push(bersih);
     }
     if (diterima.length > 0) ubah({ sumber: [...p.sumber, ...diterima] });
     setPesanImpor(
-      `Impor ${hasil.format.toUpperCase()}: ${diterima.length} entri ditambahkan${ditolak ? `, ${ditolak} dilewati karena terdeteksi duplikat` : ""}. Periksa kembali tiap entri — data impor tidak diverifikasi aplikasi.`,
+      `Impor ${hasil.format.toUpperCase()}: ${diterima.length} entri ditambahkan${ditolak ? `, ${ditolak} dilewati karena terdeteksi duplikat` : ""}${terverifikasiDoi ? `, ${terverifikasiDoi} di antaranya terverifikasi lewat DOI` : ""}. Periksa kembali tiap entri — data impor tidak diverifikasi aplikasi kecuali yang disebut terverifikasi lewat DOI. Entri yang belum terverifikasi belum bisa dipasang sebagai footnote; jalankan Verifikasi pada entrinya di daftar rujukan.`,
     );
     setImporTeks("");
+  }
+
+  const [memeriksaEntriId, setMemeriksaEntriId] = useState<string | null>(null);
+  const [hasilVerifEntri, setHasilVerifEntri] = useState<Record<string, string>>({});
+
+  /**
+   * Jalan verifikasi untuk entri tersimpan yang tertahan gerbang
+   * pasang (perbaikan laporan QA 6 Nov 2026), memakai mesin yang
+   * sudah ada, bukan jalur baru:
+   *  - entri jurnaliah (ber-DOI, berjenis artikel, atau bernama
+   *    jurnal): DOI-nya lewat verifikasiDoi, lalu endpoint
+   *    verifikasi jurnal yang sama dengan gerbang simpan; tanpa DOI,
+   *    endpoint itu mencocokkan rekodnya dari judul.
+   *  - entri web: rekodnya adalah tautannya sendiri.
+   *  - entri kitab dan keluarga buku lain: gerbang kategori kitab
+   *    yang sama dengan jalur pencarian, ditambah bukti tautan
+   *    rekod sumber bila ada.
+   * Lolos berarti cap berubah menjadi "terverifikasi" dan entri bisa
+   * dipasang; tidak ditemukan rekodnya berarti cap tetap "belum",
+   * entri tetap tertahan, dan alasannya tampil apa adanya.
+   */
+  async function verifikasiEntri(s: Sumber) {
+    setMemeriksaEntriId(s.id);
+    const catat = (pesan: string) =>
+      setHasilVerifEntri((h) => ({ ...h, [s.id]: pesan }));
+    const cap = (status: "terverifikasi" | "belum", pesan: string) => {
+      ubahSumber(s.id, {
+        statusVerifikasi: status,
+        ...(status === "terverifikasi" ? { perluVerifikasi: undefined } : {}),
+      });
+      catat(pesan);
+      setMemeriksaEntriId(null);
+    };
+    try {
+      const jurnaliah = Boolean(s.doi?.trim()) || s.jenis === "artikel" || Boolean(s.jurnal?.trim());
+      if (jurnaliah) {
+        if (s.doi?.trim()) {
+          const cocok = await verifikasiDoi(s.doi, s.judul);
+          if (cocok.status !== "cocok") {
+            cap("belum", `Belum terverifikasi: ${cocok.pesan}`);
+            return;
+          }
+        }
+        const putusan = await periksaBidangForm({
+          doi: s.doi ?? "",
+          judul: s.judul,
+          jurnal: s.jurnal,
+          tahun: s.tahun,
+        });
+        if (putusan.status === "terverifikasi") {
+          cap("terverifikasi", `Terverifikasi: ${putusan.alasan}`);
+        } else {
+          cap("belum", `Belum terverifikasi: ${putusan.alasan}`);
+        }
+        return;
+      }
+      if (s.jenis === "web" && s.url) {
+        cap("terverifikasi", "Terverifikasi: entri web ini membawa tautan rekodnya sendiri.");
+        return;
+      }
+      const gerbang = gerbangKategoriKitab(
+        {
+          judul: s.judul,
+          kategoriKitab: s.kategoriKitab,
+          daftarIsi: s.daftarIsi,
+          judulProyek: p.judulAr ?? "",
+        },
+        p.bidangId ?? "",
+      );
+      if (gerbang.putusan === "gagal-bidang") {
+        cap("belum", `Belum terverifikasi: ${gerbang.alasan}`);
+        return;
+      }
+      if (gerbang.putusan === "lolos" || s.url) {
+        cap(
+          "terverifikasi",
+          gerbang.putusan === "lolos"
+            ? `Terverifikasi: ${gerbang.alasan}`
+            : "Terverifikasi: entri ini membawa tautan rekod sumbernya.",
+        );
+        return;
+      }
+      cap(
+        "belum",
+        `Belum terverifikasi: ${gerbang.alasan} Yang bisa membuatnya bisa dipasang adalah DOI yang terverifikasi atau rujukan hasil pencarian yang terverifikasi.`,
+      );
+    } catch {
+      catat("Pemeriksaan gagal dijalankan (jaringan atau layanan). Coba lagi sebentar.");
+      setMemeriksaEntriId(null);
+    }
   }
 
   function ubahSumber(id: string, patch: Partial<Sumber>) {
@@ -734,6 +865,7 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
         <div className="space-y-2">
           {p.sumber.map((s) => {
             const terbuka = buka === s.id;
+            const putS = putusanPasangSumber(s);
             return (
               <div key={s.id} className="rounded-xl border border-ink-900/10 bg-white/70">
                 <div className="flex items-start justify-between gap-3 p-3">
@@ -756,6 +888,15 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
                           perlu verifikasi
                         </span>
                       )}
+                      {!putS.boleh ? (
+                        <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-rose-700">
+                          belum terverifikasi · belum bisa dipasang
+                        </span>
+                      ) : s.statusVerifikasi === "terverifikasi" ? (
+                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700">
+                          terverifikasi
+                        </span>
+                      ) : null}
                       <span className="truncate text-[12.5px] font-semibold text-ink-900">
                         {bersihkanJudul(s.judul) || "(tanpa judul)"}
                       </span>
@@ -796,6 +937,29 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
                         <CopyButton teks={f.nilai} label="" className="btn-quiet shrink-0 !px-1.5" />
                       </div>
                     ))}
+                    {/* Jalan verifikasi entri tertahan gerbang pasang:
+                        memakai mesin yang sama dengan gerbang simpan
+                        (lihat verifikasiEntri). Hasilnya tampil apa
+                        adanya; entri yang tidak ditemukan rekodnya
+                        tetap belum terverifikasi dan tertahan. */}
+                    {!putS.boleh && (
+                      <div className="rounded-lg bg-rose-50 px-2.5 py-2">
+                        <p className="text-[11.5px] leading-relaxed text-rose-800">{putS.alasan}</p>
+                        <button
+                          type="button"
+                          onClick={() => void verifikasiEntri(s)}
+                          disabled={memeriksaEntriId === s.id}
+                          className="btn-quiet mt-1.5 !px-2.5 !py-1 !text-[11px] disabled:opacity-40"
+                        >
+                          {memeriksaEntriId === s.id ? "Memeriksa…" : "Verifikasi entri ini"}
+                        </button>
+                      </div>
+                    )}
+                    {hasilVerifEntri[s.id] && (
+                      <p className="rounded-lg bg-parchment-100/70 px-2.5 py-2 text-[11.5px] leading-relaxed text-ink-700">
+                        {hasilVerifEntri[s.id]}
+                      </p>
+                    )}
                     <div className="grid gap-2 pt-1 sm:grid-cols-3">
                       {(
                         [

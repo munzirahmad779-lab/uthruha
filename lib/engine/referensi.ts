@@ -140,7 +140,12 @@ export function parseBibtex(teks: string): Sumber[] {
       penerjemah: field.translator,
       muhaqqiq: field.editor,
       sumberImpor: "bibtex",
-      perluVerifikasi: false,
+      // Impor hanya memindahkan teks, bukan memverifikasi: entri
+      // masuk sebagai belum terverifikasi dan tertahan dari
+      // pemasangan footnote sampai diverifikasi di tab Rujukan
+      // (gerbang pasang putusanPasangSumber, perbaikan QA 6 Nov 2026).
+      perluVerifikasi: true,
+      statusVerifikasi: "belum",
     };
     hasil.push(s);
   }
@@ -184,7 +189,10 @@ export function parseRis(teks: string): Sumber[] {
       isbn: ambil("SN")[0],
       muhaqqiq: ambil("ED")[0],
       sumberImpor: "ris",
-      perluVerifikasi: false,
+      // Sama seperti BibTeX: impor bukan verifikasi, jadi entri
+      // masuk berlabel belum terverifikasi (lihat parseBibtex).
+      perluVerifikasi: true,
+      statusVerifikasi: "belum",
     });
   }
   return hasil;
