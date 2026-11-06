@@ -96,8 +96,21 @@ async function panggilGemini(kunci: string, model: string, sistem: string, pengg
     signal: AbortSignal.timeout(45_000),
   });
   if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`) as Error & { status?: number };
+    const err = new Error(`HTTP ${res.status}`) as Error & { status?: number; kodePenyedia?: string };
     err.status = res.status;
+    // Badan galat Gemini menyebut sebabnya pada field error.status
+    // (mis. "API_KEY_INVALID" untuk kunci yang tidak sah, dengan
+    // HTTP 400, bukan 401). Badan itu dulu dibuang utuh, jadi
+    // penolakan kunci tidak bisa dibedakan dari gangguan lain dan
+    // pengguna hanya disuruh mencoba lagi (temuan QA 6 Nov 2026).
+    // Kini HANYA kode status penyedianya yang dibawa pada galat;
+    // isi badan tidak disimpan (bisa memuat gema permintaan).
+    try {
+      const badan = (await res.json()) as { error?: { status?: string } };
+      if (typeof badan?.error?.status === "string") err.kodePenyedia = badan.error.status;
+    } catch {
+      /* badan bukan JSON: status HTTP saja sudah cukup */
+    }
     throw err;
   }
   const j = (await res.json()) as {
@@ -186,6 +199,41 @@ export interface HasilKolam {
   penyedia: string;
   model: string;
   labelKunci: string;
+  /** True bila kunci yang melayani panggilan ini adalah kunci
+   *  PINJAMAN (milik mahasiswa lain), bukan kunci pribadi pemanggil
+   *  dan bukan kunci kolam pemilik. Pemanggil wajib menandainya ke
+   *  pengguna: sukses yang dilayani pinjaman tidak boleh menyamar
+   *  sebagai sukses kunci pribadi (Paket C, perbaikan QA 6 Nov 2026). */
+  lewatPinjaman: boolean;
+}
+
+/** Kode galat bila kunci PRIBADI pemanggil ditolak penyedia sebagai
+ *  tidak sah selama panggilan kolam (Gemini API_KEY_INVALID/403,
+ *  Groq 401). Rute yang memakai kunci pribadi menjawab galat ini
+ *  dengan kode dan pesan yang jelas, bukan "coba lagi" umum. */
+export const KODE_KUNCI_PRIBADI_DITOLAK = "KUNCI_PRIBADI_DITOLAK";
+export const PESAN_KUNCI_PRIBADI_DITOLAK =
+  "Kunci API pribadi Anda ditolak penyedia (tidak sah atau sudah tidak berlaku). Periksa atau ganti kunci Anda di halaman /kunci, lalu coba lagi.";
+
+/** True bila galat ini adalah penolakan kunci pribadi (lihat konstanta di atas). */
+export function galatKunciPribadiDitolak(err: unknown): boolean {
+  return (err as { kode?: string } | null | undefined)?.kode === KODE_KUNCI_PRIBADI_DITOLAK;
+}
+
+/**
+ * Apakah satu kegagalan penyedia adalah PENOLAKAN kunci (kredensial
+ * tidak sah), bukan gangguan atau kuota: 401/403 pada penyedia mana
+ * pun, atau kode API_KEY_INVALID dari Gemini (yang datang sebagai
+ * HTTP 400). 429 sengaja BUKAN penolakan: kuota habis bukan kunci mati.
+ */
+export function adalahPenolakanKunci(status?: number, kodePenyedia?: string): boolean {
+  return status === 401 || status === 403 || kodePenyedia === "API_KEY_INVALID";
+}
+
+/** True bila label kunci adalah kunci pinjaman mahasiswa LAIN. */
+export function labelPinjaman(label: string, userIdSendiri?: string): boolean {
+  const m = /^(?:gemini|groq)-pribadi-(.+)$/.exec(label);
+  return Boolean(m) && m![1] !== userIdSendiri;
 }
 
 export interface PercobaanGagal {
@@ -242,6 +290,11 @@ export async function panggilKolam(opsi: {
   pinjaman?: { userId: string; gemini?: string; groq?: string }[];
 }): Promise<HasilKolam> {
   const gagal: PercobaanGagal[] = [];
+  // Jejak penolakan kunci pribadi pemanggil pada panggilan ini
+  // (Paket C): hanya diset bila percobaan pada kunci SENDIRI gagal
+  // sebagai penolakan kredensial; kegagalan kunci pinjaman atau
+  // kolam tidak pernah mengatasnamakan kunci pemanggil.
+  let kunciSendiriDitolak = false;
   const sekarang = Date.now();
   for (const p of penyediaSemua()) {
     // Grup kunci yang boleh dipakai pemanggil ini, urut per prioritas.
@@ -302,9 +355,23 @@ export async function panggilKolam(opsi: {
           sukses: k.st.sukses + 1,
           errorTerakhir: "",
         } as unknown as Record<string, unknown> & { id: string });
-        return { teks, penyedia: p.id, model: p.model, labelKunci: k.label };
+        return {
+          teks,
+          penyedia: p.id,
+          model: p.model,
+          labelKunci: k.label,
+          lewatPinjaman: labelPinjaman(k.label, opsi.pribadi?.userId),
+        };
       } catch (e) {
         const status = (e as { status?: number }).status;
+        const kodePenyedia = (e as { kodePenyedia?: string }).kodePenyedia;
+        if (
+          opsi.pribadi &&
+          k.label === `${p.id}-pribadi-${opsi.pribadi.userId}` &&
+          adalahPenolakanKunci(status, kodePenyedia)
+        ) {
+          kunciSendiriDitolak = true;
+        }
         const alasan = e instanceof Error ? e.message : "gagal";
         const gagalKe = k.st.gagal + 1;
         const perluCooldown = status === 429 || status === 402 || status === 401 || status === 403;
@@ -323,8 +390,16 @@ export async function panggilKolam(opsi: {
   }
   const err = new Error("Semua penyedia AI gagal/semua kunci kosong.") as Error & {
     percobaan?: PercobaanGagal[];
+    kode?: string;
   };
   err.percobaan = gagal;
+  // Bila kunci pribadi pemanggil termasuk yang ditolak penyedia pada
+  // panggilan ini, galatnya berkode khusus agar rute bisa menjawab
+  // dengan pesan yang menunjuk sebab sebenarnya (lihat konstanta
+  // KODE_KUNCI_PRIBADI_DITOLAK). Kode ini menempel pada GALAT
+  // panggilan, bukan pada kandidat rujukan mana pun: kegagalan kunci
+  // bukan vonis kandidat.
+  if (kunciSendiriDitolak) err.kode = KODE_KUNCI_PRIBADI_DITOLAK;
   throw err;
 }
 

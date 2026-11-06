@@ -288,6 +288,13 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         body: JSON.stringify({ tahap: "kata", teks: bahan }),
       });
       const data = await res.json();
+      // Galat berkode dari server (mis. kunci pribadi ditolak
+      // penyedia, Paket C) tampil apa adanya, bukan tertelan pesan
+      // umum "gagal, coba lagi" di penangkap bawah.
+      if (!res.ok && typeof data?.error === "string" && data.error) {
+        setPesan(data.error);
+        return;
+      }
       const kata: Array<{ ar: string; id: string }> = Array.isArray(data.kata) ? data.kata : [];
       if (kata.length === 0) throw new Error("kosong");
       const ars = [...new Set(kata.map((k) => k.ar))];
@@ -336,6 +343,12 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         }),
       });
       const data = await res.json();
+      // Sama seperti generateKata: galat berkode server tampil apa
+      // adanya (Paket C), tidak jatuh ke pesan umum penangkap.
+      if (!res.ok && typeof data?.error === "string" && data.error) {
+        setPesan(data.error);
+        return;
+      }
       if (data.status === "perlu_disambiguasi" && data.ambiguitas) {
         setPilihanMakna(data.ambiguitas as AmbiguitasPilihan);
         setPesan(

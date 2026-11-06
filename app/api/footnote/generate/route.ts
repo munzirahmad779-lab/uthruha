@@ -19,6 +19,11 @@ import {
   generateFootnoteUntukParagraf,
   pasangFootnoteDisetujui,
 } from "@/lib/server/generate-footnote";
+import {
+  galatKunciPribadiDitolak,
+  KODE_KUNCI_PRIBADI_DITOLAK,
+  PESAN_KUNCI_PRIBADI_DITOLAK,
+} from "@/lib/server/kolam";
 import type { Sumber } from "@/lib/engine/cite";
 
 export const runtime = "nodejs";
@@ -174,19 +179,33 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const hasil = await generateFootnoteUntukParagraf({
-    paragraf,
-    judulProyek,
-    kalimatKursor,
-    bidangId,
-    topikAr,
-    ...(seleksi ? { seleksi } : {}),
-    pemilik: pengguna.id,
-    kolam: {
-      pribadi: opsiP.pribadi,
-      wajibPribadi: opsiP.wajibPribadi,
-      pinjaman: opsiP.pinjaman,
-    },
-  });
+  let hasil: Awaited<ReturnType<typeof generateFootnoteUntukParagraf>>;
+  try {
+    hasil = await generateFootnoteUntukParagraf({
+      paragraf,
+      judulProyek,
+      kalimatKursor,
+      bidangId,
+      topikAr,
+      ...(seleksi ? { seleksi } : {}),
+      pemilik: pengguna.id,
+      kolam: {
+        pribadi: opsiP.pribadi,
+        wajibPribadi: opsiP.wajibPribadi,
+        pinjaman: opsiP.pinjaman,
+      },
+    });
+  } catch (err) {
+    // Paket C (perbaikan QA 6 Nov 2026): kunci pribadi mahasiswa yang
+    // ditolak penyedia dijawab 403 berkode dengan pesan yang jelas
+    // mengarahkan ke /kunci, bukan saran mencoba lagi.
+    if (galatKunciPribadiDitolak(err)) {
+      return NextResponse.json(
+        { error: PESAN_KUNCI_PRIBADI_DITOLAK, kode: KODE_KUNCI_PRIBADI_DITOLAK },
+        { status: 403 },
+      );
+    }
+    throw err;
+  }
   return NextResponse.json(hasil);
 }

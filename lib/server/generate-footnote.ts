@@ -61,7 +61,12 @@
  * kolam premium (lalu cadangan umum) yang dipakai di jalur ini.
  */
 import { createHash } from "node:crypto";
-import { panggilKolam } from "./kolam";
+import {
+  panggilKolam,
+  galatKunciPribadiDitolak,
+  KODE_KUNCI_PRIBADI_DITOLAK,
+  PESAN_KUNCI_PRIBADI_DITOLAK,
+} from "./kolam";
 import { cariRujukanTamu, tokenJudul, type RujukanTamu } from "./rujukan";
 import {
   cariDiBank,
@@ -135,10 +140,26 @@ function parseKataKunci(raw: string): KataKunciMentah | null {
   }
 }
 
+/**
+ * Jejak keadaan kunci selama langkah AI satu permintaan Generate
+ * (Paket C, perbaikan QA 6 Nov 2026). Pembantu AI di bawah mengisinya
+ * dari hasil/gagal panggilKolam; generateFootnoteUntukParagraf
+ * membacanya di bentuk hasil akhir. Jejak ini soal KUNCI, bukan soal
+ * kandidat: ia tidak pernah mengubah putusan kandidat mana pun
+ * (kandidat yang penilaiannya gagal tetap belum terverifikasi).
+ */
+export interface JejakKunciAI {
+  /** Kunci pribadi pemanggil ditolak penyedia sebagai tidak sah. */
+  kunciDitolak: boolean;
+  /** Panggilan yang berhasil dilayani kunci pinjaman mahasiswa lain. */
+  lewatPinjaman: boolean;
+}
+
 type OpsiKolamTerusan = {
   pribadi?: { userId: string; gemini?: string; groq?: string };
   wajibPribadi?: boolean;
   pinjaman?: { userId: string; gemini?: string; groq?: string }[];
+  jejak?: JejakKunciAI;
 };
 
 async function kalimatKunciDariAI(paragraf: string, kolam?: OpsiKolamTerusan): Promise<string[] | null> {
@@ -153,13 +174,18 @@ async function kalimatKunciDariAI(paragraf: string, kolam?: OpsiKolamTerusan): P
       wajibPribadi: kolam?.wajibPribadi,
       pinjaman: kolam?.pinjaman,
     });
+    if (kolam?.jejak && hasil.lewatPinjaman) kolam.jejak.lewatPinjaman = true;
     if (!hasil.teks) return null;
     const k = parseKataKunci(hasil.teks);
     if (!k) return null;
     const gabung = [...k.arab.slice(0, 2), ...k.indonesia.slice(0, 1), ...k.inggris.slice(0, 1)];
     const unik = [...new Set(gabung.map((x) => x.trim()).filter((x) => x.length >= 8))];
     return unik.length > 0 ? unik.slice(0, 4) : null;
-  } catch {
+  } catch (err) {
+    // Gagal total panggilan dicatat ke jejak bila sebabnya penolakan
+    // kunci pribadi; aliran tetap turun ke cadangan deterministik
+    // seperti biasa, keputusan bentuk akhirnya di pemanggil.
+    if (kolam?.jejak && galatKunciPribadiDitolak(err)) kolam.jejak.kunciDitolak = true;
     return null;
   }
 }
@@ -240,6 +266,7 @@ async function analisisMaknaDariAI(
       wajibPribadi: kolam?.wajibPribadi,
       pinjaman: kolam?.pinjaman,
     });
+    if (kolam?.jejak && hasil.lewatPinjaman) kolam.jejak.lewatPinjaman = true;
     if (!hasil.teks) return null;
     const m = parseMakna(hasil.teks);
     if (!m) return null;
@@ -251,7 +278,8 @@ async function analisisMaknaDariAI(
       kebutuhan: m.kebutuhan,
       frasa: unik.slice(0, 4),
     };
-  } catch {
+  } catch (err) {
+    if (kolam?.jejak && galatKunciPribadiDitolak(err)) kolam.jejak.kunciDitolak = true;
     return null;
   }
 }
@@ -1127,6 +1155,15 @@ export async function generateFootnoteUntukParagraf(opsi: {
   const paragraf = opsi.paragraf.replace(/\[\[ref:[^\]]*\]\]/g, "").trim();
   const seleksi = (opsi.seleksi ?? "").replace(/\s+/g, " ").trim().slice(0, 1200);
   const modeSeleksi = seleksi.length > 0;
+  // Jejak kunci permintaan ini (Paket C): diteruskan ke pembantu AI
+  // penyusun frasa; dibaca lagi di bentuk hasil akhir di bawah.
+  const jejak: JejakKunciAI = { kunciDitolak: false, lewatPinjaman: false };
+  const kolam: OpsiKolamTerusan = { ...(opsi.kolam ?? {}), jejak };
+  const lemparKunciDitolak = (): never => {
+    const err = new Error(PESAN_KUNCI_PRIBADI_DITOLAK) as Error & { kode?: string };
+    err.kode = KODE_KUNCI_PRIBADI_DITOLAK;
+    throw err;
+  };
 
   /* ---- Langkah makna (mode seleksi) dan kalimat kunci ---- */
   let makna: AnalisisMakna | null = null;
@@ -1141,7 +1178,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
   let sidikLama: Awaited<ReturnType<typeof cariSidikParagraf>> = null;
 
   if (modeSeleksi) {
-    makna = await analisisMaknaDariAI(paragraf, seleksi, opsi.kolam);
+    makna = await analisisMaknaDariAI(paragraf, seleksi, kolam);
     if (makna && makna.frasa.length > 0) {
       frasaBank = makna.frasa;
       kalimatKunci = [seleksi, ...makna.frasa.filter((f) => f !== seleksi)];
@@ -1155,7 +1192,7 @@ export async function generateFootnoteUntukParagraf(opsi: {
 
     // 2) AI menyusun kalimat kunci dari paragraf (kolam premium).
     if (!kunci) {
-      kunci = await kalimatKunciDariAI(paragraf, opsi.kolam);
+      kunci = await kalimatKunciDariAI(paragraf, kolam);
     }
     // 3) Cadangan tanpa AI: kalimat pertama paragraf sebagai kueri apa
     //    adanya. Potongan ini TEKS ASLI mahasiswa: boleh dipakai sesaat
@@ -1567,6 +1604,16 @@ export async function generateFootnoteUntukParagraf(opsi: {
     if (jatahHabisAdaSisa) {
       catatanBagian.push("Masih ada kandidat lain yang belum sempat dinilai pada generate ini; jalankan Generate lagi untuk menilai lebih banyak.");
     }
+    if (jejak.lewatPinjaman) {
+      catatanBagian.push(
+        "Hasil ini dilayani lewat kunci pinjaman sesama mahasiswa yang aktif hari ini, bukan kunci pribadi Anda.",
+      );
+    }
+    // Paket C: tidak ada kandidat lolos DAN kunci pribadi pemanggil
+    // terbukti ditolak penyedia pada langkah AI permintaan ini:
+    // lempar galat berkode agar rute menjawab jelas (lihat blok yang
+    // sama pada hasil alur kursor di bawah).
+    if (kandidatHasil.length === 0 && jejak.kunciDitolak) lemparKunciDitolak();
     return {
       ketemu: kandidatHasil.length > 0,
       kalimatIdx: indeksKalimatSeleksi(paragraf, seleksi),
@@ -1587,12 +1634,19 @@ export async function generateFootnoteUntukParagraf(opsi: {
   }
 
   /* ---- Hasil alur kursor lama: satu kandidat dipasang ---- */
+  // Penanda pinjaman (Paket C): sukses yang dilayani kunci pinjaman
+  // dinyatakan apa adanya, tidak menyamar sebagai sukses kunci
+  // pribadi. Aturan pinjamannya sendiri tidak berubah.
+  const catatanPinjaman = jejak.lewatPinjaman
+    ? "Hasil ini dilayani lewat kunci pinjaman sesama mahasiswa yang aktif hari ini, bukan kunci pribadi Anda."
+    : undefined;
   const terpilih = lolosList[0];
   if (terpilih) {
     const catatanMasadir =
       apakahMasadir(terpilih.rujukan) && !(terpilih.rujukan.halaman ?? "").trim()
         ? "Catatan: sumber masadir ini tidak membawa nomor halaman cetak pada hasil pencariannya; periksa halaman pada kitab cetaknya sebelum mengutip."
         : undefined;
+    const catatanGabung = [catatanMasadir, catatanPinjaman].filter(Boolean).join(" ");
     return {
       ketemu: true,
       sumber: rujukanKeSumber(terpilih.rujukan),
@@ -1601,9 +1655,20 @@ export async function generateFootnoteUntukParagraf(opsi: {
       dariBank,
       dariSidik: Boolean(sidikLama),
       ...(penolakan.length > 0 ? { penolakan } : {}),
-      ...(catatanMasadir ? { catatan: catatanMasadir } : {}),
+      ...(catatanGabung ? { catatan: catatanGabung } : {}),
     };
   }
+
+  // Paket C (perbaikan QA 6 Nov 2026): tidak ada kandidat yang lolos
+  // DAN kunci pribadi pemanggil terbukti ditolak penyedia pada
+  // langkah AI permintaan ini. Keadaan itu dilempar sebagai galat
+  // berkode KUNCI_PRIBADI_DITOLAK agar rute menjawab 403 dengan
+  // pesan yang menunjuk sebab sebenarnya dan halaman /kunci, bukan
+  // catatan umum "jalankan Generate lagi" yang dilaporkan agen QA.
+  // Kegagalan kunci BUKAN vonis kandidat: kandidat yang penilaiannya
+  // tidak berjalan tetap belum terverifikasi pada jalurnya sendiri;
+  // yang berubah hanya penjelasan mengapa langkah AI-nya mati.
+  if (jejak.kunciDitolak) lemparKunciDitolak();
 
   // Tidak ada kandidat yang lolos: alur kursor TIDAK lagi menawarkan
   // kandidat tertahan untuk dipasang paksa (Tahap C mencabut jalur

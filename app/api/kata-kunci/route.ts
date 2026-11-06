@@ -177,8 +177,22 @@ async function panggilLLMMentah(
       wajibPribadi: kolam?.wajibPribadi,
       pinjaman: kolam?.pinjaman,
     });
-    if (hasil.teks) return { sumber: `kolam:${hasil.penyedia}`, isi: hasil.teks };
-  } catch {
+    if (hasil.teks) {
+      // Sukses lewat kunci pinjaman ditandai pada sumbernya
+      // ("kolam:pinjaman"), tidak menyamar sebagai layanan kunci
+      // pribadi atau kolam biasa (Paket C, perbaikan QA 6 Nov 2026).
+      return {
+        sumber: hasil.lewatPinjaman ? "kolam:pinjaman" : `kolam:${hasil.penyedia}`,
+        isi: hasil.teks,
+      };
+    }
+  } catch (err) {
+    // Paket C: untuk akun mahasiswa, penolakan kunci pribadi oleh
+    // penyedia BUKAN "kolam gagal" biasa yang boleh ditelan menjadi
+    // keluaran tanpa-ai; galat berkodenya diteruskan agar POST
+    // menjawab 403 yang jelas mengarahkan ke /kunci.
+    const { galatKunciPribadiDitolak } = await import("@/lib/server/kolam");
+    if (kolam?.wajibPribadi && galatKunciPribadiDitolak(err)) throw err;
     /* kolam kosong/gagal — jatuh ke rantai lama */
   }
   // Akun mahasiswa (wajibPribadi) TIDAK boleh jatuh ke rantai lama:
@@ -315,7 +329,9 @@ export async function POST(req: NextRequest) {
     return balasanLaju(global.ulangDetik, "Server sedang sibuk. Coba lagi sebentar.");
   }
 
-  const keluaran = await (async (): Promise<{ json: Record<string, unknown>; ai: boolean }> => {
+  let keluaran: { json: Record<string, unknown>; ai: boolean };
+  try {
+    keluaran = await (async (): Promise<{ json: Record<string, unknown>; ai: boolean }> => {
   // ── Tahap kurasi v2 ──────────────────────────────────────────────────────
   const tahap = typeof body?.tahap === "string" ? body.tahap : "";
   if (tahap === "kata") {
@@ -512,7 +528,21 @@ export async function POST(req: NextRequest) {
     },
     ai: false,
   };
-  })();
+    })();
+  } catch (err) {
+    // Paket C (perbaikan QA 6 Nov 2026): galat penolakan kunci
+    // pribadi dari panggilLLMMentah dijawab 403 berkode dengan pesan
+    // yang jelas, sama seperti rute Generate Footnote.
+    const { galatKunciPribadiDitolak, KODE_KUNCI_PRIBADI_DITOLAK, PESAN_KUNCI_PRIBADI_DITOLAK } =
+      await import("@/lib/server/kolam");
+    if (galatKunciPribadiDitolak(err)) {
+      return NextResponse.json(
+        { error: PESAN_KUNCI_PRIBADI_DITOLAK, kode: KODE_KUNCI_PRIBADI_DITOLAK },
+        { status: 403 },
+      );
+    }
+    throw err;
+  }
 
   if (keluaran.ai) {
     await simpan("tembolok", { id: idCache, hasil: keluaran.json, dibuat: new Date().toISOString() }).catch(
