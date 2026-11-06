@@ -60,6 +60,32 @@ export function buatMarker(id: string, halaman?: string, jilid?: string): string
   return `${bag.join("|")}]]`;
 }
 
+/**
+ * Jumlah footnote dalam SATU blok teks, dari representasi mana pun
+ * yang hidup di aplikasi: penanda simpan draf [[ref:…]] (bentuk yang
+ * ditanam dialog Pasang Footnote dan Generate, dan yang menjadi isi
+ * draf sebenarnya) ditambah rujukan terkompilasi [^n] pada teks hasil
+ * kompilasi. Definisi footnote [^n]: TIDAK dihitung, karena ia
+ * pasangan rujukannya, bukan footnote kedua.
+ *
+ * Fungsi ini satu-satunya penghitung footnote-dari-teks. Pemeriksa
+ * batas (hitungBatas di lib/refs/footnote.ts) memakainya sejak
+ * perbaikan laporan QA 6 Nov 2026: sebelumnya pemeriksa hanya
+ * mengenal pola [^n], padahal semua permukaan pemeriksa menerima
+ * teks DRAF (yang tidak pernah memuat [^n], hanya penanda [[ref:…]]),
+ * jadi ia selalu membaca 0 footnote dan menyatakan "Batas terpenuhi"
+ * pada paragraf yang penegak batas lapisnya (penghitung peristiwa
+ * pasang di server, lib/server/lapis.ts) menolak footnote berikutnya
+ * sebagai lampau batas. Dua penghitung yang menilai dua hal berbeda
+ * tidak bisa sepakat; yang disatukan di sini adalah penghitung dari
+ * teksnya, menilai penanda yang benar-benar tertanam di paragraf.
+ */
+export function hitungFootnoteBlok(blok: string): number {
+  const dariPenanda = cariMarker(blok).length;
+  const dariKompilasi = (blok.match(/\[\^\d+\](?!:)/g) ?? []).length;
+  return dariPenanda + dariKompilasi;
+}
+
 /* ------------------------------------------------------------------ */
 /* Segmen teks draf: teks biasa, penanda utuh, fragmen penanda rusak.  */
 /* ------------------------------------------------------------------ */

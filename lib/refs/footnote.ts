@@ -6,6 +6,7 @@
 import type { RefCandidate } from "@/lib/refs/types";
 import type { PedomanRules } from "@/lib/refs/pedoman";
 import { bersihkanJudul, keAngkaArab, type Sumber } from "@/lib/engine/cite";
+import { hitungFootnoteBlok } from "@/lib/engine/marker";
 
 export const TANDA_VERIFIKASI = "[ ! verifikasi ]";
 
@@ -153,9 +154,20 @@ export interface HasilBatas {
 export const KATA_PER_HALAMAN = 230;
 
 export function hitungBatas(teks: string, p: PedomanRules): HasilBatas {
-  const paragrafMentah = teks.split(/\n{2,}/).filter((s) => s.trim() !== "");
+  // Penomoran paragraf meniru pengindeksan dialog Pasang Footnote
+  // (ambilParagraf di pasang-footnote.tsx) dan sisip penanda Generate:
+  // blok judul markdown (diawali "#") BUKAN paragraf isi dan tidak
+  // memakan nomor, karena kunci paragraf penegak batas lapis di
+  // server memakai indeks yang sama. Jumlah footnote per blok dari
+  // hitungFootnoteBlok (lib/engine/marker.ts), penghitung bersama
+  // yang mengenal penanda simpan draf [[ref:…]]; pola lama [^n] saja
+  // membuat pemeriksa selalu membaca 0 pada draf nyata (perbaikan
+  // laporan QA 6 Nov 2026, lihat komentar hitungFootnoteBlok).
+  const paragrafMentah = teks
+    .split(/\n{2,}/)
+    .filter((s) => s.trim() !== "" && !s.trim().startsWith("#"));
   const paragraf = paragrafMentah.map((blok, i) => {
-    const jumlah = (blok.match(/\[\^\d+\]/g) ?? []).length;
+    const jumlah = hitungFootnoteBlok(blok);
     return { nomor: i + 1, jumlah, lebih: jumlah > p.maksFootnotePerParagraf };
   });
 
