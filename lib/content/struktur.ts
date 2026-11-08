@@ -730,12 +730,90 @@ import type { BabKustom, Project, SubBabKustom } from "@/lib/engine/project";
 const ORDINAL_AR = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس", "السابع", "الثامن", "التاسع", "العاشر"];
 const ROMAWI = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
-/** Sub-bab bab pengurai isykal (semua bab isykal kecuali yang terakhir). */
-const SEKSI_EKSPLORASI: Array<{ akhiran: string; labelId: string; labelAr: string }> = [
-  { akhiran: "taswir", labelId: "Gambaran Masalah", labelAr: "تصوير المسألة" },
-  { akhiran: "aqwal", labelId: "Pendapat Ulama", labelAr: "أقوال العلماء في المسألة" },
-  { akhiran: "adilla", labelId: "Dalil-dalil Pendapat", labelAr: "أدلة الأقوال" },
-  { akhiran: "munaqasha", labelId: "Pembahasan Dalil", labelAr: "مناقشة الأدلة" },
+/** Satu mathlab (مطلب) di bawah fashl kerangka eksplorasi. */
+interface MathlabEksplorasi {
+  labelId: string;
+  labelAr: string;
+}
+
+/** Satu fashl (فصل) di bawah mabhats kerangka eksplorasi, beserta mathlabnya. */
+interface FashlEksplorasi {
+  labelId: string;
+  labelAr: string;
+  mathlab?: MathlabEksplorasi[];
+}
+
+/** Mathlab dalil yang sama persis untuk tiap fashl أدلة الأقوال. */
+const MATHLAB_ADILLA: MathlabEksplorasi[] = [
+  { labelId: "Dalil dari Al-Qur'an", labelAr: "الدليل من الكتاب" },
+  { labelId: "Dalil dari Sunnah", labelAr: "الدليل من السنة" },
+  { labelId: "Dalil dari Ijma' dan Qiyas", labelAr: "الدليل من الإجماع والقياس" },
+  { labelId: "Sisi Pendalilan", labelAr: "وجه الاستدلال" },
+];
+
+/** Mathlab pembahasan yang sama persis untuk tiap fashl مناقشة الأدلة. */
+const MATHLAB_MUNAQASHA: MathlabEksplorasi[] = [
+  { labelId: "Keberatan yang Ditujukan Kepadanya", labelAr: "الاعتراضات الواردة عليها" },
+  { labelId: "Jawaban atas Keberatan", labelAr: "الأجوبة عن الاعتراضات" },
+];
+
+/**
+ * Sub-bab bab pengurai isykal (semua bab isykal kecuali yang terakhir),
+ * lengkap dengan fashl dan mathlab di bawah tiap mabhats (perintah
+ * pemilik 9 Nov 2026: kerangka mabhats datang utuh sampai tingkat
+ * mathlab, bukan berhenti di mabhats).
+ */
+const SEKSI_EKSPLORASI: Array<{
+  akhiran: string;
+  labelId: string;
+  labelAr: string;
+  fashl: FashlEksplorasi[];
+}> = [
+  {
+    akhiran: "taswir",
+    labelId: "Gambaran Masalah",
+    labelAr: "تصوير المسألة",
+    fashl: [
+      {
+        labelId: "Definisi Masalah dan Batasannya",
+        labelAr: "تعريف المسألة وحدودها",
+        mathlab: [
+          { labelId: "Makna Bahasa Istilah-istilahnya", labelAr: "المعنى اللغوي للمصطلحات" },
+          { labelId: "Makna Istilah", labelAr: "المعنى الاصطلاحي للمصطلحات" },
+        ],
+      },
+      { labelId: "Penegasan Titik Sengketa", labelAr: "تحرير محل النزاع" },
+      { labelId: "Sebab Perbedaan Pendapat dalam Masalah Ini", labelAr: "سبب الخلاف في المسألة" },
+    ],
+  },
+  {
+    akhiran: "aqwal",
+    labelId: "Pendapat Ulama",
+    labelAr: "أقوال العلماء في المسألة",
+    fashl: [
+      { labelId: "Pendapat Pertama dan Para Pemegangnya", labelAr: "القول الأول وأصحابه" },
+      { labelId: "Pendapat Kedua dan Para Pemegangnya", labelAr: "القول الثاني وأصحابه" },
+      { labelId: "Pendapat Ketiga dan Para Pemegangnya", labelAr: "القول الثالث وأصحابه" },
+    ],
+  },
+  {
+    akhiran: "adilla",
+    labelId: "Dalil-dalil Pendapat",
+    labelAr: "أدلة الأقوال",
+    fashl: [
+      { labelId: "Dalil Pendapat Pertama", labelAr: "أدلة القول الأول", mathlab: MATHLAB_ADILLA },
+      { labelId: "Dalil Pendapat Kedua", labelAr: "أدلة القول الثاني", mathlab: MATHLAB_ADILLA },
+    ],
+  },
+  {
+    akhiran: "munaqasha",
+    labelId: "Pembahasan Dalil",
+    labelAr: "مناقشة الأدلة",
+    fashl: [
+      { labelId: "Pembahasan Dalil Pendapat Pertama", labelAr: "مناقشة أدلة القول الأول", mathlab: MATHLAB_MUNAQASHA },
+      { labelId: "Pembahasan Dalil Pendapat Kedua", labelAr: "مناقشة أدلة القول الثاني", mathlab: MATHLAB_MUNAQASHA },
+    ],
+  },
 ];
 
 /** Sub-bab bab analisis akhir (bab isykal terakhir): merinci jawaban akhir. */
@@ -745,6 +823,32 @@ const SEKSI_ANALISIS: Array<{ akhiran: string; labelId: string; labelAr: string 
   { akhiran: "tarjih", labelId: "Penetapan Jawaban Akhir", labelAr: "الترجيح والجواب النهائي" },
   { akhiran: "atsar", labelId: "Penerapan & Dampaknya", labelAr: "تطبيق الجواب وآثاره" },
 ];
+
+/**
+ * Bangun anak (fashl beserta mathlabnya) satu mabhats eksplorasi dari
+ * definisinya. Id stabil dan unik di seluruh pohon daftar isi: fashl
+ * `${idSection}-f<k>` dan mathlab `${idFashl}-m<k>`, k mulai dari 1.
+ */
+function bangunAnakEksplorasi(idSection: string, fashl?: FashlEksplorasi[]): SubBabKustom[] | undefined {
+  if (!fashl || fashl.length === 0) return undefined;
+  return fashl.map((f, i) => {
+    const idFashl = `${idSection}-f${i + 1}`;
+    return {
+      id: idFashl,
+      labelId: f.labelId,
+      labelAr: f.labelAr,
+      ...(f.mathlab && f.mathlab.length > 0
+        ? {
+            anak: f.mathlab.map((m, j) => ({
+              id: `${idFashl}-m${j + 1}`,
+              labelId: m.labelId,
+              labelAr: m.labelAr,
+            })),
+          }
+        : {}),
+    };
+  });
+}
 
 function potongTeks(s: string, maks: number): string {
   const t = s.replace(/\s+/g, " ").trim();
@@ -776,19 +880,33 @@ export function susunDaftarIsiIsykal(p: Project): BabKustom[] | null {
     const n = i + 1;
     const nomorBab = i + 2; // bab II, III, IV, …
     const terakhir = i === rumusan.length - 1;
-    const pola = terakhir && rumusan.length > 1 ? SEKSI_ANALISIS : SEKSI_EKSPLORASI;
+    const polaAnalisis = terakhir && rumusan.length > 1;
     const babAr = `الباب ${ORDINAL_AR[nomorBab - 1] ?? nomorBab}`;
+    // Hanya mabhats eksplorasi yang membawa fashl dan mathlab; bab
+    // analisis akhir (SEKSI_ANALISIS) tetap tanpa anak.
+    const sections: SubBabKustom[] = polaAnalisis
+      ? SEKSI_ANALISIS.map((s) => ({
+          id: `isykal${n}-${s.akhiran}`,
+          labelId: s.labelId,
+          labelAr: s.labelAr,
+        }))
+      : SEKSI_EKSPLORASI.map((s) => {
+          const id = `isykal${n}-${s.akhiran}`;
+          const anak = bangunAnakEksplorasi(id, s.fashl);
+          return {
+            id,
+            labelId: s.labelId,
+            labelAr: s.labelAr,
+            ...(anak ? { anak } : {}),
+          };
+        });
     hasil.push({
       id: `bab-isykal-${n}`,
-      labelId: `BAB ${ROMAWI[nomorBab - 1] ?? nomorBab} — Isykal ${n}${terakhir && rumusan.length > 1 ? " (Analisis Akhir)" : ""}`,
+      labelId: `BAB ${ROMAWI[nomorBab - 1] ?? nomorBab} — Isykal ${n}${polaAnalisis ? " (Analisis Akhir)" : ""}`,
       labelAr: `${babAr}: ${potongTeks(r, 90)}`,
       babAr,
       isykalKe: n,
-      sections: pola.map((s) => ({
-        id: `isykal${n}-${s.akhiran}`,
-        labelId: s.labelId,
-        labelAr: s.labelAr,
-      })),
+      sections,
     });
   });
 
