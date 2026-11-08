@@ -9,8 +9,9 @@
  *    (premiumSumber "admin", kaidah sama dengan kunci premium bersama:
  *    premium yang masih aktif tidak ditumpuk dan tidak diperpanjang).
  *  - "hapus-akun": catatan akun dihapus dari dashboard beserta kunci
- *    API pribadi dan keadaan kolam pribadinya (perintah pemilik
- *    4 Nov 2026 sore). Email di daftar mahasiswa TIDAK ikut terhapus.
+ *    API pribadi, keadaan kolam pribadinya, dan catatan proyek server
+ *    miliknya (perintah pemilik 4 Nov 2026 sore, diperluas 8 Nov 2026).
+ *    Email di daftar mahasiswa TIDAK ikut terhapus.
  * Hanya sesi pemilik (daftar email admin) yang boleh; admin tidak bisa
  * menonaktifkan atau menghapus akunnya sendiri agar tidak terkunci
  * keluar.
@@ -21,7 +22,7 @@ import { asalSah } from "@/lib/security/laju";
 import { apakahAdmin } from "@/lib/server/admin";
 import { kirimEmail } from "@/lib/server/email";
 import { penggunaDariRequest, tierEfektif, type Pengguna } from "@/lib/server/identitas";
-import { ambil, hapus, perbarui } from "@/lib/server/store";
+import { ambil, hapus, perbarui, semua } from "@/lib/server/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -127,11 +128,19 @@ export async function POST(req: Request) {
     for (const label of [`gemini-pribadi-${userId}`, `groq-pribadi-${userId}`]) {
       if ((await ambil("kolam", label)) !== null) await hapus("kolam", label);
     }
+    // Perintah pemilik 8 Nov 2026: proyek terdaftar di server milik akun
+    // ikut dibuang, supaya akun yang tercipta lagi dengan id yang sama
+    // mulai dari nol dan tidak memikul sisa pendaftaran proyek lama
+    // (catatan yatim itu ikut terhitung dalam batas proyek lapis).
+    const proyekMilik = (
+      (await semua("proyek")) as unknown as { id: string; userId?: unknown }[]
+    ).filter((p) => p.userId === userId);
+    for (const p of proyekMilik) await hapus("proyek", p.id);
     await hapus("pengguna", userId);
     return NextResponse.json({
       ok: true,
       userId,
-      catatan: `Akun ${target.email} dihapus dari dashboard${adaKunci ? " beserta kunci API pribadinya" : ""}. Emailnya tetap di daftar mahasiswa bila terdaftar, jadi ia bisa masuk lagi sebagai akun baru yang bersih.`,
+      catatan: `Akun ${target.email} dihapus dari dashboard${adaKunci ? " beserta kunci API pribadinya" : ""}${proyekMilik.length ? ` beserta ${proyekMilik.length} proyek terdaftarnya` : ""}. Emailnya tetap di daftar mahasiswa bila terdaftar, jadi ia bisa masuk lagi sebagai akun baru yang bersih.`,
     });
   }
 
