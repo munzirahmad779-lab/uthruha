@@ -102,39 +102,66 @@ export default function DaftarProyekPage() {
       } catch { /* abaikan — daftar proyek tetap dimuat */ }
       // Bootstrap proyek tetap akun uji (perintah pemilik, 6 Nov 2026):
       // status auth akun berlabel Akun Uji membawa judul dan bidang
-      // proyek tetapnya dari daftar putih di server. Bila belum ada
-      // proyek berjudul PERSIS itu di peramban ini, proyek diwujudkan
-      // satu kali lewat jalur pembuatan yang sudah ada. Judul masuk
+      // proyek tetapnya dari daftar putih di server. Judul masuk
       // slot judul proyek (judulAr, satu-satunya slot judul di model
       // proyek); bahasanya mengikuti aksara judulnya: judul beraksara
-      // Arab berbahasa "ar", judul Indonesia berbahasa "id". Idempoten
-      // lewat periksa-judul yang sama, dan untuk akun non-uji status
-      // tidak membawa field ini sehingga blok ini tidak pernah jalan.
+      // Arab berbahasa "ar", judul Indonesia berbahasa "id". Untuk
+      // akun non-uji status tidak membawa field ini sehingga blok
+      // ini tidak pernah jalan.
+      //
+      // SEKALI per akun per peramban (perbaikan P1.4, laporan
+      // perekaman tutorial macro 10 Nov 2026): dulu idempotensinya
+      // hanya periksa-judul, sehingga proyek tetap yang DIHAPUS
+      // pengguna muncul lagi pada muat ulang berikutnya — terbaca
+      // sebagai "proyek baru muncul sendiri sesudah penghapusan".
+      // Kini sesudah bootstrap pertama (proyek ditemukan atau
+      // diwujudkan), penanda selesai ditulis di localStorage per id
+      // pengguna, dan bootstrap tidak pernah berjalan lagi di
+      // peramban ini untuk akun itu: menghapus proyek tetap berarti
+      // ia tidak dimunculkan kembali, dan daftar proyek stabil lewat
+      // muat ulang berapa pun.
       try {
         const res = await fetch("/api/auth/status", { cache: "no-store" });
         if (res.ok) {
           const st = (await res.json()) as {
             judulProyekUji?: unknown;
             bidangProyekUji?: unknown;
+            pengguna?: { id?: unknown; email?: unknown } | null;
           };
           const judulUji = typeof st.judulProyekUji === "string" ? st.judulProyekUji : "";
           if (judulUji) {
-            const sudahAdaUji = daftarProyek().some(
-              (p) => p.judulAr === judulUji || p.topikAr === judulUji,
-            );
-            if (!sudahAdaUji) {
-              const bidangUji =
-                typeof st.bidangProyekUji === "string" &&
-                BIDANG.some((b) => b.id === st.bidangProyekUji)
-                  ? st.bidangProyekUji
-                  : undefined;
-              simpanProyek(
-                newProject({
-                  judulAr: judulUji,
-                  ...(bidangUji ? { bidangId: bidangUji } : {}),
-                  bahasa: adaAksaraArab(judulUji) ? "ar" : "id",
-                }),
+            const idPengguna =
+              typeof st.pengguna?.id === "string"
+                ? st.pengguna.id
+                : typeof st.pengguna?.email === "string"
+                  ? st.pengguna.email
+                  : "";
+            const kunciFlag = idPengguna ? `uthruha:bootstrap-uji:${idPengguna}` : "";
+            let sudahBootstrap = false;
+            try {
+              sudahBootstrap = kunciFlag !== "" && localStorage.getItem(kunciFlag) === "1";
+            } catch { /* abaikan — perlakukan sebagai belum */ }
+            if (!sudahBootstrap) {
+              const sudahAdaUji = daftarProyek().some(
+                (p) => p.judulAr === judulUji || p.topikAr === judulUji,
               );
+              if (!sudahAdaUji) {
+                const bidangUji =
+                  typeof st.bidangProyekUji === "string" &&
+                  BIDANG.some((b) => b.id === st.bidangProyekUji)
+                    ? st.bidangProyekUji
+                    : undefined;
+                simpanProyek(
+                  newProject({
+                    judulAr: judulUji,
+                    ...(bidangUji ? { bidangId: bidangUji } : {}),
+                    bahasa: adaAksaraArab(judulUji) ? "ar" : "id",
+                  }),
+                );
+              }
+              try {
+                if (kunciFlag) localStorage.setItem(kunciFlag, "1");
+              } catch { /* abaikan — bootstrap boleh berulang bila penanda gagal ditulis */ }
             }
           }
         }
@@ -166,7 +193,9 @@ export default function DaftarProyekPage() {
             Proyek Anda
           </h1>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-ink-600">
-            Semua proyek tersimpan di peramban ini. Unduh cadangan dari tab Ekspor di dalam proyek agar tetap aman.
+            Proyek tersimpan di peramban ini saja — ganti peramban atau menghapus data
+            peramban akan menghilangkan proyek. Unduh cadangan dari tab Ekspor di dalam
+            proyek agar tetap aman.
           </p>
         </div>
         <Link href="/mulai" className="btn-primary">

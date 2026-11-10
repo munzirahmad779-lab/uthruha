@@ -15,6 +15,8 @@ import {
   type MarkerSitasi,
 } from "@/lib/engine/marker";
 import { kampusProyek, modePerBab } from "@/lib/engine/hawamisy";
+import { daftarPustakaProyek } from "@/lib/engine/daftar-pustaka";
+import { hitungKataNaskah } from "@/lib/engine/estimasi-halaman";
 import { CopyButton } from "@/components/ui";
 
 /**
@@ -154,6 +156,40 @@ export function kompilasiDokumen(p: Project): HasilKompilasi {
     fragmen: k.fragmen,
     jumlah: k.jumlah,
   };
+}
+
+/**
+ * Markdown dokumen PERSIS seperti yang diekspor tab Ekspor: kompilasi
+ * dokumen + daftar pustaka satu jalur (bila diminta dan ada sumber).
+ * Satu-satunya jalur penyusunan markdown ekspor — tab Ekspor dan
+ * penghitung kata bersama di bawah memakai fungsi ini, bukan salinan.
+ */
+export function markdownEksporProyek(p: Project, pakaiRujukan = true): string {
+  const isi = kompilasiDokumen(p).markdown;
+  if (!pakaiRujukan || p.sumber.length === 0) return isi;
+  const grup = daftarPustakaProyek(p);
+  const daftar =
+    grup.length === 1
+      ? grup[0]!.entri.map((e, i) => `${i + 1}. ${e}`).join("\n")
+      : grup
+          .map((g) => `### ${g.judul}\n\n${g.entri.map((e, i) => `${i + 1}. ${e}`).join("\n")}`)
+          .join("\n\n");
+  return `${isi}\n\n---\n\n# قائمة المراجع\n\n${daftar}`;
+}
+
+/**
+ * Jumlah kata dokumen proyek — fungsi hitung kata BERSAMA tab
+ * Ringkasan dan tab Ekspor (perbaikan P2.3, laporan perekaman
+ * tutorial macro 10 Nov 2026). Sebab selisih lama: Ringkasan menjumlah
+ * kata draf mentah per bagian struktur saja (602 kata saat rekaman),
+ * sedangkan Ekspor menghitung kata dokumen TERSUSUN yang benar-benar
+ * diekspor (2.114 kata: judul bab, susunan otomatis bagian yang belum
+ * ditulis, definisi footnote, dan daftar pustaka ikut terhitung).
+ * Kini keduanya menghitung dokumen tersusun yang sama dengan yang
+ * diekspor, jadi angka KATA kedua tab selalu sama.
+ */
+export function kataDokumenProyek(p: Project): number {
+  return hitungKataNaskah(markdownEksporProyek(p, true));
 }
 
 export function footnoteBagian(p: Project, bagian: string): EntriFootnote[] {

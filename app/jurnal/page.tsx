@@ -11,10 +11,22 @@ export default function JurnalPage() {
   const [q, setQ] = useState("");
   const [bidang, setBidang] = useState("");
   const [akses, setAkses] = useState("");
+  const [urut, setUrut] = useState<"az" | "za">("az");
   const [teks, setTeks] = useState("");
   const [modeCocok, setModeCocok] = useState(false);
 
   const hasil = useMemo(() => filterJurnal({ q, bidang, akses }), [q, bidang, akses]);
+  // Kontrol Urutkan (perbaikan P2.1, laporan perekaman tutorial
+  // macro 10 Nov 2026): filterJurnal selalu mengembalikan abjad
+  // A–Z; pilihan Z–A membalik urutan tampilnya di sini. Filter
+  // Bidang dan Akses tidak berubah perilakunya.
+  const hasilTampil = useMemo(
+    () =>
+      urut === "za"
+        ? [...hasil].sort((a, b) => b.namaLatin.localeCompare(a.namaLatin))
+        : hasil,
+    [hasil, urut],
+  );
   const skor = useMemo(
     () => (teks.trim().length > 20 ? cocokkanJurnal(teks, bidang || undefined) : []),
     [teks, bidang],
@@ -34,7 +46,7 @@ export default function JurnalPage() {
         </p>
       </header>
 
-      <div className="mt-6 grid gap-2 sm:grid-cols-[1.6fr_1fr_1fr]">
+      <div className="mt-6 grid gap-2 sm:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div className="relative">
           <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
           <input
@@ -57,6 +69,15 @@ export default function JurnalPage() {
           <option value="Terbuka">Akses terbuka</option>
           <option value="Hibrida">Hibrida</option>
           <option value="Berlangganan">Berlangganan</option>
+        </select>
+        <select
+          className="input"
+          value={urut}
+          onChange={(e) => setUrut(e.target.value as "az" | "za")}
+          aria-label="Urutkan"
+        >
+          <option value="az">Urutkan: Abjad judul A–Z</option>
+          <option value="za">Urutkan: Abjad judul Z–A</option>
         </select>
       </div>
 
@@ -126,10 +147,10 @@ export default function JurnalPage() {
         )}
       </div>
 
-      <p className="mt-5 text-[11px] text-ink-500">{hasil.length} jurnal ditampilkan</p>
+      <p className="mt-5 text-[11px] text-ink-500">{hasilTampil.length} jurnal ditampilkan</p>
 
       <div className="mt-2 grid gap-2.5 md:grid-cols-2">
-        {hasil.map((j) => (
+        {hasilTampil.map((j) => (
           <article key={j.id} className="rounded-xl border border-ink-900/10 bg-white/70 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -180,7 +201,7 @@ export default function JurnalPage() {
         ))}
       </div>
 
-      {hasil.length === 0 && (
+      {hasilTampil.length === 0 && (
         <div className="mt-8 card p-8 text-center">
           <p className="text-[13px] text-ink-600">Tidak ada jurnal yang cocok dengan filter ini.</p>
         </div>

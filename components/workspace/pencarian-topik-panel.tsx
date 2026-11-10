@@ -444,17 +444,27 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
       setStatusJurnal(hasil.status);
       void periksaHasilJurnal(hasil.entri);
       if (hasil.entri.length === 0) {
-        const gagal = hasil.status.filter((s) => !s.ok).map((s) => s.sumber);
+        // Pesan menyebut sumber yang gagal DENGAN NAMANYA beserta
+        // pesan kegagalannya (perbaikan P0.2, laporan perekaman
+        // tutorial macro 10 Nov 2026) — bukan lagi "periksa koneksi"
+        // generik yang menyalahkan jaringan pengguna.
+        const gagal = hasil.status.filter((s) => !s.ok);
         const pesanKosong =
           gagal.length > 0
-            ? `Tidak ditemukan, dan sumber ini gagal menjawab: ${gagal.join(", ")}. Coba lagi sebentar, atau ubah kalimat kunci kurasi Anda.`
+            ? gagal.length === hasil.status.length
+              ? `Pencarian jurnal daring gagal: semua sumber tidak menjawab (${gagal
+                  .map((g) => `${g.sumber}: ${g.pesan ?? "gagal"}`)
+                  .join("; ")}). Coba lagi sebentar. Pencarian lokal tetap bisa dipakai.`
+              : `Tidak ditemukan, dan sumber ini gagal menjawab: ${gagal.map((g) => g.sumber).join(", ")}. Coba lagi sebentar, atau ubah kalimat kunci kurasi Anda. Pencarian lokal tetap bisa dipakai.`
             : "Tidak ditemukan. Coba ubah kalimat kunci kurasi Anda.";
         setPesan([pesanKosong, pesanAwal].filter(Boolean).join(" "));
       } else if (pesanAwal) {
         setPesan(pesanAwal);
       }
-    } catch {
-      setPesan("Pencarian jurnal gagal — periksa koneksi, lalu coba lagi. Pencarian lokal tetap bisa dipakai.");
+    } catch (e) {
+      setPesan(
+        `Pencarian jurnal gagal dijalankan${e instanceof Error && e.message ? ` (${e.message})` : ""}. Tahap yang berhenti sebelum sumber daring (Crossref, OpenAlex, Semantic Scholar, DOAJ) sempat ditanya adalah penyusunan kata kunci. Coba lagi sebentar. Pencarian lokal tetap bisa dipakai.`,
+      );
     } finally {
       setSibuk("");
     }
@@ -513,9 +523,17 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
       setStatusJurnal(hasil.status);
       void periksaHasilJurnal(hasil.entri);
       if (hasil.entri.length === 0) {
+        const gagal = hasil.status.filter((s) => !s.ok);
         setPesan(
           [
             "Tidak ditemukan untuk kalimat ini. Coba kalimat lain, atau perbaiki padanan Indonesianya.",
+            ...(gagal.length > 0
+              ? [
+                  `Sumber ini gagal menjawab: ${gagal
+                    .map((g) => `${g.sumber}: ${g.pesan ?? "gagal"}`)
+                    .join("; ")}. Pencarian lokal tetap bisa dipakai.`,
+                ]
+              : []),
             ...ketat.catatan,
           ].join(" "),
         );
@@ -523,8 +541,10 @@ export function PencarianTopikPanel({ p, ubah }: { p: Project; ubah: (patch: Par
         setPesan(ketat.catatan.join(" "));
       }
       gulirKeHasil();
-    } catch {
-      setPesan("Pencarian jurnal gagal — periksa koneksi, lalu coba lagi.");
+    } catch (e) {
+      setPesan(
+        `Pencarian jurnal untuk kalimat ini gagal dijalankan${e instanceof Error && e.message ? ` (${e.message})` : ""}. Sumber daring yang biasa ditanya: Crossref, OpenAlex, Semantic Scholar, DOAJ. Pencarian lokal tetap bisa dipakai.`,
+      );
     } finally {
       setSibuk("");
     }

@@ -758,6 +758,20 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
             />
             {asalDoi && <CatatanAsalKolom asal={asalDoi.halaman} nilai={baru.halaman ?? ""} />}
           </Field>
+          {(baru.jenis === "kitab" || baru.jenis === "artikel") && (
+            <Field
+              label="DOI"
+              hint="Isi bila sumber ini punya DOI; DOI diperiksa kecocokannya dengan judul di Crossref dan bidangnya terverifikasi sebelum entri tersimpan."
+            >
+              <input
+                dir="ltr"
+                className="input"
+                value={baru.doi ?? ""}
+                onChange={(e) => setBaru({ ...baru, doi: e.target.value })}
+                placeholder="10.xxxx/xxxxx"
+              />
+            </Field>
+          )}
           {baru.jenis === "artikel" && (
             <>
               <Field label="Nama jurnal">
@@ -825,6 +839,15 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
             <IconPlus className="h-4 w-4" /> Simpan rujukan
           </button>
         </div>
+        {/* Penjelasan gerbang pasang (P1.1 opsi pemilik): perilaku
+            simpan sebagai draf PERLU VERIFIKASI tidak berubah; yang
+            ditambah hanya kalimat penjelasnya di sini, berlaku sama
+            untuk jenis Kitab dan Artikel jurnal. */}
+        <p className="mt-3 rounded-lg bg-parchment-100/70 px-3 py-2 text-[11.5px] leading-relaxed text-ink-600">
+          Rujukan yang belum terverifikasi tidak bisa dipasang ke draf sampai diverifikasi. Entri
+          manual tanpa DOI tersimpan sebagai draf berlabel PERLU VERIFIKASI; periksa lewat tombol
+          Verifikasi pada entrinya di daftar rujukan di bawah.
+        </p>
         {peringatanDuplikat && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
             <span>{peringatanDuplikat}</span>
@@ -921,6 +944,22 @@ export function RefTab({ p, ubah }: { p: Project; ubah: (patch: Partial<Project>
 
                 {terbuka && (
                   <div className="space-y-2 border-t border-dashed border-ink-900/10 px-3 py-3">
+                    {s.doi?.trim() && (
+                      <div className="flex items-start gap-2 rounded-lg bg-parchment-100/70 px-2.5 py-2">
+                        <span className="w-28 shrink-0 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+                          DOI
+                        </span>
+                        <a
+                          href={`https://doi.org/${s.doi.trim()}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          dir="ltr"
+                          className="flex-1 text-[12.5px] leading-relaxed text-gold-700 underline underline-offset-2"
+                        >
+                          {s.doi.trim()}
+                        </a>
+                      </div>
+                    )}
                     {[
                       { label: "Dalam teks", nilai: kutipanDalamTeks(s) },
                       { label: "Catatan kaki", nilai: catatanKaki(s) },

@@ -35,12 +35,25 @@ const INFO: Record<Penyedia, { nama: string; tautan: string; labelTautan: string
   },
 };
 
+interface HasilUji {
+  /** Nilai kolom persis saat diuji; nilai yang berubah membatalkan hasil ini. */
+  nilai: string;
+  valid: boolean;
+  pesan: string;
+}
+
 export function KunciForm() {
   const [status, setStatus] = useState<Status | null>(null);
   const [muatGagal, setMuatGagal] = useState("");
   const [nilai, setNilai] = useState<Record<Penyedia, string>>({ gemini: "", groq: "" });
   const [sibuk, setSibuk] = useState<Penyedia | null>(null);
   const [pesan, setPesan] = useState<Record<Penyedia, string>>({ gemini: "", groq: "" });
+  // Uji kunci + tampil/sembunyi (perbaikan P1.3): hasil uji terikat
+  // pada nilai kolom yang diuji; begitu nilai berubah, hasil lama
+  // tidak berlaku lagi dan tombol Simpan kembali bebas.
+  const [tampil, setTampil] = useState<Record<Penyedia, boolean>>({ gemini: false, groq: false });
+  const [hasilUji, setHasilUji] = useState<Record<Penyedia, HasilUji | null>>({ gemini: null, groq: null });
+  const [sibukUji, setSibukUji] = useState<Penyedia | null>(null);
 
   const muat = useCallback(async () => {
     try {
@@ -56,8 +69,50 @@ export function KunciForm() {
     void muat();
   }, [muat]);
 
+  async function uji(p: Penyedia) {
+    const k = nilai[p].trim();
+    if (!k) {
+      setHasilUji((s) => ({
+        ...s,
+        [p]: { nilai: k, valid: false, pesan: "Tempel dulu kunci yang mau diuji." },
+      }));
+      return;
+    }
+    setSibukUji(p);
+    try {
+      const res = await fetch("/api/kunci-pribadi/uji", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ penyedia: p, kunci: k }),
+      });
+      const j = (await res.json().catch(() => null)) as { valid?: boolean; pesan?: string } | null;
+      setHasilUji((s) => ({
+        ...s,
+        [p]: {
+          nilai: k,
+          valid: Boolean(j?.valid),
+          pesan: j?.pesan ?? "Uji tidak memberi jawaban. Coba lagi.",
+        },
+      }));
+    } catch {
+      setHasilUji((s) => ({
+        ...s,
+        [p]: { nilai: k, valid: false, pesan: "Uji tidak tersambung ke server Kitabah. Coba lagi." },
+      }));
+    } finally {
+      setSibukUji(null);
+    }
+  }
+
   async function simpan(p: Penyedia) {
     const k = nilai[p].trim();
+    // Nilai yang SUDAH diuji dan terbukti tidak valid (dan belum
+    // berubah sejak diuji) tidak boleh tersimpan (P1.3).
+    const ujiTerakhir = hasilUji[p];
+    if (ujiTerakhir && ujiTerakhir.nilai === k && !ujiTerakhir.valid) {
+      setPesan((s) => ({ ...s, [p]: "Kunci tidak valid, belum disimpan." }));
+      return;
+    }
     if (k.length < 20) {
       setPesan((s) => ({ ...s, [p]: "Tempel dulu kunci lengkapnya (minimal 20 karakter)." }));
       return;
@@ -133,6 +188,8 @@ export function KunciForm() {
       {(Object.keys(INFO) as Penyedia[]).map((p) => {
         const info = INFO[p];
         const st = status[p];
+        const ujiAktif =
+          hasilUji[p] && hasilUji[p]!.nilai === nilai[p].trim() ? hasilUji[p] : null;
         return (
           <div key={p} className="rounded-xl border border-ink-900/10 p-4">
             <div className="flex items-baseline justify-between gap-2">
@@ -153,9 +210,9 @@ export function KunciForm() {
               </a>{" "}
               (gratis).
             </p>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               <input
-                type="password"
+                type={tampil[p] ? "text" : "password"}
                 autoComplete="off"
                 spellCheck={false}
                 value={nilai[p]}
@@ -163,6 +220,21 @@ export function KunciForm() {
                 placeholder={st.ada ? "Tempel kunci baru untuk mengganti" : "Tempel kunci Anda di sini"}
                 className="min-w-0 flex-1 rounded-lg border border-ink-900/15 px-3 py-2 text-[13px] text-ink-900 outline-none focus:border-gold-500"
               />
+              <button
+                type="button"
+                onClick={() => setTampil((s) => ({ ...s, [p]: !s[p] }))}
+                className="shrink-0 rounded-lg border border-ink-900/15 px-3 py-2 text-[13px] font-semibold text-ink-700 transition hover:bg-ink-900/5"
+              >
+                {tampil[p] ? "Sembunyikan" : "Tampilkan"}
+              </button>
+              <button
+                type="button"
+                disabled={sibuk === p || sibukUji === p}
+                onClick={() => void uji(p)}
+                className="shrink-0 rounded-lg border border-ink-900/15 px-3 py-2 text-[13px] font-semibold text-ink-700 transition hover:bg-ink-900/5 disabled:opacity-50"
+              >
+                {sibukUji === p ? "Menguji…" : "Uji kunci"}
+              </button>
               <button
                 type="button"
                 disabled={sibuk === p}
@@ -182,6 +254,15 @@ export function KunciForm() {
                 </button>
               )}
             </div>
+            {ujiAktif && (
+              <p
+                className={`mt-2 text-[12px] font-semibold leading-relaxed ${
+                  ujiAktif.valid ? "text-emerald-700" : "text-red-700"
+                }`}
+              >
+                Hasil uji: {ujiAktif.pesan}
+              </p>
+            )}
             {pesan[p] && <p className="mt-2 text-[12px] leading-relaxed text-ink-700">{pesan[p]}</p>}
           </div>
         );

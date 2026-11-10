@@ -108,6 +108,13 @@ export function DirasahPanel({
     setSibuk(true);
     setGalat("");
     setPesan("");
+    // Batas waktu klien 30 detik (perbaikan P0.1, laporan perekaman
+    // tutorial macro 10 Nov 2026): dulu pencarian yang lambat berakhir
+    // diam tanpa pesan apa pun. Kini lewat 30 detik pencarian dibatalkan
+    // dan pengguna menerima pesan yang jelas, bukan tombol yang kembali
+    // normal dalam senyap.
+    const pengendali = new AbortController();
+    const batasWaktu = window.setTimeout(() => pengendali.abort(), 30_000);
     try {
       const res = await fetch("/api/dirasah", {
         method: "POST",
@@ -117,6 +124,7 @@ export function DirasahPanel({
           bidangId: p.bidangId,
           topikAr: p.judulAr || p.topikAr,
         }),
+        signal: pengendali.signal,
       });
       const data = (await res.json().catch(() => null)) as HasilCariDirasah & { error?: string } | null;
       if (!res.ok || !data || !Array.isArray(data.kajian)) {
@@ -136,9 +144,14 @@ export function DirasahPanel({
           tahun: k.sumber.tahun,
         })),
       );
-    } catch {
-      setGalat("Pencarian dirasah gagal tersambung ke server. Periksa koneksi lalu coba lagi.");
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setGalat("Pencarian melewati batas 30 detik, coba lagi.");
+      } else {
+        setGalat("Pencarian dirasah gagal tersambung ke server. Periksa koneksi lalu coba lagi.");
+      }
     } finally {
+      window.clearTimeout(batasWaktu);
       setSibuk(false);
     }
   }
@@ -551,6 +564,11 @@ export function DirasahPanel({
           <h4 className="text-[12px] font-bold text-ink-900">
             Hasil pencarian ({hasil.kajian.length} kajian)
           </h4>
+          {hasil.kajian.length === 0 && (
+            <p className="mt-2 text-[12px] leading-relaxed text-ink-700">
+              Tidak ditemukan kajian terdahulu untuk judul ini.
+            </p>
+          )}
           {hasil.catatan.length > 0 && (
             <div className="mt-2 space-y-2">
               {hasil.catatan.map((c, i) => (

@@ -200,7 +200,12 @@ export interface HasilJurnal {
   status: { sumber: string; ok: boolean; pesan?: string }[];
 }
 
-/** Cari jurnal dari gabungan kata kunci (Inggris+Indonesia+Arab teratas). */
+/** Cari jurnal dari gabungan kata kunci (Inggris+Indonesia+Arab teratas).
+ *  Tiap sumber dibatasi 10 detik (perbaikan P0.2, laporan perekaman
+ *  tutorial macro 10 Nov 2026): dulu fetch tanpa batas waktu bisa
+ *  menggantung ±30 detik lalu berakhir pada pesan generik. Kegagalan
+ *  tiap sumber tercatat di status dengan pesannya, dan panel menyebut
+ *  sumber yang gagal itu namanya kepada pengguna. */
 export async function cariJurnalTopik(kk: KataKunci, perSumber = 10): Promise<HasilJurnal> {
   const q = [kk.inggris[0], kk.indonesia[0], kk.arab[0]].filter(Boolean).join(" ");
   const qDoaj = [kk.indonesia[0], kk.indonesia[1]].filter(Boolean).join(" ") || q;
@@ -216,7 +221,7 @@ export async function cariJurnalTopik(kk: KataKunci, perSumber = 10): Promise<Ha
           filter: "type:journal-article",
           select: "title,author,issued,container-title,DOI,URL,volume,issue,page",
         });
-        const res = await fetch(`https://api.crossref.org/works?${params}`);
+        const res = await fetch(`https://api.crossref.org/works?${params}`, { signal: AbortSignal.timeout(10_000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const items = (await res.json())?.message?.items ?? [];
         semua.push(...items.map(dariCrossref));
@@ -229,6 +234,7 @@ export async function cariJurnalTopik(kk: KataKunci, perSumber = 10): Promise<Ha
       try {
         const res = await fetch(
           `https://api.openalex.org/works?search=${encodeURIComponent(q)}&filter=type:article&per-page=${perSumber}`,
+          { signal: AbortSignal.timeout(10_000) },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -242,6 +248,7 @@ export async function cariJurnalTopik(kk: KataKunci, perSumber = 10): Promise<Ha
       try {
         const res = await fetch(
           `https://api.semanticscholar.org/graph/v1/paper/search?query=${encodeURIComponent(q)}&limit=${perSumber}&fields=title,authors,year,venue,externalIds`,
+          { signal: AbortSignal.timeout(10_000) },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -253,7 +260,7 @@ export async function cariJurnalTopik(kk: KataKunci, perSumber = 10): Promise<Ha
     })(),
     (async () => {
       try {
-        const res = await fetch(`https://doaj.org/api/search/articles/${encodeURIComponent(qDoaj)}?pageSize=${perSumber}`);
+        const res = await fetch(`https://doaj.org/api/search/articles/${encodeURIComponent(qDoaj)}?pageSize=${perSumber}`, { signal: AbortSignal.timeout(10_000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         semua.push(...(data.results ?? []).map(dariDoaj));

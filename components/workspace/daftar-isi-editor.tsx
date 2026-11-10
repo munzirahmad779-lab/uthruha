@@ -355,7 +355,7 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
         </button>
         {jumlahRumusan === 0 && (
           <p className="mt-2 text-[11px] text-amber-800">
-            Rumusan masalah proyek ini masih kosong — isi dulu di wizard/ringkasan proyek.
+            Isi rumusan masalah dulu di tab Ringkasan.
           </p>
         )}
         <div className="mt-3 border-t border-ink-900/10 pt-3">
@@ -382,7 +382,8 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
         <div className="flex gap-1.5">
           <button
             type="button"
-            className="btn-quiet !py-1 !text-[11px]"
+            className="btn-quiet !py-1 !text-[11px] disabled:opacity-40"
+            disabled={jumlahRumusan === 0}
             onClick={() => {
               if (window.confirm("Susun ulang dari rumusan masalah? Edit manual Anda akan diganti.")) susunDariIsykal();
             }}
@@ -400,6 +401,12 @@ export function DaftarIsiEditor({ p, ubah }: { p: Project; ubah: (patch: Partial
           </button>
         </div>
       </div>
+
+      {jumlahRumusan === 0 && (
+        <p className="text-[11px] text-amber-800">
+          Isi rumusan masalah dulu di tab Ringkasan.
+        </p>
+      )}
 
       {p.daftarIsiDariJudul && (
         <p className="rounded-lg bg-parchment-100 px-3 py-2 text-[11.5px] leading-relaxed text-ink-600">

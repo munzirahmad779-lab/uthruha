@@ -165,6 +165,11 @@ const JALUR_BEBAS = new Set([
   // halaman /kunci sendiri hanya formulir tanpa data pengguna.
   "/kunci",
   "/api/kunci-pribadi",
+  // Uji kunci (P1.3): pendamping rute di atas dengan penjaga yang
+  // sama persis di handler-nya (sesi sah wajib; kunci yang diuji
+  // tidak disimpan dan tidak dicatat). Mahasiswa yang belum menyetor
+  // kunci harus bisa menguji kunci pertamanya dari halaman /kunci.
+  "/api/kunci-pribadi/uji",
   // Keluar/ganti akun juga harus tercapai SEBELUM gerbang (tombol
   // "Ganti akun" di /masuk dipakai pengunjung yang belum punya sesi
   // gerbang) dan dari dalam ruang kerja. Endpoint ini tidak memberi

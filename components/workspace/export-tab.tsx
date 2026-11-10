@@ -8,10 +8,9 @@ import {
   hitungKataNaskah,
 } from "@/lib/engine/estimasi-halaman";
 import { buatDocx, unduh } from "@/lib/engine/export";
-import { daftarPustakaProyek } from "@/lib/engine/daftar-pustaka";
 import { modePerBab } from "@/lib/engine/hawamisy";
 import type { Project } from "@/lib/engine/project";
-import { kompilasiDokumen } from "@/components/workspace/footnote-bagian";
+import { markdownEksporProyek } from "@/components/workspace/footnote-bagian";
 import { PemeriksaanSitasiPanel } from "@/components/workspace/pemeriksaan-sitasi-panel";
 import { IconDoc, IconDownload } from "@/components/icons";
 import { CopyButton, Note, Stat } from "@/components/ui";
@@ -29,21 +28,12 @@ export function ExportTab({ p, onBuka }: { p: Project; onBuka?: (sectionId: stri
   const [sedang, setSedang] = useState(false);
 
   const markdown = useMemo(() => {
-    // Kompilasi dokumen sadar batas bab (mode per-bab As'adiyah
-    // mulai dari 1 tiap bab; mode lain persis seperti sebelumnya)
-    // dan daftar pustaka SATU JALUR (daftarPustakaProyek) — bentuk
-    // entri di sini identik dengan tab Rujukan (Tahap 6).
-    const hasil = kompilasiDokumen(p);
-    const isi = hasil.markdown;
-    if (!pakaiRujukan || p.sumber.length === 0) return isi;
-    const grup = daftarPustakaProyek(p);
-    const daftar =
-      grup.length === 1
-        ? grup[0]!.entri.map((e, i) => `${i + 1}. ${e}`).join("\n")
-        : grup
-            .map((g) => `### ${g.judul}\n\n${g.entri.map((e, i) => `${i + 1}. ${e}`).join("\n")}`)
-            .join("\n\n");
-    return `${isi}\n\n---\n\n# قائمة المراجع\n\n${daftar}`;
+    // Penyusunan markdown ekspor kini SATU JALUR bersama di
+    // markdownEksporProyek (kompilasi dokumen sadar batas bab +
+    // daftar pustaka satu jalur) — fungsi yang sama dipakai
+    // penghitung kata bersama kataDokumenProyek untuk tab Ringkasan
+    // (perbaikan P2.3), jadi angka KATA kedua tab tidak bisa berbeda.
+    return markdownEksporProyek(p, pakaiRujukan);
   }, [p, pakaiRujukan]);
 
   // Panjang dokumen yang akan diunduh (Tahap 10): kata dihitung

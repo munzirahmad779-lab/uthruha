@@ -130,7 +130,7 @@ function skorRelevansi(kueri: Set<string>, judul: string): number {
   return sama / Math.max(t.size, 1);
 }
 
-async function ambilJSON(url: string, ms = 12_000): Promise<unknown | null> {
+async function ambilJSON(url: string, ms = 8_000): Promise<unknown | null> {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": UA, Accept: "application/json" },
@@ -145,7 +145,7 @@ async function ambilJSON(url: string, ms = 12_000): Promise<unknown | null> {
 }
 
 async function verifikasiDOI(doi: string): Promise<boolean> {
-  const j = (await ambilJSON(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, 8_000)) as {
+  const j = (await ambilJSON(`https://api.crossref.org/works/${encodeURIComponent(doi)}`, 6_000)) as {
     message?: { DOI?: string };
   } | null;
   return Boolean(j?.message?.DOI);
@@ -210,13 +210,51 @@ export async function cariRujukanTamu(
   // dan ketiga (kemiskinan, Indonesia) tidak pernah dicari sama sekali.
   const mailto = process.env.OPENALEX_MAILTO?.trim() || "uthruha@contoh.id";
   const daftarKueri = [...new Set([kueriUtama, ...kalimatKunci.slice(0, 3)])].slice(0, 3);
-  const hasilOA: Record<string, unknown>[] = [];
-  for (const q of daftarKueri) {
-    const oa = (await ambilJSON(
-      `https://api.openalex.org/works?search=${encodeURIComponent(q)}&per-page=8&mailto=${encodeURIComponent(mailto)}`,
-    )) as { results?: Record<string, unknown>[] } | null;
-    for (const w of oa?.results ?? []) hasilOA.push(w);
-  }
+  // Semua sumber diambil PARALEL (perbaikan P0.1, laporan perekaman
+  // tutorial macro 10 Nov 2026): dulu pengambilan berjalan berurutan
+  // per sumber dan per kueri dengan batas 12 detik per panggilan,
+  // sehingga total tunggu bisa menumpuk jauh melewati 30 detik dan
+  // klien berakhir diam tanpa pesan. Kini tiap panggilan dibatasi
+  // 8 detik dan semua sumber ditanya bersamaan; urutan PENGOLAHAN
+  // hasilnya di bawah tetap seperti semula, jadi prioritas dedupe
+  // dan komposisi hasil tidak berubah.
+  const [hasilOA, oaBuku, hasilCR, gb, ol] = await Promise.all([
+    (async () => {
+      const per = await Promise.all(
+        daftarKueri.map(
+          (q) =>
+            ambilJSON(
+              `https://api.openalex.org/works?search=${encodeURIComponent(q)}&per-page=8&mailto=${encodeURIComponent(mailto)}`,
+            ) as Promise<{ results?: Record<string, unknown>[] } | null>,
+        ),
+      );
+      const semua: Record<string, unknown>[] = [];
+      for (const oa of per) for (const w of oa?.results ?? []) semua.push(w);
+      return semua;
+    })(),
+    ambilJSON(
+      `https://api.openalex.org/works?search=${encodeURIComponent(kueriUtama)}&filter=type:book&per-page=8&mailto=${encodeURIComponent(mailto)}`,
+    ) as Promise<{ results?: Record<string, unknown>[] } | null>,
+    (async () => {
+      const per = await Promise.all(
+        daftarKueri.map(
+          (q) =>
+            ambilJSON(
+              `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(q)}&rows=8&mailto=${encodeURIComponent(mailto)}`,
+            ) as Promise<{ message?: { items?: Record<string, unknown>[] } } | null>,
+        ),
+      );
+      const semua: Record<string, unknown>[] = [];
+      for (const cr of per) for (const it of cr?.message?.items ?? []) semua.push(it);
+      return semua;
+    })(),
+    ambilJSON(
+      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(kueriUtama)}&maxResults=8`,
+    ) as Promise<{ items?: { volumeInfo?: Record<string, unknown> }[] } | null>,
+    ambilJSON(
+      `https://openlibrary.org/search.json?q=${encodeURIComponent(kueriUtama)}&limit=8`,
+    ) as Promise<{ docs?: Record<string, unknown>[] } | null>,
+  ]);
   for (const w of hasilOA) {
     const doi = typeof w.doi === "string" ? w.doi.replace("https://doi.org/", "") : null;
     const judul = typeof w.title === "string" ? w.title : "";
@@ -252,10 +290,7 @@ export async function cariRujukanTamu(
     });
   }
 
-  // — OpenAlex: khusus buku (type:book) —
-  const oaBuku = (await ambilJSON(
-    `https://api.openalex.org/works?search=${encodeURIComponent(kueriUtama)}&filter=type:book&per-page=8&mailto=${encodeURIComponent(mailto)}`,
-  )) as { results?: Record<string, unknown>[] } | null;
+  // — OpenAlex: khusus buku (type:book) — (sudah diambil paralel di atas)
   for (const w of oaBuku?.results ?? []) {
     const doi = typeof w.doi === "string" ? w.doi.replace("https://doi.org/", "") : null;
     const judul = typeof w.title === "string" ? w.title : "";
@@ -282,14 +317,7 @@ export async function cariRujukanTamu(
     });
   }
 
-  // — Crossref (juga jalur utama bila OpenAlex 429) —
-  const hasilCR: Record<string, unknown>[] = [];
-  for (const q of daftarKueri) {
-    const cr = (await ambilJSON(
-      `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(q)}&rows=8&mailto=${encodeURIComponent(mailto)}`,
-    )) as { message?: { items?: Record<string, unknown>[] } } | null;
-    for (const it of cr?.message?.items ?? []) hasilCR.push(it);
-  }
+  // — Crossref (juga jalur utama bila OpenAlex 429) — (sudah diambil paralel di atas)
   for (const it of hasilCR) {
     const judul = Array.isArray(it.title) ? String(it.title[0] ?? "") : "";
     if (!judul) continue;
@@ -319,10 +347,7 @@ export async function cariRujukanTamu(
     });
   }
 
-  // — Google Books —
-  const gb = (await ambilJSON(
-    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(kueriUtama)}&maxResults=8`,
-  )) as { items?: { volumeInfo?: Record<string, unknown> }[] } | null;
+  // — Google Books — (sudah diambil paralel di atas)
   for (const it of gb?.items ?? []) {
     const info = it.volumeInfo;
     if (!info || typeof info.title !== "string") continue;
@@ -343,10 +368,7 @@ export async function cariRujukanTamu(
     });
   }
 
-  // — Open Library search —
-  const ol = (await ambilJSON(
-    `https://openlibrary.org/search.json?q=${encodeURIComponent(kueriUtama)}&limit=8`,
-  )) as { docs?: Record<string, unknown>[] } | null;
+  // — Open Library search — (sudah diambil paralel di atas)
   for (const d of ol?.docs ?? []) {
     if (typeof d.title !== "string") continue;
     const isbnMentah = Array.isArray(d.isbn) ? String(d.isbn[0] ?? "") : "";
@@ -365,9 +387,15 @@ export async function cariRujukanTamu(
   }
 
   // — Verifikasi identifier (paralel, dibatasi) —
+  // Batas lunak 10 detik untuk seluruh fase ini (P0.1): pengambilan
+  // sumber paralel di atas maksimal ±8 detik, jadi total pencarian
+  // tinggal di bawah ±20 detik. Kandidat yang verifikasinya belum
+  // selesai saat batas tercapai tampil apa adanya sebagai BELUM
+  // terverifikasi — label jujurnya memang begitu, bukan lolos diam.
   const terurut = kandidat.sort((a, b) => b.skorMentah - a.skorMentah).slice(0, 18);
-  await Promise.all(
-    terurut.map(async (k) => {
+  await Promise.race([
+    Promise.all(
+      terurut.map(async (k) => {
       if (k.doi) {
         // DOI dari indeks Crossref sendiri pasti terdaftar; DOI dari sumber
         // lain diverifikasi ke Crossref dengan satu kali pengulangan,
@@ -389,8 +417,10 @@ export async function cariRujukanTamu(
           if (!k.tahun) k.tahun = meta.tahun;
         }
       }
-    }),
-  );
+      }),
+    ),
+    new Promise<void>((selesai) => setTimeout(selesai, 10_000)),
+  ]);
 
   // Saring hasil sempalan bidang, dengan sengaja sempit (audit 29 Okt):
   // penanda domain asing yang kuat pada judul kandidat (kesehatan,

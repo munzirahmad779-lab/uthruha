@@ -4,6 +4,7 @@ import { getBidang } from "@/lib/content/bidang";
 import { getMetode } from "@/lib/content/metode";
 import { ringkasanPanjangProyek, strukturProyek } from "@/lib/content/struktur";
 import { rumusanDefault, tujuanDefault } from "@/lib/engine/compose";
+import { kataDokumenProyek } from "@/components/workspace/footnote-bagian";
 import type { Project } from "@/lib/engine/project";
 import { IconArrowRight, IconCheck } from "@/components/icons";
 import { Field, Note, Progress, Stat } from "@/components/ui";
@@ -28,12 +29,18 @@ export function OverviewTab({
   const terisi = st.chapters
     .flatMap((c) => c.sections)
     .filter((s) => (p.draf[s.id] ?? "").trim().length > 80).length;
-  // Panjang dan capaian target (Tahap 10): kata dihitung dengan
-  // penghitung yang sama dengan kalibrasi penaksir, halaman
-  // ditaksir pada format proyek, dan target tampil per sumber
-  // aturannya (pemilik web atau pedoman), tidak dicampur.
+  // Panjang dan capaian target (Tahap 10): halaman ditaksir pada
+  // format proyek, dan target tampil per sumber aturannya (pemilik
+  // web atau pedoman), tidak dicampur.
   const panjang = ringkasanPanjangProyek(p);
-  const kata = panjang.kataTotal;
+  // Angka KATA di kartu statistik memakai fungsi hitung kata BERSAMA
+  // dengan tab Ekspor (kataDokumenProyek atas dokumen tersusun yang
+  // diekspor) — perbaikan P2.3: dulu di sini kataTotal draf mentah
+  // per bagian (602) sedangkan Ekspor menghitung dokumen tersusun
+  // (2.114), sehingga kedua tab berbeda untuk proyek yang sama.
+  // Capaian target per bab di bawah tetap memakai hitungan per
+  // bagian dari ringkasanPanjangProyek, tidak berubah.
+  const kata = kataDokumenProyek(p);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.45fr_1fr]">
