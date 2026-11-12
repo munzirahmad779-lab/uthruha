@@ -59,7 +59,21 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
   const antarKeTujuan = useCallback(() => {
     const lanjut = new URLSearchParams(window.location.search).get("lanjut");
     // Hanya izinkan jalur internal agar tidak menjadi open redirect.
-    const tujuan = lanjut && lanjut.startsWith("/") && !lanjut.startsWith("//") ? lanjut : "/";
+    // Bawaan = ruang kerja proyek (/proyek), BUKAN beranda: dulu bawaannya
+    // "/" membuat pengguna yang baru berhasil masuk dilempar balik ke
+    // beranda yang sama, tidak sampai ruang kerja (laporan pemilik,
+    // 12 Nov 2026). Tujuan "/" atau "/masuk" sendiri juga dipetakan ke
+    // /proyek agar tidak ada putaran ke halaman asal.
+    const tujuan =
+      lanjut &&
+      lanjut.startsWith("/") &&
+      !lanjut.startsWith("//") &&
+      lanjut !== "/" &&
+      lanjut !== "/masuk" &&
+      !lanjut.startsWith("/masuk?") &&
+      !lanjut.startsWith("/masuk#")
+        ? lanjut
+        : "/proyek";
     router.replace(tujuan);
     router.refresh();
   }, [router]);

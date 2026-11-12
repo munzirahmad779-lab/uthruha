@@ -8,7 +8,8 @@
  * daftar email apa pun). Server memeriksa email terhadap daftar putih;
  * kegagalan menampilkan pesan umum dari server apa adanya, dan
  * keberhasilan mengantar ke tujuan sesudah masuk yang sama dengan
- * alur Google (parameter lanjut bila internal, selain itu beranda).
+ * alur Google (parameter lanjut bila internal, selain itu ruang
+ * kerja proyek /proyek).
  */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -36,10 +37,20 @@ export function MasukUjiForm() {
         return;
       }
       // Tujuan sesudah masuk sama seperti alur Google di MasukForm:
-      // parameter lanjut dipakai hanya bila internal.
+      // parameter lanjut dipakai hanya bila internal; bawaannya ruang
+      // kerja proyek (/proyek), bukan beranda, dan tujuan "/" atau
+      // "/masuk" sendiri dipetakan ke /proyek agar tidak muter balik.
       const lanjut = new URLSearchParams(window.location.search).get("lanjut");
       const tujuan =
-        lanjut && lanjut.startsWith("/") && !lanjut.startsWith("//") ? lanjut : "/";
+        lanjut &&
+        lanjut.startsWith("/") &&
+        !lanjut.startsWith("//") &&
+        lanjut !== "/" &&
+        lanjut !== "/masuk" &&
+        !lanjut.startsWith("/masuk?") &&
+        !lanjut.startsWith("/masuk#")
+          ? lanjut
+          : "/proyek";
       router.replace(tujuan);
       router.refresh();
     } catch {

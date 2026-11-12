@@ -201,10 +201,25 @@ const JALUR_BEBAS = new Set([
   "/api/persona",
 ]);
 
-/** Tujuan setelah berhasil masuk; hanya jalur internal (anti open redirect). */
+/**
+ * Tujuan setelah berhasil masuk; hanya jalur internal (anti open redirect).
+ * Bawaan = ruang kerja proyek (/proyek), BUKAN beranda: dulu bawaannya "/"
+ * membuat pengunjung yang sesinya masih sah menekan Masuk lalu dilempar
+ * balik ke beranda yang sama berulang kali, tidak pernah sampai ruang
+ * kerja (laporan pemilik, 12 Nov 2026). Tujuan "/" atau "/masuk" sendiri
+ * juga dipetakan ke /proyek agar tidak ada putaran ke halaman asal.
+ */
 function tujuanAman(nilai: string | null): string {
-  if (!nilai) return "/";
-  if (!nilai.startsWith("/") || nilai.startsWith("//")) return "/";
+  if (!nilai) return "/proyek";
+  if (!nilai.startsWith("/") || nilai.startsWith("//")) return "/proyek";
+  if (
+    nilai === "/" ||
+    nilai === "/masuk" ||
+    nilai.startsWith("/masuk?") ||
+    nilai.startsWith("/masuk#")
+  ) {
+    return "/proyek";
+  }
   return nilai;
 }
 

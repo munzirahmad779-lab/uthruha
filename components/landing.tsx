@@ -63,7 +63,7 @@ export function Hero() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/masuk" className="btn-gold">
+            <Link href="/masuk?lanjut=/proyek" className="btn-gold">
               Masuk
               <IconArrowRight className="h-4 w-4" />
             </Link>
@@ -720,7 +720,7 @@ export function CtaBand() {
           diminta lewat WhatsApp dari halaman masuk.
         </p>
         <div className="relative mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/masuk" className="btn-gold">
+          <Link href="/masuk?lanjut=/proyek" className="btn-gold">
             Masuk
             <IconArrowRight className="h-4 w-4" />
           </Link>

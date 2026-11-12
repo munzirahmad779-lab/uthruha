@@ -161,7 +161,7 @@ export function KunciForm() {
     return (
       <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-[13px] leading-relaxed text-red-700">
         {muatGagal}{" "}
-        <a href="/masuk" className="font-semibold underline underline-offset-2">
+        <a href="/masuk?lanjut=/kunci" className="font-semibold underline underline-offset-2">
           Ke halaman masuk
         </a>
       </p>
