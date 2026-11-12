@@ -394,6 +394,21 @@ function translitBertanda(teks: string, k: "s" | "i"): string {
     }
     const ada = (t: string) => tanda.includes(t);
 
+    // Lam proclitic di awal kata tanpa harakat, diikuti hamzah atas
+    // (لأحكام، لأصول): partikel li- yang kasrahnya memang lazim tidak
+    // ditulis. Dulu keluar "lahkam" karena kasrah itu hilang. Hanya
+    // berlaku bila lam tidak membawa harakatnya sendiri.
+    if (
+      c === "ل" &&
+      tanda.length === 0 &&
+      (i === 0 || !/[\u0621-\u064A\u064B-\u0652\u0670]/.test(chars[i - 1])) &&
+      chars[j] === "أ"
+    ) {
+      out += "li";
+      i = j;
+      continue;
+    }
+
     let potongan = lat;
     if (ada(TANDA_SYADDAH)) potongan = lat + lat;
 
