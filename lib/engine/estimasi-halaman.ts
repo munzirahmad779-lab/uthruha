@@ -99,21 +99,22 @@ export interface FormatHalaman {
 }
 
 /**
- * Format standar: yang dinyatakan perintah pemilik untuk Bab 2 (A4,
- * Calibri 16) dan pedoman Mangkoso untuk naskah (Calibri 16, spasi
- * 1,5, A4; SPEC-PEDOMAN 2.7). Pedoman Mangkoso tidak menetapkan
- * margin, jadi margin yang dipakai adalah margin bawaan eksportir
- * aplikasi (2,5 cm semua sisi, DOK_DEFAULT di lib/engine/export.ts),
- * dinyatakan di sini agar basisnya tidak diam-diam berubah.
+ * Format standar: pedoman Mangkoso untuk naskah (16 pt, spasi 1,5,
+ * A4; SPEC-PEDOMAN 2.7). Margin mengikuti bawaan eksportir aplikasi
+ * (DOK_DEFAULT di lib/engine/export.ts): standar risalah kampus
+ * keislaman kanan 4 cm, kiri/atas/bawah 3 cm, font Traditional
+ * Arabic 16. kataPerHalaman disesuaikan dari kalibrasi lama
+ * (230 pada margin 2,5 cm) dengan faktor geometri lebar teks
+ * (16 cm → 14 cm) dan tinggi teks (24,7 cm → 23,7 cm): ±0,84.
  */
 export const FORMAT_STANDAR: FormatHalaman = {
   id: "standar",
-  label: "A4 · Calibri 16 · spasi 1,5 · margin 2,5 cm",
-  font: "Calibri",
+  label: "A4 · Traditional Arabic 16 · spasi 1,5 · margin 4/3/3/3 cm",
+  font: "Traditional Arabic",
   ukuranPt: 16,
   spasi: "1,5",
-  marginCm: { kanan: 2.5, kiri: 2.5, atas: 2.5, bawah: 2.5 },
-  kataPerHalaman: 230,
+  marginCm: { kanan: 4, kiri: 3, atas: 3, bawah: 3 },
+  kataPerHalaman: 195,
 };
 
 /**

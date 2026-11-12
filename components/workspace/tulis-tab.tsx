@@ -21,6 +21,7 @@ import { FootnoteBagian, kemunculanBagian, kompilasiBagian } from "@/components/
 import { EditorPenanda, type FokusPenanda } from "@/components/workspace/editor-penanda";
 import { pecahSegmen } from "@/lib/engine/marker";
 import { BatasStrip } from "@/components/workspace/batas-strip";
+import { DRAF_DEMO_BAB1, SUMBER_DEMO_BAB1, kataDemo } from "@/lib/demo/draf-bab1";
 import { SerahAiPanel } from "@/components/workspace/serah-ai-panel";
 import type { KonteksKembangkan } from "@/lib/engine/ai-handoff";
 
@@ -142,6 +143,8 @@ export function TulisTab({
   const [serahTerbuka, setSerahTerbuka] = useState(false);
   const [kursor, setKursor] = useState<number | null>(null);
   const [pesanPasang, setPesanPasang] = useState("");
+  const [menuFootnote, setMenuFootnote] = useState(false);
+  const [pesanDemo, setPesanDemo] = useState("");
   const [sibukGenerate, setSibukGenerate] = useState(false);
   const [pesanGenerate, setPesanGenerate] = useState<{
     jenis: "ok" | "info" | "galat";
@@ -569,6 +572,47 @@ export function TulisTab({
     }
   }
 
+  /**
+   * Muat contoh draf Bab I penuh (data demo): mengisi seluruh sub-bab
+   * Bab I + kajian terdahulu + metodologi dari lib/demo/draf-bab1.ts
+   * (±4.500 kata Arab, footnote terpasang), dan menambahkan rujukan
+   * contohnya ke daftar rujukan proyek. Bagian yang sudah berisi
+   * tulisan mahasiswa tidak ditimpa tanpa konfirmasi.
+   */
+  function muatContohBab1() {
+    const idTarget = Object.keys(DRAF_DEMO_BAB1).filter((id) =>
+      semua.some((s) => s.id === id),
+    );
+    const sudahTerisi = idTarget.filter((id) => (p.draf[id] ?? "").trim().length > 80);
+    if (
+      sudahTerisi.length > 0 &&
+      !window.confirm(
+        `${sudahTerisi.length} bagian contoh akan menimpa draf yang sudah terisi di proyek ini. Lanjutkan memuat contoh draf Bab I?`,
+      )
+    ) {
+      return;
+    }
+    const drafBaru = { ...p.draf };
+    for (const id of idTarget) drafBaru[id] = DRAF_DEMO_BAB1[id];
+    const sumberBaru = SUMBER_DEMO_BAB1.filter(
+      (b) =>
+        !p.sumber.some(
+          (s) => s.id === b.id || normalisasiJudul(s.judul) === normalisasiJudul(b.judul),
+        ),
+    );
+    ubah({ draf: drafBaru, sumber: [...p.sumber, ...sumberBaru] });
+    if (idTarget.includes(bagian)) {
+      setTeks(drafBaru[bagian] ?? "");
+      sinkron.current = drafBaru[bagian] ?? "";
+    }
+    const total = idTarget.reduce((n, id) => n + kataDemo(DRAF_DEMO_BAB1[id]), 0);
+    setPesanDemo(
+      `Contoh draf Bab I dimuat: ${idTarget.length} bagian terisi ${total.toLocaleString("id-ID")} kata, ` +
+        `${sumberBaru.length} rujukan contoh ditambahkan dan footnote terpasang di bagian Latar Belakang, Penelitian Terdahulu, dan Metode. ` +
+        `Ini contoh bertopik Ta'lim al-Muta'allim — sunting dan ganti menjadi tulisan Anda sendiri.`,
+    );
+  }
+
   function sisipkan(jawaban: string) {
     const gabung = `${teks.trim()}\n\n${jawaban.trim()}`;
     setTeks(gabung);
@@ -636,6 +680,46 @@ export function TulisTab({
             <button type="button" onClick={() => setCariRujukan(true)} className="btn-quiet">
               <IconSearch className="h-3.5 w-3.5" /> Cari Rujukan
             </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuFootnote((v) => !v)}
+                disabled={p.sumber.length === 0}
+                title={
+                  p.sumber.length === 0
+                    ? "Belum ada rujukan tersimpan di proyek ini — tambahkan dulu lewat tab Rujukan atau tombol Muat contoh draf Bab I"
+                    : "Sisipkan footnote dari rujukan tersimpan ke posisi yang Anda pilih di draf"
+                }
+                className="btn-quiet disabled:opacity-40"
+              >
+                <IconPen className="h-3.5 w-3.5" /> + Footnote dari Rujukan
+              </button>
+              {menuFootnote && p.sumber.length > 0 && (
+                <div className="absolute right-0 z-30 mt-1 max-h-72 w-80 overflow-y-auto rounded-xl border border-ink-900/15 bg-white p-1.5 shadow-xl doc-scroll">
+                  <p className="px-2 pb-1 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-ink-500">
+                    Pilih rujukan — dialog pasang footnote terbuka
+                  </p>
+                  {p.sumber.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setMenuFootnote(false);
+                        setPasangTarget({ sumber: s });
+                      }}
+                      className="block w-full rounded-lg px-2 py-1.5 text-left transition hover:bg-ink-900/5"
+                    >
+                      <span className="block truncate font-arabic text-[13px] text-ink-900" dir="rtl">
+                        {s.judul}
+                      </span>
+                      <span className="block truncate text-[11px] text-ink-500">
+                        {s.penulis} · {s.tahun}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button type="button" onClick={susunUlang} className="btn-quiet">
               <IconSparkle className="h-3.5 w-3.5" /> Variasi
             </button>
@@ -663,6 +747,27 @@ export function TulisTab({
             </button>
           </div>
         </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-gold-600/30 bg-gold-500/5 px-3 py-2.5">
+          <p className="min-w-0 flex-1 text-[12px] leading-relaxed text-ink-700">
+            <span className="font-semibold text-ink-900">Butuh contoh naskah utuh?</span>{" "}
+            Muat contoh draf Bab I lengkap (±4.500 kata: latar belakang ±2 halaman, rumusan,
+            tujuan, manfaat, batasan, definisi istilah, kajian terdahulu, dan metodologi)
+            dengan footnote yang sudah terpasang, lalu sunting menjadi tulisan Anda sendiri.
+          </p>
+          <button
+            type="button"
+            onClick={muatContohBab1}
+            className="btn-quiet shrink-0 !border-gold-600/40 font-semibold"
+          >
+            <IconSparkle className="h-3.5 w-3.5" /> Muat contoh draf Bab I
+          </button>
+        </div>
+        {pesanDemo && (
+          <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-[12px] leading-relaxed text-emerald-900">
+            {pesanDemo}
+          </p>
+        )}
 
         <p className="mt-3 rounded-xl bg-parchment-100/80 px-3 py-2 text-[12px] leading-relaxed text-ink-700">
           <span className="font-semibold text-ink-900">Panduan: </span>

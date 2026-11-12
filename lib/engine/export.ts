@@ -123,8 +123,13 @@ export interface OpsiDokumen {
   ukuranFootnote: number;
   /** Kelipatan spasi (1, 1.5, 2). */
   spasi: number;
-  /** Margin halaman dalam cm. */
+  /** Margin halaman dalam cm (cadangan bila margin per sisi kosong). */
   marginCm: number;
+  /** Margin per sisi dalam cm; mengalahkan marginCm bila terisi. */
+  marginKananCm?: number;
+  marginKiriCm?: number;
+  marginAtasCm?: number;
+  marginBawahCm?: number;
   /**
    * Penomoran footnote mulai dari 1 pada setiap bab (mode per-bab
    * As'adiyah, Tahap 6): dokumen dipecah menjadi seksi Word per bab
@@ -141,9 +146,15 @@ export interface OpsiDokumen {
 export const DOK_DEFAULT: OpsiDokumen = {
   font: "Traditional Arabic",
   ukuranNaskah: 16,
-  ukuranFootnote: 14,
+  ukuranFootnote: 12,
   spasi: 1.5,
   marginCm: 2.5,
+  // Standar risalah kampus keislaman (bawaan bila proyek belum punya
+  // pedoman kampus sendiri): kanan 4 cm, kiri/atas/bawah 3 cm.
+  marginKananCm: 4,
+  marginKiriCm: 3,
+  marginAtasCm: 3,
+  marginBawahCm: 3,
 };
 
 let DOK: OpsiDokumen = { ...DOK_DEFAULT };
@@ -289,10 +300,10 @@ function tabelWord(baris: string[][]): string {
  *  seksi akhir dokumen, ditambah penomoran footnote yang mulai dari
  *  1 pada tiap seksi (untuk mode per-bab). */
 function isiSectPr(): string {
-  const margin = Math.round(DOK.marginCm * 567);
+  const cm = (v?: number) => Math.round((v ?? DOK.marginCm) * 567);
   return `${
     DOK.footnotePerBab ? '<w:footnotePr><w:numRestart w:val="eachSection"/></w:footnotePr>' : ""
-  }<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="${margin}" w:right="${margin}" w:bottom="${margin}" w:left="${margin}" w:header="709" w:footer="709" w:gutter="0"/><w:bidi/><w:docGrid w:linePitch="360"/>`;
+  }<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="${cm(DOK.marginAtasCm)}" w:right="${cm(DOK.marginKananCm)}" w:bottom="${cm(DOK.marginBawahCm)}" w:left="${cm(DOK.marginKiriCm)}" w:header="709" w:footer="709" w:gutter="0"/><w:bidi/><w:docGrid w:linePitch="360"/>`;
 }
 
 function dokumenDanCatatan(md: string): { body: string; footnotes: string } {
@@ -427,7 +438,7 @@ function footnotesXml(berurutan: DefinisiBerurutan[]): string {
   const isi = berurutan
     .map((d, i) => {
       const teks = d.teks;
-      return `<w:footnote w:id="${i + 1}"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:bidi/><w:jc w:val="both"/><w:spacing w:after="0" w:line="${barisSpasi()}" w:lineRule="auto"/><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr></w:pPr><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/><w:vertAlign w:val="superscript"/><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:footnoteRef/></w:r><w:r><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>${runsFootnote(teks, ukuran)}</w:p></w:footnote>`;
+      return `<w:footnote w:id="${i + 1}"><w:p><w:pPr><w:pStyle w:val="FootnoteText"/><w:bidi/><w:jc w:val="both"/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr></w:pPr><w:r><w:rPr><w:rStyle w:val="FootnoteReference"/><w:vertAlign w:val="superscript"/><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:footnoteRef/></w:r><w:r><w:rPr><w:sz w:val="${ukuran}"/><w:szCs w:val="${ukuran}"/></w:rPr><w:t xml:space="preserve"> </w:t></w:r>${runsFootnote(teks, ukuran)}</w:p></w:footnote>`;
     })
     .join("");
 
