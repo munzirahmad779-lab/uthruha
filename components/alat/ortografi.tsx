@@ -15,6 +15,7 @@ const LEVEL: Record<string, string> = {
 
 export function AlatOrtografi() {
   const [teks, setTeks] = useState("");
+  const [catatanPerbaiki, setCatatanPerbaiki] = useState("");
   const laporan = useMemo(() => periksaOrtografi(teks), [teks]);
   const kritis = laporan.temuan.filter((t) => t.tingkat === "kritis").length;
 
@@ -44,7 +45,22 @@ export function AlatOrtografi() {
           </button>
           <button
             type="button"
-            onClick={() => setTeks((t) => perbaikiOtomatis(t))}
+            onClick={() => {
+              // Umpan balik wajib: dulu klik ini bisa diam saja bila
+              // tidak ada perbaikan aman yang bisa diterapkan, dan
+              // pengguna mengira tombolnya rusak.
+              const hasil = perbaikiOtomatis(teks);
+              if (hasil === teks) {
+                setCatatanPerbaiki(
+                  laporan.temuan.length > 0
+                    ? "Tidak ada perbaikan yang aman untuk diterapkan otomatis. Temuan yang tersisa bersifat saran (mis. ة/ه yang bergantung konteks) — perbaiki manual dari daftar temuan."
+                    : "Teks sudah bersih menurut pola yang dicakup alat ini; tidak ada yang perlu diperbaiki.",
+                );
+              } else {
+                setTeks(hasil);
+                setCatatanPerbaiki("Perbaikan otomatis yang aman sudah diterapkan pada teks.");
+              }
+            }}
             disabled={!teks.trim()}
             className="btn-gold !py-2 !text-[12px]"
           >
@@ -52,13 +68,21 @@ export function AlatOrtografi() {
           </button>
         </div>
       </div>
+      {catatanPerbaiki && (
+        <p className="mt-3 rounded-lg bg-gold-100/60 px-3 py-2 text-[12px] leading-relaxed text-ink-800">
+          {catatanPerbaiki}
+        </p>
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.15fr_1fr]">
         <div>
           <textarea
             dir="rtl"
             value={teks}
-            onChange={(e) => setTeks(e.target.value)}
+            onChange={(e) => {
+              setTeks(e.target.value);
+              setCatatanPerbaiki("");
+            }}
             placeholder="ألصق فقرة من بحثك هنا…"
             className="doc-scroll min-h-64 w-full rounded-xl border border-ink-900/15 bg-white p-4 text-right font-naskh text-[15.5px] leading-[2.05] text-ink-900 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20"
           />

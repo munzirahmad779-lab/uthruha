@@ -301,7 +301,7 @@ export default function PanduanPage() {
               ))}
             </ul>
             <Link href="/proyek" className="btn-quiet mt-3 !px-0">
-              Kelola di kamus istilah <IconArrowRight className="h-3.5 w-3.5" />
+              Kelola di ruang kerja proyek <IconArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>

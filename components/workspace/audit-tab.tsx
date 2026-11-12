@@ -26,6 +26,7 @@ export function AuditTab({
 }) {
   const [lingkup, setLingkup] = useState<"bagian" | "semua">("bagian");
   const [filter, setFilter] = useState<"semua" | "kritis" | "saran" | "info">("semua");
+  const [catatanPerbaiki, setCatatanPerbaiki] = useState("");
 
   const st = strukturProyek(p);
   const semuaBagian = st.chapters.flatMap((c) => c.sections);
@@ -47,12 +48,35 @@ export function AuditTab({
   const kosong = semuaBagian.filter((s) => (p.draf[s.id] ?? "").trim().length <= 80);
 
   function perbaiki() {
+    // Umpan balik wajib: dulu klik ini bisa diam saja bila tidak ada
+    // perbaikan aman yang bisa diterapkan, dan pengguna mengira
+    // tombolnya rusak.
     if (lingkup === "bagian") {
-      ubah({ draf: { ...p.draf, [bagian]: perbaikiOtomatis(p.draf[bagian] ?? "") } });
+      const asal = p.draf[bagian] ?? "";
+      const hasil = perbaikiOtomatis(asal);
+      if (hasil === asal) {
+        setCatatanPerbaiki(
+          "Tidak ada perbaikan yang aman untuk diterapkan otomatis pada bagian ini. Temuan yang tersisa bersifat saran — perbaiki manual dari daftar temuan.",
+        );
+        return;
+      }
+      ubah({ draf: { ...p.draf, [bagian]: hasil } });
+      setCatatanPerbaiki("Perbaikan otomatis yang aman sudah diterapkan pada bagian ini.");
     } else {
       const next: Record<string, string> = {};
-      for (const [k, v] of Object.entries(p.draf)) next[k] = perbaikiOtomatis(v);
+      let berubah = false;
+      for (const [k, v] of Object.entries(p.draf)) {
+        next[k] = perbaikiOtomatis(v);
+        if (next[k] !== v) berubah = true;
+      }
+      if (!berubah) {
+        setCatatanPerbaiki(
+          "Tidak ada perbaikan yang aman untuk diterapkan otomatis pada seluruh naskah. Temuan yang tersisa bersifat saran — perbaiki manual dari daftar temuan.",
+        );
+        return;
+      }
       ubah({ draf: next });
+      setCatatanPerbaiki("Perbaikan otomatis yang aman sudah diterapkan pada seluruh naskah.");
     }
   }
 
@@ -86,6 +110,11 @@ export function AuditTab({
           </button>
         </div>
       </div>
+      {catatanPerbaiki && (
+        <p className="rounded-lg bg-gold-100/60 px-3 py-2 text-[12px] leading-relaxed text-ink-800">
+          {catatanPerbaiki}
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Kata" nilai={laporan.statistik.kata.toLocaleString("id-ID")} />

@@ -176,7 +176,7 @@ export function PremiumPanel() {
               </p>
             ) : (
               <button onClick={() => void bayar()} disabled={proses || !status?.pengguna} className="btn-primary disabled:opacity-60">
-                {proses ? "Memproses…" : status?.pengguna ? "Bayar dengan QRIS / e-wallet" : "Masuk dulu untuk membayar"}
+                {proses ? "Memproses…" : status?.pengguna ? "Bayar dengan QRIS / e-wallet" : "Masuk dengan Google dulu untuk membayar"}
               </button>
             )}
           </div>
