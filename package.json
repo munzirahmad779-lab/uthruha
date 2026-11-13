@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "smoke": "tsx scripts/smoke.ts",
     "check:ui": "node scripts/ui-check.mjs",
-    "smoke:qa": "tsx scripts/qa-naskah.ts"
+    "smoke:qa": "tsx scripts/qa-naskah.ts",
+    "cf:build": "opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion",
+    "cf:preview": "npm run cf:build && wrangler dev",
+    "cf:deploy": "npm run cf:build && wrangler deploy"
   },
   "dependencies": {
     "next": "15.5.28",
