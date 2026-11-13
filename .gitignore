@@ -42,3 +42,6 @@ npm-debug.log*
 .vercel
 .data/
 backup-fase3-*/
+.dev.vars
+.open-next/
+.wrangler/

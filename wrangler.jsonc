@@ -1,0 +1,16 @@
+{
+  // Kitabah di Cloudflare Workers (lewat OpenNext).
+  // Akun tujuan diisi saat deploy: jalankan lewat pembungkus konektor
+  // custom.cloudflare (wrangler-official.py) atau wrangler login akun Kitabah.
+  "name": "kitabah",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
