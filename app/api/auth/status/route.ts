@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { penggunaDariCookie, tierEfektif } from "@/lib/server/identitas";
+import { apakahAdmin } from "@/lib/server/admin";
 import { cariAkunUji } from "@/lib/server/persona";
 import {
   gerbangGratisAktif,
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
       tier,
       premiumSampai: pengguna.premiumSampai,
       kunciGratisTerverifikasi,
-      bisaMasukTanpaKunci: googleAktif && (tier === "premium" || kunciGratisTerverifikasi),
+      bisaMasukTanpaKunci: googleAktif && (tier === "premium" || kunciGratisTerverifikasi || apakahAdmin(pengguna)),
       loginGoogleAktif: googleAktif,
       ...(defUji
         ? { judulProyekUji: defUji.judulProyek, bidangProyekUji: defUji.bidangId }

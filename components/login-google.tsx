@@ -71,7 +71,11 @@ export function LoginGoogle({ ringkas = false }: { ringkas?: boolean }) {
           };
         }).google;
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-        if (!g || !clientId || !wadah.current) return;
+        if (!g || !wadah.current) return;
+        if (!clientId) {
+          setGalat("Konfigurasi masuk Google belum lengkap di server.");
+          return;
+        }
         g.accounts.id.initialize({
           client_id: clientId,
           callback: async (resp: { credential?: string }) => {
@@ -105,7 +109,14 @@ export function LoginGoogle({ ringkas = false }: { ringkas?: boolean }) {
           shape: "pill",
         });
       })
-      .catch(() => undefined);
+      .catch((e: unknown) => {
+        if (batal) return;
+        setGalat(
+          e instanceof Error
+            ? e.message
+            : "Tombol masuk Google gagal dimuat. Periksa koneksi lalu muat ulang halaman.",
+        );
+      });
     return () => {
       batal = true;
     };

@@ -102,7 +102,11 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
           };
         }).google;
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
-        if (!g || !clientId || !wadahGoogle.current) return;
+        if (!g || !wadahGoogle.current) return;
+        if (!clientId) {
+          setPesan("Konfigurasi masuk Google belum lengkap di server. Hubungi pengelola layanan.");
+          return;
+        }
         g.accounts.id.initialize({
           client_id: clientId,
           callback: async (resp: { credential?: string }) => {
@@ -136,7 +140,17 @@ export function MasukForm({ googleAktif }: { googleAktif: boolean }) {
           shape: "pill",
         });
       })
-      .catch(() => undefined);
+      .catch((e: unknown) => {
+        // Dulu galat GIS ditelan diam-diam: kotak Langkah 1 tampil kosong
+        // tanpa tombol dan tanpa penjelasan, pemilik mengira situs rusak.
+        // Sekarang kegagalan memuat tombol Google ditampilkan apa adanya.
+        if (batal) return;
+        setPesan(
+          e instanceof Error
+            ? e.message
+            : "Tombol masuk Google gagal dimuat. Periksa koneksi internet lalu muat ulang halaman.",
+        );
+      });
     return () => {
       batal = true;
     };

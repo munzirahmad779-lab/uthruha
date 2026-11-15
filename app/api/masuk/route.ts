@@ -16,6 +16,7 @@ import {
 } from "@/lib/security/akses";
 import { asalSah, balasanLaju, bolehLaju, ipKlien } from "@/lib/security/laju";
 import { penggunaDariCookie, tierEfektif } from "@/lib/server/identitas";
+import { apakahAdmin } from "@/lib/server/admin";
 import { statusKunciPribadi } from "@/lib/server/kunci-pribadi";
 import { aktifkanPremiumDariKunci } from "@/lib/server/lapis";
 import { catatDanBeritahuLogin } from "@/lib/server/notif-login";
@@ -86,6 +87,7 @@ async function tolakBilaMahasiswaTanpaKunci(
 /**
  * Mode identitas: pulihkan sesi gerbang TANPA mengetik kunci, hanya untuk
  * identitas Google yang sudah membuktikan haknya —
+ *  - akun pemilik layanan (admin menurut daftar email admin), atau
  *  - premium masih aktif (menempel di identitas; selamat dari rotasi
  *    UTH_ACCESS_KEY karena tersimpan di store, bukan di nilai env), atau
  *  - sidik kunci gratis tersimpan cocok dengan UTH_KUNCI_GRATIS saat ini.
@@ -101,7 +103,12 @@ async function masukViaIdentitas(req: Request, ingat: boolean, perangkatId: unkn
   }
 
   let jenis: JenisKunci | null = null;
-  if (tierEfektif(pengguna) === "premium") {
+  if (apakahAdmin(pengguna)) {
+    // Pemilik layanan: identitas Google pemilik SUDAH merupakan bukti
+    // haknya — jangan paksa mengetik kunci akses lagi di perangkat baru
+    // (panel admin menuntut identitas ini juga; kunci tidak menambah bukti).
+    jenis = "premium";
+  } else if (tierEfektif(pengguna) === "premium") {
     jenis = "premium";
   } else {
     const sidikAktif = sidikKunciGratisAktif();
