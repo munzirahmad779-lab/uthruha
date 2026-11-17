@@ -175,6 +175,15 @@ function penyediaSemua(): PenyediaKolam[] {
       panggil: (k, m, s, u, t, j) => panggilOpenAI("https://api.deepseek.com/v1", k, m, s, u, t, j),
     },
     {
+      // Slot NVIDIA: DISIAPKAN KOSONG, tidak akan terpilih sampai pemilik
+      // mengisi NVIDIA_API_KEY.
+      id: "nvidia",
+      model: process.env.NVIDIA_MODEL?.trim() || "meta/llama-3.3-70b-instruct",
+      kunci: daftarKunci("NVIDIA_API_KEYS", "NVIDIA_API_KEY"),
+      kunciPremium: daftarKunci("NVIDIA_API_KEYS_PREMIUM"),
+      panggil: (k, m, s, u, t, j) => panggilOpenAI("https://integrate.api.nvidia.com/v1", k, m, s, u, t, j),
+    },
+    {
       // Slot Meta Model API: DISIAPKAN KOSONG atas perintah pemilik
       // (menunggu kunci resmi akun pemilik sendiri dari obrolan lain).
       id: "meta",
